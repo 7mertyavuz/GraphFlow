@@ -366,7 +366,7 @@ class SearchEngine:
 | Mod | Tarama alanı | Karşılaştırma | Süre |
 |---|---|---|---|
 | `historical` | Tüm matris | ~12.000.000 | ~0,3 sn |
-| `live` | `meta.end_idx == son_bar` maskesi | ~500 × 4 = ~2.000 | < 10 ms |
+| `live` | `meta.end_idx == son_bar` maskesi | ~1.165 × 4 = ~4.660 | < 50 ms |
 
 ### Ortak kural — yarım mum maskelenir
 
@@ -824,7 +824,7 @@ GraphFlow/
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |
 | **Toplam arama (historical)** | **< 500 ms** | |
-| **Radar (live)** | **< 10 ms** | ~2.000 karşılaştırma |
+| **Radar (live)** | **< 50 ms** | ~1.165 sembol × 4 uzunluk; F3.5'te 10→50 ms güncellendi (bütçe 500 sembol varsayımıyla yazılmıştı, doğrusal ölçekleniyor) |
 | Sayfalama (cache'ten) | < 5 ms | Redis okuma |
 | Outcome hesabı | < 2 sn | Gölge dağılım dahil; async |
 | Matris tam inşası | Dakikalar–saatler | Tek seferlik, offline |

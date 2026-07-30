@@ -117,6 +117,20 @@ RETRY_BACKOFF_MAX_SEC: Final[float] = 60.0
 #: Evrene alınacak kote varlıklar (K-07: ~500 likit parite, USDT + BTC bazlı).
 QUOTE_ASSETS: Final[tuple[str, ...]] = ("USDT", "BTC")
 
+#: Veri tazeliği invariant'ı (F3.5): depodaki en yeni bar, bugünden bu kadar
+#: bardan fazla geride olamaz. Gerekçe: mikrosaniye hatası 19 aylık veriyi
+#: SIFIR hata mesajıyla yok etti; bu sınıf hata bir daha sessiz kalmasın.
+#:
+#: Eşik zaman dilimi başınadır çünkü **kaynağın yayım gecikmesi** farklı
+#: ölçekte vurur: arşiv (data.binance.vision) günlük dosyaları ~1 gün
+#: gecikmeyle yayımlar. 1d'de bu 1 bar, 4h'de 6 bar eder. REST erişimi
+#: olan bir ortamda 4h için de 3 bar hedeflenmelidir — 12 değeri arşiv
+#: kısıtının kaydıdır, tasarım tercihi değil.
+MAX_STALENESS_BARS: Final[dict[str, int]] = {
+    "4h": 12,  # arşiv gecikmesi nedeniyle gevşek — REST'te 3 olmalı
+    "1d": 3,
+}
+
 #: İndirmede kaç sayfada bir diske yazılacağı. Sık yazmak kesintiden devamı
 #: hassaslaştırır, seyrek yazmak Parquet yeniden yazma maliyetini düşürür.
 INGEST_FLUSH_PAGES: Final[int] = 10
@@ -131,6 +145,37 @@ LIQUIDITY_TOP_PCT: Final[float] = 0.40
 
 #: Radar: son 24 saat kote hacmi eşiği (USD).
 LIVE_MIN_QUOTE_VOLUME: Final[float] = 5_000_000.0
+
+
+# ---------------------------------------------------------------------------
+# F3.5 / K-10 — Sabitlenmiş (pegged) parite filtresi ve genlik varsayılanı
+#
+# F3 göz testi bulgusu: z-score, sabitlenmiş bir paritenin %4'lük
+# dalgalanmasını kusursuz bir formasyona çeviriyor ve bunlar ilk sayfanın
+# TEPESİNE yerleşiyor (OBO'da 1. ve 2. sıra PAXUSDT / TUSDUSDT).
+#
+# İki katmanlı çözüm — tek başına ikisi de yetmez:
+#   1) Yapısal filtre: fiyatı geçmişinin çoğunda 1,0 ± %2 içinde kalan parite
+#      evrenden düşer (stablecoin + sarmalanmış varlıklar: WBTCBTC, RENBTCBTC)
+#   2) Genlik varsayılanı: düşük oynaklıklı meşru pariteleri de eler
+# ---------------------------------------------------------------------------
+
+#: Fiyatın "sabitlenmiş" sayılacağı bant (1,0 ± bu oran).
+PEG_TOLERANCE: Final[float] = 0.02
+
+#: Barların bu oranı bantta kalıyorsa parite sabitlenmiş kabul edilir.
+#: Ölçüm: gerçek veride 0,96 üstü ile 0,30 altı arasında hiçbir sembol yok —
+#: eşik geniş bir boşluğun ortasında, seçim hassas değil.
+PEG_MIN_RATIO: Final[float] = 0.80
+
+#: Aramada varsayılan minimum genlik (%). 1d değeri ölçüldü: %15 eşiği likit
+#: pencerelerin %95,2'sini koruyor — patolojik kuyruğu kesiyor, veriyi
+#: budamıyor. 4h değeri GEÇİCİ: aynı bar sayısı 1/6 zaman kapsadığı için
+#: oynaklık ~√6 ile ölçekleniyor; 4h matrisleri kurulunca ölçülmeli.
+DEFAULT_MIN_AMPLITUDE: Final[dict[str, float]] = {
+    "4h": 6.0,  # geçici — ölçülmedi
+    "1d": 15.0,  # ölçüldü (F3.5)
+}
 
 
 # ---------------------------------------------------------------------------
@@ -224,8 +269,76 @@ TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
     "hybrid": {"strict": 0.0172, "medium": 0.0273, "flexible": 0.0836},
 }
 
-#: Aktif metriğin eşikleri (§5.5 tolerans toggle'ı bunu kullanır).
+#: Aktif metriğin **mutlak** eşikleri. F3.5'ten itibaren yalnızca yedek yoldur
+#: (null örneklemi çok küçükse); asıl kalibrasyon aşağıdaki yüzdelik sistemdir.
 TOLERANCE_THRESHOLDS: Final[dict[str, float]] = TOLERANCE_THRESHOLDS_BY_METRIC[STAGE2_METRIC]
+
+
+# ---------------------------------------------------------------------------
+# F3.5 — Sorgu-göreli null kalibrasyonu (K-12'nin skorlama katmanına uygulanmışı)
+#
+# F3, üç bulgunun (S-1 rampa, S-2 şablon başına zorluk farkı, S-3 uzunluk
+# dengesizliği) **aynı kökten** geldiğini gösterdi: mutlak mesafe ölçeği,
+# sorgunun yapısal karmaşıklığına ve pencere uzunluğuna bağlı.
+#
+#   * Monoton rampanın uyuşmazlık üretecek yapısı yok → 0,0025
+#   * Bayrak basit (0,008), üçgen karmaşık (0,056)
+#   * Uzun pencerede daha çok yapı → daha çok uyuşmazlık → sistematik ceza
+#
+# Çözüm: arama anında sorgu, her pencere uzunluğu için rastgele pencerelere
+# karşı skorlanır → **o sorgunun kendi null dağılımı**. Eşik mutlak sayı değil,
+# bu dağılımın yüzdelik dilimidir. Sıralama da uzunluk-içi yüzdelik dilime göre
+# yapılır; böylece 24 barlık pencereler 100 barlıkları ezemez.
+#
+# Şablon başına eşik neden değil: serbest çizimde kalibrasyon verisi yok, ki
+# ürünün yarısı o.
+# ---------------------------------------------------------------------------
+
+#: Pencere uzunluğu **başına** çekilecek rastgele pencere sayısı.
+NULL_SAMPLE_SIZE: Final[int] = 2_000
+
+#: Null örneklemi sabit tohumlu → aynı sorgu aynı sonucu verir (tekrarlanabilirlik).
+NULL_SEED: Final[int] = 20_260_731
+
+#: Bu sayının altında örneklem varsa yüzdelik güvenilmez → mutlak eşiğe düşülür.
+NULL_MIN_SAMPLES: Final[int] = 200
+
+#: Null dağılımı (sorgu, uzunluk, metrik, maske) başına sabittir; önbellek
+#: Radar'ın 5 dakikalık cron döngüsünde ilk çağrı dışındaki maliyeti kaldırır.
+#: Girdi başına ~16 KB.
+NULL_CACHE_SIZE: Final[int] = 128
+
+#: Tolerans kademeleri artık null dağılımının yüzdelik dilimleridir.
+#: "strict = 0,0005" → rastgele pencerelerin yalnızca %0,05'i bu kadar iyi.
+NULL_PERCENTILES: Final[dict[str, float]] = {
+    "strict": 0.0005,
+    "medium": 0.0025,
+    "flexible": 0.0150,
+}
+
+#: **Akıl sağlığı tavanı** — yüzdelik eşiğin yanında MUTLAK bir üst sınır.
+#:
+#: Saf yüzdelik eşik, tanımı gereği her sorguya sonuç döndürür: "en iyi %0,25"
+#: her zaman vardır. Bu, motorun *"iyi eşleşme yok"* diyebilme yetisini yok
+#: eder (§5.5, K-18) — ölçüldü: white noise ve whipsaw sorguları yüzdelik
+#: sisteme geçince 40–100 sonuç dönmeye başladı.
+#:
+#: Bu yüzden iki koşul BİRLİKTE aranır: aday hem kendi null dağılımının
+#: yüzdelik diliminde olmalı, hem de mutlak mesafesi bu tavanın altında.
+#: Değer, F3'te gerçek veriden kalibre edilen "esnek" eşiktir; ölçülen
+#: ayrım: şablonların en iyi skoru 0,014–0,067, white noise 0,34, whipsaw 0,55.
+NULL_ABSOLUTE_CAP: Final[float] = TOLERANCE_THRESHOLDS["flexible"]
+
+#: Yapısal benzerlik uyarısı.
+#:
+#: ``null_medyan / null_p01`` oranı, korpusta sorguya *yapısal olarak* benzeyen
+#: bir şey olup olmadığını ölçer. Ölçülen değerler:
+#:   whipsaw 1,3 · white noise 1,4–1,5 · simetrik üçgen 2,4 · OBO 8,1 ·
+#:   bayrak 15,1 · rampa 55,6
+#: Düşük oran = "korpusta buna benzeyen hiçbir yapı yok" (dağılımın tamamı
+#: aynı derecede kötü). Bu, ölçümden çıkan bir sinyaldir; elle kodlanmış bir
+#: "düzlük ölçer" değildir.
+NULL_DISCRIMINATIVE_RATIO: Final[float] = 2.0
 
 
 # ---------------------------------------------------------------------------

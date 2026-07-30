@@ -105,14 +105,23 @@ def rounding_bottom(n: int = 32, power: float = 2.0, center: float = 0.5) -> np.
 def cup_and_handle(
     n: int = 32,
     cup_frac: float = 0.75,
-    handle_depth: float = 0.30,
+    handle_depth: float = 0.60,
     handle_rise: float = 0.25,
     cup_power: float = 2.0,
 ) -> np.ndarray:
-    """Fincan-kulp — çanak + sığ geri çekilme ve kırılım.
+    """Fincan-kulp — çanak + geri çekilme ve kırılım.
 
     ``cup_frac`` kulbun uzunluğunu, ``handle_depth`` derinliğini değiştirir;
     gerçek örnekler arasında en çok değişen iki serbestlik derecesi bunlar.
+
+    **F3.5 ölçümü — kulp derinliği neden 0,30'dan 0,60'a çıkarıldı:**
+    Göz testinde fincan sonuçlarının çoğu kulpsuz saf U çıkıyordu. Ölçüm:
+    ilk 12 sonuçta kulp taşıyan pencere sayısı derinliğe göre
+    0,30 → 4/12 · 0,45 → 5/12 · **0,60 → 9/12** · 0,80 → 12/12.
+    Sığ kulp 32 noktada gerçek gürültünün altında kalıyor, çözülemiyor.
+    0,80 daha da iyi ama artık "ders kitabı kulbu" değil; 0,60 dengedir.
+    Komşu şablonlara çarpmıyor: çanak ve ikili dip mesafeleri derinlikle
+    ARTIYOR (çanak 0,0188 → 0,0405), sonuç kümesi örtüşmesi zaten ~%1.
     """
     t = _grid(n)
     y = np.empty_like(t)

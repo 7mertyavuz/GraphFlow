@@ -115,7 +115,7 @@ def test_top_k_empty_mask_returns_nothing():
 def _cands(rows) -> np.ndarray:
     out = np.empty(len(rows), dtype=CANDIDATE_DTYPE)
     for i, (sid, s, e, score) in enumerate(rows):
-        out[i] = (sid, s, e, 0, 0.0, 0.0, e - s + 1, i, score, -score)
+        out[i] = (sid, s, e, 0, 0.0, 0.0, e - s + 1, i, score, -score, -score)
     return out
 
 
@@ -391,7 +391,16 @@ def test_inverse_template_is_mirror():
 
 @pytest.fixture(scope="module")
 def obo_dataset(tmp_path_factory):
-    """20 sembole birer OBO enjekte edilir; 10 sembol çeldirici formasyon taşır."""
+    """20 sembole birer OBO enjekte edilir; 40 sembol çeldirici formasyon taşır.
+
+    Çeldirici sayısı bilinçli olarak yüksek: F3.5'ten sonra eşik, sorgunun
+    **null dağılımındaki yüzdelik dilimidir**. Null, aranabilir popülasyondan
+    örneklendiği için pozitifler de içine düşer; pozitiflerin korpustaki payı
+    büyükse null'ın alt kuyruğunu kendileri şişirir ve eşik yapay olarak
+    sıkışır. Gerçek veride bu pay ~%0,05'tir (1,9M pencerede birkaç yüz olay);
+    test korpusu da o rejime yaklaştırılmalı, yoksa ölçtüğü şey motorun
+    kalitesi değil oyuncak korpusun yoğunluğu olur.
+    """
     root = tmp_path_factory.mktemp("obo")
     rng = np.random.default_rng(2024)
     truth: list = []
@@ -411,7 +420,7 @@ def obo_dataset(tmp_path_factory):
         write_atomic(df, root / "klines" / TF / f"{symbol}.parquet")
         truth.extend(inj)
 
-    for i in range(10):
+    for i in range(40):
         symbol = f"NOI{i:03d}USDT"
         df, _ = make_symbol(
             symbol,
@@ -488,12 +497,17 @@ def test_results_are_deduplicated_by_post_nms(obo_dataset):
                 assert iou_1d(a.start_idx, a.end_idx, b.start_idx, b.end_idx) < POST_NMS_IOU
 
 
-def test_results_sorted_by_normalized_ddtw(obo_dataset):
+def test_results_sorted_by_null_percentile(obo_dataset):
+    """F3.5: sıralama mutlak mesafeye değil, uzunluk-içi yüzdelik dilime göre.
+
+    Mutlak mesafeyle sıralamak 24 barlık pencereleri sistematik olarak öne
+    çıkarıyordu (F3 ölçümü: sonuçların %68'i en kısa pencerede).
+    """
     root, _ = obo_dataset
     engine = SearchEngine(root / "matrix")
     result = engine.search(get_template("cup_and_handle").vector, timeframe=TF, limit=24)
-    distances = [m.distance for m in result.results]
-    assert distances == sorted(distances)
+    percentiles = [m.percentile for m in result.results]
+    assert percentiles == sorted(percentiles)
 
 
 def test_negative_control_flat_line_is_refused_by_pipeline():

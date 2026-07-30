@@ -36,9 +36,17 @@ from typing import Literal, Sequence
 import numpy as np
 
 from engine.config import (
+    DEFAULT_MIN_AMPLITUDE,
     MATRIX_DIR,
     MAX_RESULTS_PER_SYMBOL,
     N_POINTS,
+    NULL_ABSOLUTE_CAP,
+    NULL_CACHE_SIZE,
+    NULL_DISCRIMINATIVE_RATIO,
+    NULL_MIN_SAMPLES,
+    NULL_PERCENTILES,
+    NULL_SAMPLE_SIZE,
+    NULL_SEED,
     PAGE_SIZE,
     POST_NMS_IOU,
     PRE_NMS_IOU,
@@ -71,9 +79,28 @@ CANDIDATE_DTYPE = np.dtype(
         ("length", "i4"),
         ("row", "i8"),
         ("score", "f4"),  # kosinüs (Pearson)
-        ("distance", "f4"),  # normalize DDTW — sıralama metriği
+        ("distance", "f4"),  # ham normalize mesafe (metrik ölçeğinde)
+        ("percentile", "f4"),  # null dağılımındaki yüzdelik — SIRALAMA BUNA GÖRE
     ]
 )
+
+
+@dataclass(frozen=True)
+class NullStats:
+    """Bir (sorgu, pencere uzunluğu) çifti için null dağılım özeti."""
+
+    length: int
+    n: int
+    p001: float
+    p01: float
+    median: float
+    threshold: float
+    used_absolute: bool = False
+
+    @property
+    def spread(self) -> float:
+        """``medyan / p01`` — küçükse rastgele pencereler de sorguya benziyor."""
+        return float(self.median / self.p01) if self.p01 > 0 else float("inf")
 
 
 @dataclass(frozen=True)
@@ -89,6 +116,7 @@ class Match:
     distance: float
     amplitude: float
     atr: float
+    percentile: float = 1.0
 
     def as_dict(self) -> dict:
         return {
@@ -100,6 +128,7 @@ class Match:
             "end_time": self.end_time,
             "score": round(float(self.score), 4),
             "distance": round(float(self.distance), 6),
+            "percentile": float(self.percentile),
             "amplitude": round(float(self.amplitude), 2),
             "atr": float(self.atr),
         }
@@ -116,9 +145,26 @@ class SearchResult:
     metric: str = STAGE2_METRIC  # F3 kalibrasyonunda hangi metrikle üretildiği
     stage1_candidates: int = 0
     stage2_candidates: int = 0
+    null_stats: dict[int, "NullStats"] = field(default_factory=dict)
+    discriminative: bool = True
 
     def __len__(self) -> int:
         return len(self.results)
+
+    @property
+    def warning(self) -> str | None:
+        """Yapısal benzerlik uyarısı — ölçümden çıkar, elle kodlanmaz.
+
+        Null dağılımı dar olduğunda (``medyan / p01`` küçük), korpustaki tüm
+        pencereler sorguya aynı derecede uzaktır: ortada bulunacak bir yapı
+        yoktur. Ölçülen: whipsaw 1,3 · white noise 1,4 · OBO 8,1 · bayrak 15,1.
+        """
+        if self.discriminative:
+            return None
+        return (
+            "Bu çizime yapısal olarak benzeyen bir hareket bulunamadı; "
+            "sonuçlar anlamlı olmayabilir. Daha belirgin bir formasyon deneyin."
+        )
 
 
 class MatrixHandle:
@@ -160,6 +206,26 @@ class MatrixHandle:
             self._live_mask = mask
         return self._live_mask
 
+    def null_rows(
+        self,
+        mask: np.ndarray | None,
+        sample_size: int = NULL_SAMPLE_SIZE,
+        seed: int = NULL_SEED,
+    ) -> np.ndarray:
+        """Null dağılımı için rastgele pencere indeksleri.
+
+        Örneklem **aranabilir popülasyondan** çekilir (likidite/genlik maskesi
+        uygulanmış hâli) — null, "rastgele bir aday" anlamına gelmeli.
+        Tohum sabit: aynı sorgu iki kez çalıştırıldığında aynı eşiği verir.
+        """
+        pool = np.flatnonzero(mask) if mask is not None else np.arange(len(self))
+        if pool.size == 0:
+            return pool
+        if pool.size <= sample_size:
+            return pool
+        rng = np.random.default_rng(seed + self.length)
+        return np.sort(rng.choice(pool, size=sample_size, replace=False))
+
     def base_mask(
         self, mode: Mode, min_amplitude: float | None, require_liquid: bool
     ) -> np.ndarray | None:
@@ -187,6 +253,10 @@ class SearchEngine:
         self.matrix_root = Path(matrix_root or MATRIX_DIR)
         self._handles: dict[tuple[str, int], MatrixHandle] = {}
         self.symbols = self._resolve_symbols(symbols)
+        # Null dağılımı (sorgu, uzunluk, metrik, maske) başına sabittir; Radar
+        # cron'u aynı şablonları 5 dakikada bir çalıştırdığı için önbelleğe
+        # alınması ilk çağrı dışındaki tüm maliyeti kaldırır (§6).
+        self._null_cache: dict[tuple, np.ndarray] = {}
 
     # -- semboller --------------------------------------------------------
 
@@ -232,6 +302,7 @@ class SearchEngine:
         stage2_topk: int = STAGE2_TOPK,
         radius: int = SAKOE_CHIBA_RADIUS,
         metric: str = STAGE2_METRIC,
+        null_sample: int = NULL_SAMPLE_SIZE,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
         # ~4-8x büyüktür (K-11 yeniden açıldı).
@@ -246,6 +317,8 @@ class SearchEngine:
         t0 = time.perf_counter()
         q = prepare_query(query)
         lengths = list(window_lengths)
+        if min_amplitude is None:
+            min_amplitude = DEFAULT_MIN_AMPLITUDE.get(timeframe)
 
         # Aday bütçesi çözünürlükler arasında paylaştırılır; toplam ~5.000
         # kalsın diye (performans bütçesi §15).
@@ -253,11 +326,26 @@ class SearchEngine:
 
         # --- Aşama 1 ------------------------------------------------------
         blocks: list[np.ndarray] = []
+        null_by_length: dict[int, np.ndarray] = {}
         for length in lengths:
             h = self.handle(timeframe, length)
             if len(h) == 0:
                 continue
             mask = h.base_mask(mode, min_amplitude, require_liquid)
+
+            # Null dağılımı, tarama maskesiyle AYNI popülasyondan (F3.5).
+            # Historical modda maske, live modda tüm aranabilir evren kullanılır:
+            # live'da popülasyon zaten "her sembolün son penceresi"dir ve
+            # ondan çekilen null, mutlak ölçeği kalibre etmeye yetmez.
+            null_mask = mask if mode == "historical" else h.base_mask(
+                "historical", min_amplitude, require_liquid
+            )
+            null = self._null_distribution(
+                h, q, null_mask, null_sample, radius, metric, min_amplitude, require_liquid
+            )
+            if null is not None:
+                null_by_length[length] = null
+
             rows, scores = top_k(h.vectors, q, k=per_length, mask=mask)
             if rows.size == 0:
                 continue
@@ -273,6 +361,7 @@ class SearchEngine:
             block["row"] = rows
             block["score"] = scores
             block["distance"] = np.inf
+            block["percentile"] = 1.0
             blocks.append(block)
 
         result = SearchResult(mode=mode, timeframe=timeframe, tolerance=tolerance, metric=metric)
@@ -292,19 +381,37 @@ class SearchEngine:
         vectors = self._gather_vectors(timeframe, candidates)
         candidates["distance"] = stage2_scores(q, vectors, radius, metric)
 
-        # Tolerans eşiği: motor "iyi eşleşme yok" diyebilmeli (§5.5)
-        threshold = thresholds[tolerance]
-        candidates = candidates[candidates["distance"] <= threshold]
+        # --- Null kalibrasyonu (F3.5) -------------------------------------
+        # Eşik ve sıralama, mutlak mesafeye değil, o sorgunun kendi null
+        # dağılımındaki yüzdelik dilime göre — pencere uzunluğu BAŞINA.
+        keep_mask = np.zeros(candidates.size, dtype=bool)
+        for length in np.unique(candidates["length"]):
+            sel = candidates["length"] == length
+            null = null_by_length.get(int(length))
+            stats = self._null_stats(int(length), null, tolerance, thresholds)
+            result.null_stats[int(length)] = stats
+
+            distances = candidates["distance"][sel]
+            if stats.used_absolute:
+                candidates["percentile"][sel] = np.where(distances <= stats.threshold, 0.0, 1.0)
+            else:
+                candidates["percentile"][sel] = np.searchsorted(null, distances, side="left") / null.size
+            keep_mask[sel] = distances <= stats.threshold
+
+        result.discriminative = self._is_discriminative(result.null_stats)
+        candidates = candidates[keep_mask]
         if candidates.size == 0:
             result.elapsed_ms = (time.perf_counter() - t0) * 1000.0
             return result
 
         # --- Post-NMS (katı) ---------------------------------------------
+        # Sıralama yüzdelik dilime göre: 24 barlık pencereler 100 barlıkları
+        # sistematik olarak ezemesin (K-14'ün yol-uzunluğu bölmesi yetmedi).
         keep = nms_1d(
             candidates,
             POST_NMS_IOU,
             max_per_symbol=MAX_RESULTS_PER_SYMBOL,
-            score_field="distance",
+            score_field="percentile",
             higher_is_better=False,
         )
         final = candidates[keep]
@@ -315,6 +422,86 @@ class SearchEngine:
         return result
 
     # -- yardımcılar ------------------------------------------------------
+
+    def _null_distribution(
+        self,
+        handle: MatrixHandle,
+        query: np.ndarray,
+        mask: np.ndarray | None,
+        sample_size: int,
+        radius: int,
+        metric: str,
+        min_amplitude: float | None,
+        require_liquid: bool,
+    ) -> np.ndarray | None:
+        """Sıralı null skor dizisi (önbellekli).
+
+        Anahtar sorguyu da içerir: null, sorguya özgüdür — F3.5'in tüm fikri
+        eşiği *o sorgunun* dağılımından türetmektir.
+        """
+        key = (
+            handle.timeframe,
+            handle.length,
+            metric,
+            radius,
+            sample_size,
+            min_amplitude,
+            require_liquid,
+            query.tobytes(),
+        )
+        cached = self._null_cache.get(key)
+        if cached is not None:
+            return cached
+
+        rows = handle.null_rows(mask, sample_size, NULL_SEED)
+        if rows.size == 0:
+            return None
+
+        null = np.sort(stage2_scores(query, np.asarray(handle.vectors[rows]), radius, metric))
+        if len(self._null_cache) >= NULL_CACHE_SIZE:
+            self._null_cache.pop(next(iter(self._null_cache)))
+        self._null_cache[key] = null
+        return null
+
+    def _null_stats(
+        self,
+        length: int,
+        null: np.ndarray | None,
+        tolerance: str,
+        absolute: dict[str, float],
+    ) -> NullStats:
+        """Null dağılımından eşik türetir; örneklem küçükse mutlak eşiğe düşer."""
+        if null is None or null.size < NULL_MIN_SAMPLES:
+            return NullStats(
+                length=length,
+                n=0 if null is None else int(null.size),
+                p001=float("nan"),
+                p01=float("nan"),
+                median=float("nan"),
+                threshold=absolute[tolerance],
+                used_absolute=True,
+            )
+
+        percentile = NULL_PERCENTILES[tolerance]
+        relative = float(np.quantile(null, percentile))
+        return NullStats(
+            length=length,
+            n=int(null.size),
+            p001=float(np.quantile(null, 0.001)),
+            p01=float(np.quantile(null, 0.01)),
+            median=float(np.median(null)),
+            # İki koşul birlikte: yüzdelik dilim VE mutlak akıl sağlığı tavanı.
+            # Yalnız yüzdelik kalsaydı motor her sorguya sonuç döndürürdü.
+            threshold=min(relative, NULL_ABSOLUTE_CAP),
+        )
+
+    @staticmethod
+    def _is_discriminative(stats: dict[int, NullStats]) -> bool:
+        """Null dağılımı darsa şekil ayırt edici değildir (S-1)."""
+        spreads = [s.spread for s in stats.values() if not s.used_absolute and np.isfinite(s.spread)]
+        if not spreads:
+            return True
+        return float(np.median(spreads)) >= NULL_DISCRIMINATIVE_RATIO
 
     def _gather_vectors(self, timeframe: str, candidates: np.ndarray) -> np.ndarray:
         """Adayların vektörlerini ilgili matrislerden toplar (yalnız o satırlar)."""
@@ -342,4 +529,5 @@ class SearchEngine:
             distance=float(c["distance"]),
             amplitude=float(c["amplitude"]),
             atr=float(c["atr"]),
+            percentile=float(c["percentile"]),
         )

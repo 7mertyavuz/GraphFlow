@@ -41,6 +41,7 @@ from engine.ingest.store import available_symbols, read_klines, write_json_atomi
 from engine.ingest.symbol_universe import load_universe, symbol_id_map
 from engine.matrix.liquidity import LiquidityMask, build_from_klines, month_key, save_table
 from engine.matrix.npy_store import ChunkedNpyWriter
+from engine.matrix.universe_filter import filter_universe
 from engine.normalize.amplitude import amplitude_batch
 from engine.normalize.atr import wilder_atr
 from engine.normalize.pipeline import normalize_batch
@@ -192,6 +193,7 @@ def build_all(
     out_root: Path | None = None,
     use_liquidity: bool = True,
     stride: int = STRIDE,
+    exclude_pegged: bool = True,
 ) -> dict[str, BuildStats]:
     """8 matrisin tamamını inşa eder (2 timeframe × 4 uzunluk)."""
     universe = load_universe()
@@ -203,6 +205,14 @@ def build_all(
         if not tf_symbols:
             log.warning("%s için Parquet verisi yok — atlanıyor", timeframe)
             continue
+
+        # Sabitlenmiş pariteler matrise hiç girmez (F3.5): z-score onların
+        # %2'lik dalgalanmasını kusursuz formasyona çevirip ilk sayfanın
+        # tepesine yerleştiriyordu.
+        if exclude_pegged:
+            tf_symbols, pegged = filter_universe(tf_symbols, timeframe, klines_root)
+            if pegged:
+                log.info("%s: sabitlenmiş %d parite atlandı (%s...)", timeframe, len(pegged), ", ".join(pegged[:3]))
 
         # symbol_id evrende yoksa (ör. sadece test verisi) sıralı id ata.
         for s in tf_symbols:
@@ -246,6 +256,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI
     p.add_argument("--klines-root", default=str(KLINES_DIR))
     p.add_argument("--out-root", default=str(MATRIX_DIR))
     p.add_argument("--no-liquidity", action="store_true")
+    p.add_argument("--keep-pegged", action="store_true", help="sabitlenmiş pariteleri de dahil et")
     p.add_argument("--log-level", default="INFO")
     args = p.parse_args(argv)
 
@@ -257,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI
         klines_root=Path(args.klines_root),
         out_root=Path(args.out_root),
         use_liquidity=not args.no_liquidity,
+        exclude_pegged=not args.keep_pegged,
     )
     for name, s in stats.items():
         print(f"{name}: {s}")

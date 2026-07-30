@@ -259,3 +259,236 @@ KURALLAR
 • Her adımın sonunda commit.
 • Belirsizlik varsa varsayım yapma, sor.
 ```
+
+---
+
+# Oturum 2.5 — F3.5 Prompt'u
+
+F3 kapısı **geçti**. Bu oturum, göz testinde ve S-1…S-5'te çıkan sorunları
+F4'ten önce kapatır — çünkü arama önyargısı doğrudan outcome istatistiklerine
+geçer.
+
+```text
+GraphFlow F3.5. CLAUDE.md yüklendi. F3 kapısı GEÇTİ (göz testi onaylandı).
+
+ÖNCE OKU: docs/03-f3-dogrulama-raporu.md (S-1…S-5), K-10, K-12, K-14, K-11.
+
+Bu oturumun amacı yeni özellik değil, F3'te ölçülen çarpıklıkları kapatmak.
+F4'e GEÇME.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 1 — Skor kalibrasyonu: S-1, S-2 ve S-3 aynı hatanın üç yüzü
+────────────────────────────────────────────────────────────────────────
+KÖK SEBEP: skor ölçeği sorgunun yapısal karmaşıklığına bağlı. Monoton rampa
+uyuşmazlık üretecek yapıya sahip değil → 0.0025 (S-1). Bayrak basit, üçgen
+karmaşık → 0.008'e karşı 0.056 (S-2). Uzun pencerede daha çok yapı, daha çok
+uyuşmazlık → sonuçların %68'i 24 barda (S-3).
+
+ŞABLON BAŞINA EŞİK YAZMA. Serbest çizimde kalibrasyon verisi yok; ürünün
+yarısı orada. Bunun yerine SORGU-GÖRELİ NULL KALİBRASYONU:
+
+  • Arama anında, sorguyu her pencere uzunluğu için ~2000 RASTGELE pencereye
+    karşı skorla → o sorgunun, o uzunluktaki null dağılımı.
+  • Eşik mutlak mesafe değil, bu null'un YÜZDELİK DİLİMİ olsun.
+    Katı/Orta/Esnek = null'un p0.1 / p1 / p5'i gibi (değerleri ölç, uydurma).
+  • Sıralama da uzunluk-içi yüzdelik dilime göre yapılsın; ham mesafeye göre
+    değil. K-14'ün yol-uzunluğuna bölmesi yetmiyor — ölçülmüş kanıt S-3.
+  • Null örneklemi sorgu başına önbelleklenebilir (şablonlar için önceden
+    hesapla; serbest çizimde anlık, ~2000 ek DDTW ≈ 16 ms).
+
+Bu, K-12'nin gölge dağılım fikrinin skorlama katmanına uygulanmasıdır.
+
+S-1'in ürün cevabı buradan TÜRESİN: null dağılımı olağandışı darsa kullanıcıya
+"bu şekil piyasada çok sık görülüyor, sonuçlar ayırt edici olmayabilir" uyarısı
+göster. Elle kodlanmış "düzlük ölçer" YAZMA.
+
+DOĞRULAMA: kalibrasyondan sonra (a) 14 şablonun kaçı orta kademede ilk sayfayı
+dolduruyor (hedef: 14/14), (b) sonuçların pencere uzunluğu dağılımı (hedef:
+%68'lik 24-bar hâkimiyeti belirgin şekilde düzelsin), (c) rampa sorgusu artık
+her kademeyi geçmiyor.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 2 — S-5: sabitlenmiş parite + genlik varsayılanı
+────────────────────────────────────────────────────────────────────────
+config'e eklenmiş PEG_* ve DEFAULT_MIN_AMPLITUDE sabitlerini arama yoluna
+gerçekten bağla ve varsayılan olarak AÇ. İki katman birlikte:
+yapısal peg filtresi (evrenden düşür) + genlik varsayılanı (aramada).
+Doğrulama: OBO ilk sayfasında stablecoin kalmamalı.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 3 — Veri boşlukları: TESPİT ET, DOLDURMA
+────────────────────────────────────────────────────────────────────────
+Binance'te 2017–2019 bakım kesintileri ve işlem durdurmaları nedeniyle eksik
+barlar var.
+
+⛔ FORWARD FILL (ffill) KULLANMA. Uydurulmuş bar:
+   • True Range = 0 üretir → ATR yapay olarak düşer → K-16 bariyerleri
+     daralır → sahte TP/SL çarpmaları. Tüm istatistik katmanını bozar.
+   • Şekle yapay düz plato ekler → uydurma formasyon.
+   • volume = 0 → aylık likidite sıralamasını (K-13) bozar.
+
+✅ BUNUN YERİNE:
+   1. ZAMAN SÜREKLİLİĞİ INVARIANT'ı (asıl çözüm, vektörize ve ucuz):
+      bir pencere ancak
+          end_time - start_time == (L - 1) * TIMEFRAME_MS
+      ise matrise girer. Aksi hâlde pencere DÜŞÜRÜLÜR.
+      Boşluk içeren bir pencere bugün 24 bar sanılıp 40 takvim günü kapsıyor
+      olabilir — asıl yapısal bozulma bu ve bu kontrol onu tamamen kapatır.
+      1,9M pencerede birkaç bin kayıp önemsiz; doğruluk pahalı.
+   2. Boşluk raporu: sembol × yıl bazında eksik bar sayısı ve en uzun boşluk.
+      notebooks/output/ altına tablo + grafik.
+   3. Delist edilmiş paritenin veri SONU boşluk değildir; karıştırma.
+   4. Regresyon testi: kasıtlı boşluklu seri → boşluklu pencereler matriste
+      görünmemeli.
+
+Ayrıca VERİ TAZELİĞİ invariant'ı ekle (mikrosaniye bug'ının tekrarına karşı):
+config.MAX_DATA_STALENESS_DAYS = 4 (hafta sonu payı dahil).
+
+⚠️ KAPSAM TUZAĞI — iki hatayı yapma:
+   • Kontrol SEMBOL BAZINDA OLMAZ. Delist edilmiş paritenin max(close_time)'ı
+     tanımı gereği eskidir; sembol bazlı assert her delist parite için patlar.
+     Doğrusu: (a) evren geneli max(close_time), (b) yalnızca AKTİF semboller
+     için sembol bazlı kontrol.
+   • Assert INGEST pipeline'ını kırsın, arama motorunu DEĞİL. Motor içinde
+     sert assert olursa bayat veri tüm ürünü kullanılamaz hâle getirir;
+     oysa doğru davranış "çalış ama uyar". Motor tarafında yalnızca
+     SearchResult'a `data_as_of` alanı ve bayat ise uyarı bayrağı ekle.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 4 — Zaman ekseni asimetrisi + K-11'in YENİDEN ölçülmesi
+────────────────────────────────────────────────────────────────────────
+K-11 A/B'si DTW'nin VAROLUŞ SEBEBİ test edilmeden karara bağlandı: zaman
+bükülmesi. Bu eksiklik giderilmeli ve A/B yeniden çalıştırılmalı.
+
+DİKKAT — neyin zaten çözüldüğünü karıştırma: her pencere 32 noktaya
+resample edildiği için KÜRESEL süre farkı (10 günlük çanak vs 50 günlük çanak)
+zaten normalize. Test edilmemiş olan İÇ ZAMANLAMA ASİMETRİSİ:
+
+  tools/variants'a ekle:
+   • OBO: sol omuz 5 barda, sağ omuz 15 barda oluşsun (ve tersi)
+   • Çanak: iniş hızlı / çıkış yavaş, ve tersi
+   • İkili tepe: iki zirve arası mesafe daralsın / genişlesin
+   • Baş, pencerenin merkezinden erkene/geçe kaysın
+  Bozulma miktarını parametrik yap (hafif / orta / şiddetli) ve AUC'yi
+  bozulma seviyesine göre kır.
+
+SONRA K-11 A/B'sini (ddtw / dtw / hybrid) bu yeni pozitiflerle TEKRAR çalıştır.
+Kazanan değişirse config varsayılanını ve CLAUDE.md maddesini güncelle,
+K-11'e "İkinci ölçüm (F3.5)" bölümü yaz. Değişmezse de yaz — hybrid kararı
+artık zaman ekseninde de sınanmış olur.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 5 — Negatif kontrole "ters şekil" tuzağı
+────────────────────────────────────────────────────────────────────────
+Mevcut negatifler (düz çizgi, white noise, testere) rastgeleliği eliyor ama
+YÖN hassasiyetini test etmiyor.
+
+Ekle — her biri ayrı bir assert:
+   • Çanak sorgusu, ters çanak (∩) pencerelerini eşleştirmemeli
+   • İkili dip sorgusu, ikili tepeyi eşleştirmemeli
+   • OBO sorgusu, ters OBO'yu eşleştirmemeli
+   • Yükselen takoz ↔ düşen takoz
+
+Beklenti: bu çiftlerin mesafesi, pozitiflerden belirgin şekilde kötü olmalı.
+GEÇMESİ BEKLENİYOR (z-score korelasyonu yönü korur) — ama geçmezse bir yerde
+mutlak değer/kare alınıyor demektir ve bu ölümcül bir hatadır. Ucuz, yüksek
+değerli bir assert.
+Simetrik üçgen gibi kendine-yakın-simetrik şekillerde beklenti düşük; bunu
+test etme, raporla.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 6 — Göz testine blueprint overlay
+────────────────────────────────────────────────────────────────────────
+3×4 grid karolarına İKİ katman bindir:
+   A) Kanonik şablon (z-score, pencerenin fiyat aralığına geri ölçeklenmiş),
+      soluk kesikli çizgi → "aradığın şey"
+   B) DTW hizalama yoluyla BÜKÜLMÜŞ şablon, farklı renk → "motor bunu buna
+      hizaladı"
+
+A ile B'nin birbirinden çok ayrıldığı karolar, eşleşmenin ağır bükülmeyle
+kurulduğunu gösterir; bunlar şüphelidir. Her karo için BÜKÜLME MİKTARI da
+hesapla (hizalama yolunun köşegenden sapması) ve etikete yaz. Şimdilik
+yalnızca ölç ve raporla — filtreye çevirme, kanıt biriksin.
+
+Bu aynı zamanda ürünü anlatırken en güçlü görsel olacak.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 7 — K-04'ün geometrik kural katmanı (çapa tabanlı)
+────────────────────────────────────────────────────────────────────────
+DTW yolları hizalar, hizalanan noktaların SEVİYELERİNİN mantıklı olup
+olmadığını umursamaz. OBO'da yuvarlak tepelerin sızması bundandır.
+
+⚠️ SIRALAMA ŞARTI — bu adımı ADIM 1'DEN SONRA yap ve İKİ ÖLÇÜM AL:
+   (a) yalnızca yüzdelik skorlama sonrası OBO ilk 12'si
+   (b) üstüne geometrik filtre eklendikten sonra
+Yüzdelik skorlama yuvarlak tepeleri zaten eliyorsa filtre gereksizdir ve
+EKLENMEZ. Kural katmanı ancak ölçülmüş bir katkı gösterirse kalır. Bu, bir
+mekanizmayı işe yaradığını kanıtlamadan mimariye sokmamak içindir.
+
+MEKANİZMA — tepe/dip arayan ayrı bir sezgisel YAZMA. Elimizde zaten DTW
+hizalama yolu var: kanonik şablonun i. noktası, pencerenin hangi barına
+hizalandığını biliyoruz. Çapaları bu yoldan oku.
+
+Kuralı ŞABLON META-VERİSİ olarak tanımla, koda gömme (K-04 böyle korunur —
+formasyon başına if-else yazmıyoruz, tek bir genel değerlendirici var):
+
+  {
+    "id": "head_and_shoulders",
+    "points": [...],
+    "constraints": [
+      { "type": "level_match",  "anchors": [8, 22], "max_diff": 0.25,
+        "comment": "boyun çizgisi: iki dip aynı seviyede olmalı" },
+      { "type": "level_order",  "anchors": [5, 16, 27],
+        "order": ["<", ">"],   "comment": "baş, iki omuzdan da yüksek" }
+    ]
+  }
+
+  • anchors = KANONİK vektördeki nokta indeksleri; hizalama yolu bunları
+    pencere barlarına çevirir.
+  • max_diff = z-score birimi cinsinden (pencereden bağımsız, ölçek-değişmez).
+  • Değerlendirici tek ve genel: engine/search/constraints.py.
+  • constraints alanı OLMAYAN şablon hiçbir ek filtreden geçmez — mevcut
+    davranış korunur.
+
+Uygulama noktası: post-NMS'ten HEMEN ÖNCE (elenen aday NMS bütçesini yemesin).
+
+Aynı mekanizmayı ikili tepe/dip için de tanımla (iki zirve aynı seviyede) —
+mekanizmanın tek formasyona özel olmadığını kanıtlamak için. Diğerlerine
+DOKUNMA.
+
+FİNCAN/KULP — ayrı ve daha basit sorun:
+   • cup_and_handle ile rounding_bottom sonuç kümelerinin örtüşme oranını ölç.
+   • Kanonik fincan vektöründeki kulbu derinleştir (çanak derinliğinin en az
+     %30'u), ölçümü tekrarla.
+   • Ayrım hâlâ açılmıyorsa İNATLAŞMA: raporla ve ikisini rounding_bottom
+     altında birleştirmeyi öner. Birleştirme kararını ben vereceğim.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 8 — Radar bütçesi
+────────────────────────────────────────────────────────────────────────
+S-4 bir hata değil, bütçe hatası: 10 ms 500 sembol varsayarak yazılmıştı,
+evren 1.165'e çıktı ve doğrusal ölçekleniyor.
+config.RADAR_LATENCY_BUDGET_MS = 50 ekle, docs/01-mimari.md §15'i güncelle,
+gerekçesini yaz. Optimizasyon YAPMA — 1.165 parite için 23 ms iyi bir sayı.
+
+────────────────────────────────────────────────────────────────────────
+ÇIKTILAR
+────────────────────────────────────────────────────────────────────────
+1. docs/04-f35-raporu.md — her adımın öncesi/sonrası sayıları, K-11 ikinci
+   ölçümü, boşluk raporu, çözülemeyenler.
+2. Güncellenmiş config (null kalibrasyon sabitleri, peg/genlik aktif).
+3. Yeniden üretilmiş göz testi PNG'leri (blueprint overlay'li) — en az
+   cup_and_handle, head_and_shoulders, ascending_triangle, bir serbest çizim.
+4. Güncellenmiş K-11, K-14, CLAUDE.md ve docs/fazlar/F3.5-temizlik.md.
+
+★ ÇIKIŞ ŞARTI — bana şu ikisiyle dön:
+   goz_testi_esnek_head_and_shoulders.png
+   goz_testi_esnek_cup_and_handle.png
+   (yüzdelik skorlama + blueprint overlay ile yeniden üretilmiş)
+   Bu iki görsel "pürüzsüz çalışıyor" hissini veriyorsa F4'e geçiyoruz.
+   OBO için ADIM 7'deki (a)/(b) karşılaştırmasını da ayrıca göster.
+
+KURALLAR
+• F4'e geçme. • Test geçmiyorsa eşiği gevşetme, sor. • Sihirli sayı yok.
+• Her adımda commit. • Belirsizlikte sor.
+```
