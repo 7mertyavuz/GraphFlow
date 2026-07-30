@@ -75,8 +75,25 @@ TIMEFRAME_MS: Final[dict[str, int]] = {
 
 BINANCE_API_BASE: Final[str] = "https://api.binance.com"
 
-#: data.binance.vision arşivinin S3 listeleme uç noktası (sembol dizinleri).
+#: data.binance.vision arşivinin S3 uç noktası (sembol dizinleri + ZIP'ler).
+#: NOT: ``data.binance.vision`` CNAME'i bazı ağlardan erişilemez; bucket'ın
+#: kendisi bu S3 adı üzerinden aynı içeriği verir. Arşiv, REST'te görünmeyen
+#: delist edilmiş pariteleri de içerdiği için K-13'ün asıl kaynağıdır.
 BINANCE_VISION_S3: Final[str] = "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision"
+
+#: Arşiv yol şablonları (aylık dosya yoksa günlük dosyalara düşülür).
+VISION_MONTHLY_PATH: Final[str] = "data/spot/monthly/klines/{symbol}/{interval}/{symbol}-{interval}-{year:04d}-{month:02d}.zip"
+VISION_DAILY_PATH: Final[str] = "data/spot/daily/klines/{symbol}/{interval}/{symbol}-{interval}-{year:04d}-{month:02d}-{day:02d}.zip"
+
+#: Arşivden eşzamanlı indirme sayısı. S3'te ağırlık limiti yok; bu sayı
+#: nezaket ve yerel disk/CPU dengesi için.
+VISION_MAX_WORKERS: Final[int] = 8
+
+#: Arşiv, 2025-01'den itibaren zaman damgalarını MİKROSANİYE yazıyor; daha
+#: eski dosyalar milisaniye. Bu eşiği aşan değer µs kabul edilip 1000'e
+#: bölünür. (1e14 ms ≈ 5138 yılı — ms verinin bu değeri aşması imkânsız.)
+#: Bu dönüşüm olmadan yeni barlar "kapanmamış mum" sanılıp sessizce düşer.
+EPOCH_US_THRESHOLD: Final[int] = 100_000_000_000_000
 
 #: Tek /api/v3/klines çağrısında dönebilecek maksimum bar (Binance limiti).
 KLINES_LIMIT: Final[int] = 1_000
@@ -165,29 +182,38 @@ TOLERANCE_THRESHOLDS: Final[dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
-# K-11 — Aşama 2 metriği (⚠️ YENİDEN AÇILDI, 30 Temmuz 2026)
+# K-11 — Aşama 2 metriği (KARARA BAĞLANDI, F3 / 30 Temmuz 2026)
 #
-# F2 ölçümü K-11'in gerekçesini doğrulamadı: singularity senaryosu Sakoe-Chiba
-# bandı + z-score varken üretilemiyor, buna karşılık türev yüksek geçiren
-# filtre olduğu için DDTW gürültüde geri kalıyor. Karar F3 ROC kalibrasyonunda
-# verilecek; o güne kadar VARSAYILAN DEĞİŞMEDİ.
+# F3 A/B'si (tools/ab_stage2.py): pozitifler kanonik şablonun kopyası değil,
+# yapısal doğrulamadan geçmiş VARYANTLAR (asimetrik omuz, eğimli boyun
+# çizgisi, kaymış zamanlama). 3 metrik × 4 pencere uzunluğu × 3 gürültü
+# seviyesi, formasyon başına 300 örnek:
 #
-# "hybrid" bilinçli olarak UYGULANMADI — hesaplaması bedava ama kanıt gelmeden
-# eklenmeyecek (bkz. K-11 "F3'te karara bağlanacak").
+#   genel AUC:  hybrid 0.9045  >  dtw 0.8956  >  ddtw 0.8733
+#   hybrid, 12/12 hücrede ve 9/9 formasyonda kazandı (eşli hücrelerin
+#   %99'unda dtw'den, %80'inde ddtw'den iyi).
+#
+# DDTW tek başına en kötüsü: türev yüksek geçiren filtredir, gürültüyü
+# büyütür; K-11'in dayandığı singularity ise Sakoe-Chiba + z-score varken
+# zaten üretilemiyor. Ham DTW yalnız başına da hybrid'den geride — iki
+# mesafenin ortalaması ikisinin de bilgisini taşıyor.
+# Bkz. docs/03-f3-dogrulama-raporu.md ve K-11 "Karara bağlandı (F3)".
 # ---------------------------------------------------------------------------
 
 Stage2Metric = Literal["ddtw", "dtw", "hybrid"]
 
-STAGE2_METRIC: Final[str] = "ddtw"
+#: hybrid = (normalize DDTW mesafesi + normalize ham DTW mesafesi) / 2
+STAGE2_METRIC: Final[str] = "hybrid"
 
-#: Eşikler metrik başına ayrıdır: ham DTW mesafeleri DDTW'ninkinden ~4-8x
-#: büyüktür, aynı eşikle çalıştırılırsa motor hiçbir şey döndürmez.
-#: "dtw" satırı, DDTW eşiklerinin pozitif dağılımdaki YÜZDELİK karşılığından
-#: türetildi (%70 / %95 / %99) — uydurma değil ama yine de geçici; ikisi de
-#: F3'te ROC ile yeniden belirlenecek (K-18).
+#: Eşikler metrik başına ayrıdır: ham DTW mesafeleri DDTW'ninkinden ~4x
+#: büyüktür, tek eşik setiyle metrik çevrildiğinde motor sessizce boş sonuç
+#: döner. Değerler F3 ADIM 3'te GERÇEK Binance verisinden kalibre edilir
+#: (sentetikten değil — gerçek veride etiket yoktur, eşik dağılımdan gelir).
 TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
     "ddtw": TOLERANCE_THRESHOLDS,
     "dtw": {"strict": 0.071, "medium": 0.279, "flexible": 0.722},
+    # hybrid iki mesafenin ortalaması olduğu için eşiği de ortalamadır.
+    "hybrid": {"strict": 0.043, "medium": 0.160, "flexible": 0.406},
 }
 
 

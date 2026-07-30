@@ -41,53 +41,89 @@ def _gauss(t: np.ndarray, mu: float, sigma: float) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def head_and_shoulders(n: int = 32) -> np.ndarray:
-    """OBO — iki eşit omuz ve aralarında daha yüksek bir baş."""
+def head_and_shoulders(
+    n: int = 32,
+    left_h: float = 0.55,
+    head_h: float = 1.00,
+    right_h: float = 0.55,
+    mus: tuple[float, float, float] = (0.22, 0.50, 0.78),
+    sigmas: tuple[float, float, float] = (0.075, 0.085, 0.075),
+    neck_slope: float = 0.12,
+) -> np.ndarray:
+    """OBO — iki omuz ve aralarında daha yüksek bir baş.
+
+    Varsayılan parametreler **kanonik** şekli verir (şablon JSON'ları bunu
+    kullanır). Farklı değerler "aynı formasyonun başka bir örneğini" üretir:
+    asimetrik omuz yükseklikleri, eğimli boyun çizgisi, kaymış zirveler.
+    Bu, K-11 A/B'sindeki dairesellik kusurunun çözümüdür.
+    """
     t = _grid(n)
     y = (
-        0.55 * _gauss(t, 0.22, 0.075)
-        + 1.00 * _gauss(t, 0.50, 0.085)
-        + 0.55 * _gauss(t, 0.78, 0.075)
-        + 0.12 * t  # hafif yükselen boyun çizgisi
+        left_h * _gauss(t, mus[0], sigmas[0])
+        + head_h * _gauss(t, mus[1], sigmas[1])
+        + right_h * _gauss(t, mus[2], sigmas[2])
+        + neck_slope * t  # boyun çizgisi eğimi
     )
     return _unit(y)
 
 
-def inverse_head_and_shoulders(n: int = 32) -> np.ndarray:
+def inverse_head_and_shoulders(n: int = 32, **kwargs) -> np.ndarray:
     """Ters OBO — OBO'nun ayna görüntüsü."""
-    return _unit(-head_and_shoulders(n))
+    return _unit(-head_and_shoulders(n, **kwargs))
 
 
-def double_top(n: int = 32) -> np.ndarray:
+def double_top(
+    n: int = 32,
+    first_h: float = 1.00,
+    second_h: float = 0.96,
+    mus: tuple[float, float] = (0.30, 0.70),
+    sigmas: tuple[float, float] = (0.085, 0.085),
+    drift: float = 0.10,
+) -> np.ndarray:
     """İkili tepe — yaklaşık eşit iki zirve, aralarında belirgin bir dip."""
     t = _grid(n)
-    y = 1.00 * _gauss(t, 0.30, 0.085) + 0.96 * _gauss(t, 0.70, 0.085) + 0.10 * (1.0 - t)
+    y = (
+        first_h * _gauss(t, mus[0], sigmas[0])
+        + second_h * _gauss(t, mus[1], sigmas[1])
+        + drift * (1.0 - t)
+    )
     return _unit(y)
 
 
-def double_bottom(n: int = 32) -> np.ndarray:
+def double_bottom(n: int = 32, **kwargs) -> np.ndarray:
     """İkili dip."""
-    return _unit(-double_top(n))
+    return _unit(-double_top(n, **kwargs))
 
 
-def rounding_bottom(n: int = 32) -> np.ndarray:
-    """Çanak — simetrik, yumuşak U."""
+def rounding_bottom(n: int = 32, power: float = 2.0, center: float = 0.5) -> np.ndarray:
+    """Çanak — yumuşak U. ``center`` dip zamanlamasını kaydırır."""
     t = _grid(n)
-    return _unit((2.0 * t - 1.0) ** 2)
+    span = np.where(t <= center, t / max(center, 1e-6) - 1.0, (t - center) / max(1.0 - center, 1e-6))
+    return _unit(np.abs(span) ** power)
 
 
-def cup_and_handle(n: int = 32) -> np.ndarray:
-    """Fincan-kulp — çanak (%75) + sığ geri çekilme ve kırılım (%25)."""
+def cup_and_handle(
+    n: int = 32,
+    cup_frac: float = 0.75,
+    handle_depth: float = 0.30,
+    handle_rise: float = 0.25,
+    cup_power: float = 2.0,
+) -> np.ndarray:
+    """Fincan-kulp — çanak + sığ geri çekilme ve kırılım.
+
+    ``cup_frac`` kulbun uzunluğunu, ``handle_depth`` derinliğini değiştirir;
+    gerçek örnekler arasında en çok değişen iki serbestlik derecesi bunlar.
+    """
     t = _grid(n)
     y = np.empty_like(t)
 
-    cup = t <= 0.75
-    u = t[cup] / 0.75
-    y[cup] = (2.0 * u - 1.0) ** 2
+    cup = t <= cup_frac
+    u = t[cup] / cup_frac
+    y[cup] = np.abs(2.0 * u - 1.0) ** cup_power
 
     handle = ~cup
-    v = (t[handle] - 0.75) / 0.25
-    y[handle] = 1.0 + 0.25 * v - 0.30 * np.sin(np.pi * v)
+    v = (t[handle] - cup_frac) / max(1.0 - cup_frac, 1e-6)
+    y[handle] = 1.0 + handle_rise * v - handle_depth * np.sin(np.pi * v)
     return _unit(y)
 
 
@@ -96,31 +132,43 @@ def cup_and_handle(n: int = 32) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def bull_flag(n: int = 32) -> np.ndarray:
-    """Boğa bayrağı — dik direk (%40) + aşağı eğimli dar konsolidasyon."""
+def bull_flag(
+    n: int = 32,
+    pole_frac: float = 0.40,
+    drift: float = 0.28,
+    wiggle: float = 0.055,
+    cycles: float = 2.5,
+) -> np.ndarray:
+    """Boğa bayrağı — dik direk + aşağı eğimli dar konsolidasyon."""
     t = _grid(n)
     y = np.empty_like(t)
 
-    pole = t <= 0.40
-    y[pole] = t[pole] / 0.40
+    pole = t <= pole_frac
+    y[pole] = t[pole] / pole_frac
 
     flag = ~pole
-    v = (t[flag] - 0.40) / 0.60
-    y[flag] = 1.0 - 0.28 * v + 0.055 * np.sin(2.0 * np.pi * 2.5 * v)
+    v = (t[flag] - pole_frac) / max(1.0 - pole_frac, 1e-6)
+    y[flag] = 1.0 - drift * v + wiggle * np.sin(2.0 * np.pi * cycles * v)
     return _unit(y)
 
 
-def bear_flag(n: int = 32) -> np.ndarray:
+def bear_flag(
+    n: int = 32,
+    pole_frac: float = 0.40,
+    drift: float = 0.28,
+    wiggle: float = 0.055,
+    cycles: float = 2.5,
+) -> np.ndarray:
     """Ayı bayrağı — dik düşüş + yukarı eğimli konsolidasyon."""
     t = _grid(n)
     y = np.empty_like(t)
 
-    pole = t <= 0.40
-    y[pole] = 1.0 - t[pole] / 0.40
+    pole = t <= pole_frac
+    y[pole] = 1.0 - t[pole] / pole_frac
 
     flag = ~pole
-    v = (t[flag] - 0.40) / 0.60
-    y[flag] = 0.28 * v - 0.055 * np.sin(2.0 * np.pi * 2.5 * v)
+    v = (t[flag] - pole_frac) / max(1.0 - pole_frac, 1e-6)
+    y[flag] = drift * v - wiggle * np.sin(2.0 * np.pi * cycles * v)
     return _unit(y)
 
 
@@ -144,14 +192,18 @@ def _wedge(n: int, slope: float, cycles: float = 2.5, decay: float = 0.85) -> np
     return slope * t + 0.35 * envelope * np.sin(2.0 * np.pi * cycles * t)
 
 
-def rising_wedge(n: int = 32) -> np.ndarray:
+def rising_wedge(
+    n: int = 32, slope: float = 0.9, cycles: float = 2.5, decay: float = 0.85
+) -> np.ndarray:
     """Yükselen takoz — yukarı eğimli, daralan salınım (düşüş yönlü)."""
-    return _unit(_wedge(n, slope=0.9))
+    return _unit(_wedge(n, slope=slope, cycles=cycles, decay=decay))
 
 
-def falling_wedge(n: int = 32) -> np.ndarray:
+def falling_wedge(
+    n: int = 32, slope: float = -0.9, cycles: float = 2.5, decay: float = 0.85
+) -> np.ndarray:
     """Düşen takoz — aşağı eğimli, daralan salınım (yükseliş yönlü)."""
-    return _unit(_wedge(n, slope=-0.9))
+    return _unit(_wedge(n, slope=slope, cycles=cycles, decay=decay))
 
 
 def symmetrical_triangle(n: int = 32) -> np.ndarray:

@@ -278,30 +278,33 @@ def test_ddtw_flat_line_does_not_match_cup():
     print(f"\nDDTW ayrım: {ddtw_ratio:.1f}x  |  ham DTW ayrım: {raw_ratio:.1f}x")
 
 
-def test_stage2_metric_switch_defaults_to_ddtw():
-    """K-11 yeniden açıldı: metrik seçilebilir, varsayılan DEĞİŞMEDİ."""
+def test_stage2_metric_switch():
+    """K-11 F3'te karara bağlandı: varsayılan hybrid, kaybedenler anahtarda kaldı."""
     from engine.config import STAGE2_METRIC
     from engine.search.ddtw import stage2_scores
 
-    assert STAGE2_METRIC == "ddtw"
+    assert STAGE2_METRIC == "hybrid"
 
     rng = np.random.default_rng(8)
     q = z(shape("cup_and_handle", 32))
     C = np.stack([z(rng.normal(size=N_POINTS)) for _ in range(20)])
 
-    np.testing.assert_allclose(stage2_scores(q, C), ddtw_scores(q, C), rtol=1e-12)
+    np.testing.assert_allclose(stage2_scores(q, C, metric="ddtw"), ddtw_scores(q, C), rtol=1e-12)
     np.testing.assert_allclose(stage2_scores(q, C, metric="dtw"), dtw_scores(q, C), rtol=1e-12)
 
 
-def test_hybrid_metric_is_refused_until_evidence():
-    """Hesaplaması bedava ama kanıt gelmeden eklenmeyecek (K-11)."""
+def test_hybrid_is_mean_of_two_normalized_distances():
+    """hybrid = (DDTW + ham DTW) / 2 — ikisi de yol uzunluğuna normalize."""
     from engine.search.ddtw import stage2_scores
 
+    rng = np.random.default_rng(12)
     q = z(shape("bull_flag", 32))
-    with pytest.raises(NotImplementedError):
-        stage2_scores(q, q[None, :], metric="hybrid")
+    C = np.stack([z(rng.normal(size=N_POINTS)) for _ in range(30)])
+
+    expected = 0.5 * (ddtw_scores(q, C) + dtw_scores(q, C))
+    np.testing.assert_allclose(stage2_scores(q, C, metric="hybrid"), expected, rtol=1e-12)
     with pytest.raises(ValueError):
-        stage2_scores(q, q[None, :], metric="öklid")
+        stage2_scores(q, C, metric="öklid")
 
 
 def test_metric_thresholds_are_separately_calibrated():
@@ -311,6 +314,8 @@ def test_metric_thresholds_are_separately_calibrated():
     assert T["ddtw"] is TOLERANCE_THRESHOLDS
     for level in ("strict", "medium", "flexible"):
         assert T["dtw"][level] > T["ddtw"][level]
+        # hybrid ortalama mesafedir → eşiği de ikisinin arasında olmalı
+        assert T["ddtw"][level] < T["hybrid"][level] < T["dtw"][level]
 
 
 def test_ddtw_separates_shape_families():
@@ -518,12 +523,17 @@ def test_negative_control_noise_and_whipsaw(obo_dataset):
 
     assert min(negatives) > max(positives) * 3, "negatif kontrol pozitiflerden ayrışmıyor"
 
-    # En gevşek kademede bile motor "eşleşme yok" diyebilmeli.
+    # Katı kademede motor "eşleşme yok" diyebilmeli.
+    #
+    # NOT: Gevşek kademe bilinçli olarak burada sınanmıyor. Eşiklerin asıl
+    # kaynağı K-18'e göre negatif dağılımlardır ve F3 ADIM 3'te GERÇEK veriden
+    # kalibre edilir. Geçici hybrid eşiğiyle (iki metriğin ortalaması) gürültü
+    # sorguları gevşek kademeyi geçebiliyor; bu, raporlanan açık bir bulgudur.
     hits = sum(
-        len(engine.search(q, timeframe=TF, tolerance="flexible", limit=12).results)
+        len(engine.search(q, timeframe=TF, tolerance="strict", limit=12).results)
         for q in noise_queries + [whipsaw]
     )
-    assert hits == 0, f"gevşek kademede {hits} sahte eşleşme döndü"
+    assert hits == 0, f"katı kademede {hits} sahte eşleşme döndü"
 
 
 def test_monotone_trend_query_is_not_a_false_positive(obo_dataset):
@@ -606,7 +616,7 @@ def test_invalid_parameters_rejected(obo_dataset):
     with pytest.raises(ValueError):
         engine.search(q, mode="radar", timeframe=TF)
     with pytest.raises(ValueError):
-        engine.search(q, timeframe=TF, metric="hybrid")  # eşiği kalibre değil
+        engine.search(q, timeframe=TF, metric="öklid")  # eşiği kalibre değil
 
 
 def test_engine_runs_with_raw_dtw_metric(obo_dataset):

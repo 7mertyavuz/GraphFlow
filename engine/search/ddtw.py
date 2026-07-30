@@ -176,7 +176,10 @@ def stage2_scores(
     if metric == "dtw":
         return dtw_scores(query, candidates, radius)
     if metric == "hybrid":
-        raise NotImplementedError(
-            "hybrid metrik kanıt gelmeden eklenmeyecek — bkz. K-11 'F3'te karara bağlanacak'"
+        # İki normalize mesafenin ortalaması. UYARI: ham DTW mesafeleri
+        # DDTW'ninkinden ~4x büyük olduğu için düz ortalama pratikte ham DTW
+        # ağırlıklıdır; bu, F3 raporunda açıkça belirtilir.
+        return 0.5 * (
+            ddtw_scores(query, candidates, radius) + dtw_scores(query, candidates, radius)
         )
     raise ValueError(f"bilinmeyen Aşama 2 metriği: {metric}")
