@@ -20,6 +20,7 @@ from engine.config import (
     SAKOE_CHIBA_RADIUS,
     STAGE1_TOPK,
     TOLERANCE_THRESHOLDS,
+    TOLERANCE_THRESHOLDS_BY_METRIC,
 )
 from engine.ingest.store import write_atomic
 from engine.matrix.build import build_all
@@ -271,9 +272,11 @@ def test_ddtw_flat_line_does_not_match_cup():
     # 3) Düz çizgilerin tipik skoru en gevşek kademenin bile dışında kalmalı.
     #    (Tek tek bazıları rastgele hafif bir çukur çizebilir — onları eleyen
     #    şey genlik filtresidir, K-10: bu serilerin gerçek hareketi ~%0,5.)
-    assert np.median(ddtw_neg) > TOLERANCE_THRESHOLDS["flexible"]
+    # Eşikler metrik başınadır; bu test DDTW'yi ölçtüğü için DDTW satırı.
+    ddtw_thresholds = TOLERANCE_THRESHOLDS_BY_METRIC["ddtw"]
+    assert np.median(ddtw_neg) > ddtw_thresholds["flexible"]
     # Gerçek çanaklar ise 'medium' kademesine rahatça girmeli.
-    assert np.median(ddtw_pos) < TOLERANCE_THRESHOLDS["medium"]
+    assert np.median(ddtw_pos) < ddtw_thresholds["medium"]
 
     print(f"\nDDTW ayrım: {ddtw_ratio:.1f}x  |  ham DTW ayrım: {raw_ratio:.1f}x")
 
@@ -309,13 +312,18 @@ def test_hybrid_is_mean_of_two_normalized_distances():
 
 def test_metric_thresholds_are_separately_calibrated():
     """Ham DTW mesafeleri ~4-8x büyük; aynı eşikle motor hiçbir şey döndürmezdi."""
+    from engine.config import STAGE2_METRIC
     from engine.config import TOLERANCE_THRESHOLDS_BY_METRIC as T
 
-    assert T["ddtw"] is TOLERANCE_THRESHOLDS
+    # TOLERANCE_THRESHOLDS daima AKTİF metriğin eşiklerini gösterir.
+    assert TOLERANCE_THRESHOLDS is T[STAGE2_METRIC]
     for level in ("strict", "medium", "flexible"):
         assert T["dtw"][level] > T["ddtw"][level]
         # hybrid ortalama mesafedir → eşiği de ikisinin arasında olmalı
         assert T["ddtw"][level] < T["hybrid"][level] < T["dtw"][level]
+    # Her metrikte kademeler artan sırada olmalı.
+    for metric, levels in T.items():
+        assert levels["strict"] < levels["medium"] < levels["flexible"], metric
 
 
 def test_ddtw_separates_shape_families():
@@ -366,7 +374,8 @@ def test_template_matches_its_own_shape_perfectly():
     """Kütüphaneden seçmek ile aynı şekli çizmek aynı yoldur."""
     t = get_template("head_and_shoulders")
     priced = normalize_window(100 * np.exp(0.2 * shape("head_and_shoulders", 64)))
-    assert ddtw_scores(t.vector, priced[None, :])[0] < TOLERANCE_THRESHOLDS["strict"]
+    strict = TOLERANCE_THRESHOLDS_BY_METRIC["ddtw"]["strict"]  # DDTW ölçüyoruz
+    assert ddtw_scores(t.vector, priced[None, :])[0] < strict
 
 
 def test_inverse_template_is_mirror():

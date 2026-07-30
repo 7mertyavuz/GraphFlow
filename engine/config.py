@@ -174,12 +174,6 @@ SAKOE_CHIBA_RADIUS: Final[int] = max(1, round(0.15 * N_POINTS))
 
 Tolerance = Literal["strict", "medium", "flexible"]
 
-TOLERANCE_THRESHOLDS: Final[dict[str, float]] = {
-    "strict": 0.015,
-    "medium": 0.040,
-    "flexible": 0.090,
-}
-
 
 # ---------------------------------------------------------------------------
 # K-11 — Aşama 2 metriği (KARARA BAĞLANDI, F3 / 30 Temmuz 2026)
@@ -206,15 +200,29 @@ Stage2Metric = Literal["ddtw", "dtw", "hybrid"]
 STAGE2_METRIC: Final[str] = "hybrid"
 
 #: Eşikler metrik başına ayrıdır: ham DTW mesafeleri DDTW'ninkinden ~4x
-#: büyüktür, tek eşik setiyle metrik çevrildiğinde motor sessizce boş sonuç
-#: döner. Değerler F3 ADIM 3'te GERÇEK Binance verisinden kalibre edilir
-#: (sentetikten değil — gerçek veride etiket yoktur, eşik dağılımdan gelir).
+#: büyüktür; tek eşik setiyle metrik çevrildiğinde motor sessizce boş sonuç
+#: döner.
+#:
+#: Değerler F3 ADIM 3'te **gerçek Binance verisinden** kalibre edildi
+#: (50 likit + 30 delist edilmiş parite, 1d, 2017-08 → 2026-07; 14 şablon
+#: sorgusu + 32 negatif kontrol). Gerçek veride etiket yoktur, dolayısıyla
+#: AUC hesaplanamaz; eşikler dağılımdan okunur — türetme kuralı:
+#:
+#:   Katı   = şablonların "12. sonuç" skorunun alt çeyreği
+#:   Orta   = şablonların "12. sonuç" skorunun medyanı
+#:   Esnek  = şablon skorlarının %95'lik diliminin üst çeyreği
+#:   Üst sınır: hiçbiri anlamsız sorgu tabanının %90'ını aşamaz (K-18)
+#:
+#: Anlamsız sorgu tabanı (white noise / whipsaw): hybrid 0,2355 · dtw 0,2174 ·
+#: ddtw ∞ (hiç sonuç dönmedi). Üretim: notebooks/05_esik_kalibrasyon.ipynb.
 TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
-    "ddtw": TOLERANCE_THRESHOLDS,
-    "dtw": {"strict": 0.071, "medium": 0.279, "flexible": 0.722},
-    # hybrid iki mesafenin ortalaması olduğu için eşiği de ortalamadır.
-    "hybrid": {"strict": 0.043, "medium": 0.160, "flexible": 0.406},
+    "ddtw": {"strict": 0.0128, "medium": 0.0188, "flexible": 0.0668},
+    "dtw": {"strict": 0.0260, "medium": 0.0472, "flexible": 0.1956},
+    "hybrid": {"strict": 0.0241, "medium": 0.0380, "flexible": 0.1754},
 }
+
+#: Aktif metriğin eşikleri (§5.5 tolerans toggle'ı bunu kullanır).
+TOLERANCE_THRESHOLDS: Final[dict[str, float]] = TOLERANCE_THRESHOLDS_BY_METRIC[STAGE2_METRIC]
 
 
 # ---------------------------------------------------------------------------
