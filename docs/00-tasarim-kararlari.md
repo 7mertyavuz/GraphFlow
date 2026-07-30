@@ -461,6 +461,40 @@ Bir kerelik `diff` hesabı — pratikte **sıfır**. Zaten sadece ~1.000 aday ü
 
 Sakoe-Chiba bandı korunur: `r = 0.15 × N ≈ 5` (N = 32 için). Hem maliyeti düşürür hem de aşırı bükülmeyi engeller.
 
+### ⚠️ Durum: YENİDEN AÇILDI (F2 ölçümü, 30 Temmuz 2026)
+
+F2 uygulamasında sentetik veriyle yapılan ölçüm, bu kararın **gerekçesini doğrulamadı**. Karar şimdilik korunuyor ama F3 ROC kalibrasyonunda karara bağlanacak.
+
+**Ölçülenler:**
+
+| Test | DDTW | Ham DTW |
+|---|---|---|
+| Düz çizgi ↔ çanak ayrımı | 20,5× (örtüşme yok) | 37,6× (örtüşme yok) |
+| AUC, bar gürültüsü %2 | 0,90 | **0,92** |
+| AUC, bar gürültüsü %4 | 0,74 | **0,84** |
+
+**Yorum:** K-11'in dayandığı singularity senaryosu bu konfigürasyonda **üretilemiyor**. Nedeni büyük olasılıkla, singularity'yi engelleyen iki mekanizmanın zaten pipeline'da bulunması:
+
+- **Sakoe-Chiba bandı** (`r=5`, N=32) hizalama yolunu sınırlar; tek bir noktanın 15 noktaya yayılması band tarafından zaten yasaklanmış oluyor. K-11'deki *"band azaltır ama çözmez"* varsayımı bu ölçekte yanlış çıktı.
+- **Z-score** ([K-02](#k-02--projenin-gerçek-kalbi-normalizasyon)), DDTW'nin adreslediği seviye-kayması problemini zaten çözüyor.
+
+**Ters etki:** Türev alma bir **yüksek geçiren filtredir** ve gürültü gücü frekansla arttığı için diferansiyasyon gürültüyü yükseltir. Finansal seriler doğası gereği gürültülüdür; %4 gürültüde 10 puanlık AUC kaybı bununla tutarlı. Yani DDTW, singularity dayanıklılığını **gürültü hassasiyetiyle takas ediyor** — ve bu konfigürasyonda takas edilecek bir singularity problemi yok.
+
+**Neden hemen değiştirilmedi:** Mevcut kanıt sentetiktir ve iki metodolojik zayıflığı vardır:
+
+1. **Dairesellik.** Pozitif örnekler, sorgu olarak kullanılan kanonik şablonların gürültülü kopyalarıdır. Bu, "şablonu geri bulabiliyor mu"yu ölçer; "aynı formasyonun farklı bir örneğini tanıyor mu"yu değil. Gerçek formasyon varyasyonu (asimetrik omuzlar, eğimli boyun çizgisi, farklı kulp derinliği) temsil edilmiyor.
+2. **Pencere uzunluğu etkileşimi ölçülmedi.** 100 bar → 32 nokta bir *alçak geçiren* işlemdir (yumuşatır), 24 bar → 32 nokta ise *yukarı örneklemedir* (yumuşatmaz, interpolasyon artefaktı üretir). DDTW'nin bu iki uçta farklı davranması beklenir; şu anki ölçüm uzunluk kırılımı içermiyor.
+
+**F3'te karara bağlanacak:**
+
+- Aşama 2 metriği `config.STAGE2_METRIC` ile seçilebilir hâle getirilir: `"ddtw" | "dtw" | "hybrid"` (varsayılan `"ddtw"`).
+- Pozitif örnekler **şekil bozulmasıyla** üretilir (yalnız ölçek/uzunluk/gürültü değil).
+- ROC, **pencere uzunluğuna göre kırılarak** hesaplanır.
+- Gerçek Binance verisinde tekrarlanır.
+- Kazanan metrik kalır; kaybeden bu belgeye gerekçesiyle yazılır.
+
+> Aşama 2 yalnızca ~1.000 aday üzerinde çalışıyor ve 8 ms sürüyor. İki metriği birden hesaplayıp harmanlamak (`hybrid`) hesaplama açısından bedavadır — ama kanıt olmadan eklenmez.
+
 ---
 
 ## K-12 — Zaman-Eşleştirmeli Baseline (Gölge Dağılım)
@@ -750,7 +784,7 @@ Bu, eşiklerin asıl kaynağının **negatif testler** olduğu anlamına gelir; 
 | 4 | WebSocket canlı akış | REST + Cron | 4H/1D'de 5 dk gecikmenin maliyeti yok |
 | 5 | `if-else` kural motoru (OBO, Kama…) | Kanonik şablon vektörleri | Kırılgan, bakımı pahalı, motorla tutarsız |
 | 6 | Tek aşamalı DTW | Kaskad (kosinüs → DDTW) | O(N·M) 12M pencerede kabul edilemez |
-| 7 | Ham DTW | DDTW (türev) | Singularity: düz çizgi çanağa eşleşiyor |
+| 7 | Ham DTW | DDTW (türev) | ⚠️ **Yeniden açıldı** — F2 ölçümü gerekçeyi doğrulamadı, F3'te karara bağlanacak (bkz. K-11) |
 | 8 | 4'er 4'er tembel tarama | 12'li grid + cache'li sıralı liste | En iyi 4'ü bulmak için zaten hepsi skorlanmalı |
 | 9 | Tek geçişli NMS | Çift aşamalı NMS | Ya bütçe yanar ya yanlış skorla elenir |
 | 10 | Nasdaq / BIST / Forex (MVP'de) | Sadece Binance kripto | Veri lisansı maliyeti ve bürokrasisi |

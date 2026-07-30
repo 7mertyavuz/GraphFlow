@@ -44,13 +44,14 @@ from engine.config import (
     PRE_NMS_IOU,
     SAKOE_CHIBA_RADIUS,
     STAGE1_TOPK,
+    STAGE2_METRIC,
     STAGE2_TOPK,
-    TOLERANCE_THRESHOLDS,
+    TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
 from engine.matrix.build import META_FILE, VECTORS_FILE, matrix_dir
 from engine.matrix.npy_store import load_matrix
-from engine.search.ddtw import ddtw_scores
+from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
 from engine.search.stage1_cosine import prepare_query, top_k
 
@@ -112,6 +113,7 @@ class SearchResult:
     mode: str = "historical"
     timeframe: str = "4h"
     tolerance: str = "medium"
+    metric: str = STAGE2_METRIC  # F3 kalibrasyonunda hangi metrikle üretildiği
     stage1_candidates: int = 0
     stage2_candidates: int = 0
 
@@ -229,8 +231,14 @@ class SearchEngine:
         stage1_topk: int = STAGE1_TOPK,
         stage2_topk: int = STAGE2_TOPK,
         radius: int = SAKOE_CHIBA_RADIUS,
+        metric: str = STAGE2_METRIC,
     ) -> SearchResult:
-        if tolerance not in TOLERANCE_THRESHOLDS:
+        # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
+        # ~4-8x büyüktür (K-11 yeniden açıldı).
+        thresholds = TOLERANCE_THRESHOLDS_BY_METRIC.get(metric)
+        if thresholds is None:
+            raise ValueError(f"'{metric}' metriği için kalibre edilmiş eşik yok")
+        if tolerance not in thresholds:
             raise ValueError(f"bilinmeyen tolerans: {tolerance}")
         if mode not in ("live", "historical"):
             raise ValueError(f"bilinmeyen mod: {mode}")
@@ -267,7 +275,7 @@ class SearchEngine:
             block["distance"] = np.inf
             blocks.append(block)
 
-        result = SearchResult(mode=mode, timeframe=timeframe, tolerance=tolerance)
+        result = SearchResult(mode=mode, timeframe=timeframe, tolerance=tolerance, metric=metric)
         if not blocks:
             result.elapsed_ms = (time.perf_counter() - t0) * 1000.0
             return result
@@ -282,10 +290,10 @@ class SearchEngine:
 
         # --- Aşama 2: DDTW -----------------------------------------------
         vectors = self._gather_vectors(timeframe, candidates)
-        candidates["distance"] = ddtw_scores(q, vectors, radius)
+        candidates["distance"] = stage2_scores(q, vectors, radius, metric)
 
         # Tolerans eşiği: motor "iyi eşleşme yok" diyebilmeli (§5.5)
-        threshold = TOLERANCE_THRESHOLDS[tolerance]
+        threshold = thresholds[tolerance]
         candidates = candidates[candidates["distance"] <= threshold]
         if candidates.size == 0:
             result.elapsed_ms = (time.perf_counter() - t0) * 1000.0

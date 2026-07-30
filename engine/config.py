@@ -165,6 +165,33 @@ TOLERANCE_THRESHOLDS: Final[dict[str, float]] = {
 
 
 # ---------------------------------------------------------------------------
+# K-11 — Aşama 2 metriği (⚠️ YENİDEN AÇILDI, 30 Temmuz 2026)
+#
+# F2 ölçümü K-11'in gerekçesini doğrulamadı: singularity senaryosu Sakoe-Chiba
+# bandı + z-score varken üretilemiyor, buna karşılık türev yüksek geçiren
+# filtre olduğu için DDTW gürültüde geri kalıyor. Karar F3 ROC kalibrasyonunda
+# verilecek; o güne kadar VARSAYILAN DEĞİŞMEDİ.
+#
+# "hybrid" bilinçli olarak UYGULANMADI — hesaplaması bedava ama kanıt gelmeden
+# eklenmeyecek (bkz. K-11 "F3'te karara bağlanacak").
+# ---------------------------------------------------------------------------
+
+Stage2Metric = Literal["ddtw", "dtw", "hybrid"]
+
+STAGE2_METRIC: Final[str] = "ddtw"
+
+#: Eşikler metrik başına ayrıdır: ham DTW mesafeleri DDTW'ninkinden ~4-8x
+#: büyüktür, aynı eşikle çalıştırılırsa motor hiçbir şey döndürmez.
+#: "dtw" satırı, DDTW eşiklerinin pozitif dağılımdaki YÜZDELİK karşılığından
+#: türetildi (%70 / %95 / %99) — uydurma değil ama yine de geçici; ikisi de
+#: F3'te ROC ile yeniden belirlenecek (K-18).
+TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
+    "ddtw": TOLERANCE_THRESHOLDS,
+    "dtw": {"strict": 0.071, "medium": 0.279, "flexible": 0.722},
+}
+
+
+# ---------------------------------------------------------------------------
 # K-16 — Triple-Barrier
 # ---------------------------------------------------------------------------
 

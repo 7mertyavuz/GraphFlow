@@ -278,6 +278,41 @@ def test_ddtw_flat_line_does_not_match_cup():
     print(f"\nDDTW ayrım: {ddtw_ratio:.1f}x  |  ham DTW ayrım: {raw_ratio:.1f}x")
 
 
+def test_stage2_metric_switch_defaults_to_ddtw():
+    """K-11 yeniden açıldı: metrik seçilebilir, varsayılan DEĞİŞMEDİ."""
+    from engine.config import STAGE2_METRIC
+    from engine.search.ddtw import stage2_scores
+
+    assert STAGE2_METRIC == "ddtw"
+
+    rng = np.random.default_rng(8)
+    q = z(shape("cup_and_handle", 32))
+    C = np.stack([z(rng.normal(size=N_POINTS)) for _ in range(20)])
+
+    np.testing.assert_allclose(stage2_scores(q, C), ddtw_scores(q, C), rtol=1e-12)
+    np.testing.assert_allclose(stage2_scores(q, C, metric="dtw"), dtw_scores(q, C), rtol=1e-12)
+
+
+def test_hybrid_metric_is_refused_until_evidence():
+    """Hesaplaması bedava ama kanıt gelmeden eklenmeyecek (K-11)."""
+    from engine.search.ddtw import stage2_scores
+
+    q = z(shape("bull_flag", 32))
+    with pytest.raises(NotImplementedError):
+        stage2_scores(q, q[None, :], metric="hybrid")
+    with pytest.raises(ValueError):
+        stage2_scores(q, q[None, :], metric="öklid")
+
+
+def test_metric_thresholds_are_separately_calibrated():
+    """Ham DTW mesafeleri ~4-8x büyük; aynı eşikle motor hiçbir şey döndürmezdi."""
+    from engine.config import TOLERANCE_THRESHOLDS_BY_METRIC as T
+
+    assert T["ddtw"] is TOLERANCE_THRESHOLDS
+    for level in ("strict", "medium", "flexible"):
+        assert T["dtw"][level] > T["ddtw"][level]
+
+
 def test_ddtw_separates_shape_families():
     """Farklı formasyonlar birbirine kendi ailesinden daha uzak olmalı."""
     rng = np.random.default_rng(21)
@@ -570,6 +605,29 @@ def test_invalid_parameters_rejected(obo_dataset):
         engine.search(q, tolerance="cok-esnek", timeframe=TF)
     with pytest.raises(ValueError):
         engine.search(q, mode="radar", timeframe=TF)
+    with pytest.raises(ValueError):
+        engine.search(q, timeframe=TF, metric="hybrid")  # eşiği kalibre değil
+
+
+def test_engine_runs_with_raw_dtw_metric(obo_dataset):
+    """F3 kıyasının çalıştırılabilir olması: aynı kod yolu, farklı metrik.
+
+    Bu test hangi metriğin daha iyi olduğunu İDDİA ETMEZ; yalnızca anahtarın
+    uçtan uca çalıştığını ve kendi eşikleriyle sonuç ürettiğini doğrular.
+    """
+    root, truth = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = get_template("head_and_shoulders").vector
+
+    ddtw_run = engine.search(q, timeframe=TF, tolerance="flexible", limit=20, metric="ddtw")
+    dtw_run = engine.search(q, timeframe=TF, tolerance="flexible", limit=20, metric="dtw")
+
+    assert ddtw_run.metric == "ddtw" and dtw_run.metric == "dtw"
+    assert dtw_run.results, "ham DTW kendi eşikleriyle sonuç üretebilmeli"
+    print(
+        f"\nF3 kıyası — DDTW: {len(_hits(ddtw_run, truth))}/20 enjeksiyon"
+        f" | ham DTW: {len(_hits(dtw_run, truth))}/20 enjeksiyon"
+    )
 
 
 # ---------------------------------------------------------------------------

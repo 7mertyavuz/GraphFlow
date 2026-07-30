@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from engine.config import SAKOE_CHIBA_RADIUS
+from engine.config import SAKOE_CHIBA_RADIUS, STAGE2_METRIC
 
 
 def derivative(x: np.ndarray) -> np.ndarray:
@@ -155,5 +155,28 @@ def ddtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_C
 
 
 def dtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_CHIBA_RADIUS) -> np.ndarray:
-    """Ham DTW — **yalnızca doğrulama/kıyas için** (K-11'in kanıtı)."""
+    """Ham DTW — kıyas metriği (K-11 yeniden açıldı; F3'te karara bağlanacak)."""
     return normalized_scores(query, candidates, radius, use_derivative=False)
+
+
+def stage2_scores(
+    query: np.ndarray,
+    candidates: np.ndarray,
+    radius: int = SAKOE_CHIBA_RADIUS,
+    metric: str = STAGE2_METRIC,
+) -> np.ndarray:
+    """Aşama 2 metrik seçici — F3 kalibrasyonunun anahtarı (K-11).
+
+    Varsayılan ``"ddtw"``. ``"hybrid"`` bilinçli olarak uygulanmadı: hesaplama
+    maliyeti sıfıra yakın olsa da, harmanlama ancak ROC kanıtı geldikten sonra
+    eklenecek.
+    """
+    if metric == "ddtw":
+        return ddtw_scores(query, candidates, radius)
+    if metric == "dtw":
+        return dtw_scores(query, candidates, radius)
+    if metric == "hybrid":
+        raise NotImplementedError(
+            "hybrid metrik kanıt gelmeden eklenmeyecek — bkz. K-11 'F3'te karara bağlanacak'"
+        )
+    raise ValueError(f"bilinmeyen Aşama 2 metriği: {metric}")
