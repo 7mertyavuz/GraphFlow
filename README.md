@@ -51,6 +51,7 @@ Kullanıcı çizimi ──▶ log fiyat → 32 noktaya resample → z-score
 |---|---|
 | [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) | **Karar kaydı** — 18 mimari karar, gerekçeleri ve reddedilen 19 alternatif |
 | [docs/01-mimari.md](docs/01-mimari.md) | **Teknik spesifikasyon** — veri katmanı, algoritmalar, API, repo yapısı, yol haritası |
+| [docs/fazlar/](docs/fazlar/README.md) | **Faz belgeleri** — F0…F7 için ayrı ayrı kapsam, ölçümler, bilinen sorunlar, çıkış şartları |
 
 Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 
@@ -70,14 +71,15 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 
 | Faz | İçerik | Durum |
 |---|---|---|
-| F0 | Veri indirme altyapısı | ⬜ |
-| F1 | Normalizasyon + matris inşası | ⬜ |
-| F2 | Arama motoru (kaskad) | ⬜ |
-| **F3** | **Notebook doğrulaması** 🚦 zorunlu kapı | ⬜ |
-| F4 | Outcome Engine (triple-barrier) | ⬜ |
-| F5 | FastAPI + Redis | ⬜ |
-| F6 | Next.js — Radar (MVP 1) | ⬜ |
-| F7 | Next.js — Backtest (MVP 2) | ⬜ |
+| [F0](docs/fazlar/F0-veri-ingest.md) | Veri indirme altyapısı | ✅ 1.165 parite · 1,5M bar |
+| [F1](docs/fazlar/F1-normalizasyon-matris.md) | Normalizasyon + matris inşası | ✅ 1,92M pencere |
+| [F2](docs/fazlar/F2-arama-motoru.md) | Arama motoru (kaskad) | ✅ 51 ms |
+| [**F3**](docs/fazlar/F3-dogrulama.md) | **Notebook doğrulaması** 🚦 zorunlu kapı | ✅ **Geçti** |
+| [F3.5](docs/fazlar/F3.5-temizlik.md) | Temizlik (yüzdelik skorlama, evren) | 🔄 Sırada |
+| [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | ⬜ |
+| [F5](docs/fazlar/F5-api.md) | FastAPI + Redis | ⬜ |
+| [F6](docs/fazlar/F6-radar-ui.md) | Next.js — Radar (MVP 1) | ⬜ |
+| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js — Backtest (MVP 2) | ⬜ |
 
 ---
 
