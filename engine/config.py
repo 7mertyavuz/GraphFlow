@@ -126,6 +126,14 @@ STAGE1_TOPK: Final[int] = 5_000
 #: Pre-NMS sonrası Aşama 2'ye (DDTW) girecek aday sayısı.
 STAGE2_TOPK: Final[int] = 1_000
 
+#: Aşama 1'de memmap üzerinden tek seferde işlenecek satır sayısı. Skorlama
+#: chunk'lanır ki 12M satırlık matris için geçici dizi RAM'i şişirmesin (K-01).
+STAGE1_CHUNK_ROWS: Final[int] = 1_000_000
+
+#: Maske bu orandan seyrekse satırlar toplanarak (gather) skorlanır; tüm
+#: matrisi çarpmak yerine. Radar (live) modu tam olarak bu durumdadır (K-15).
+STAGE1_SPARSE_MASK_RATIO: Final[float] = 0.05
+
 #: Pre-NMS: gevşek IoU eşiği — amaç aday havuzunu çeşitlendirmek.
 PRE_NMS_IOU: Final[float] = 0.70
 

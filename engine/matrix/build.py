@@ -37,7 +37,7 @@ from engine.config import (
     TIMEFRAMES,
     WINDOW_LENGTHS,
 )
-from engine.ingest.store import available_symbols, read_klines
+from engine.ingest.store import available_symbols, read_klines, write_json_atomic
 from engine.ingest.symbol_universe import load_universe, symbol_id_map
 from engine.matrix.liquidity import LiquidityMask, build_from_klines, month_key, save_table
 from engine.matrix.npy_store import ChunkedNpyWriter
@@ -214,6 +214,12 @@ def build_all(
             save_table(table, Path(out_root or MATRIX_DIR) / f"liquidity_{timeframe}.parquet")
             mask = LiquidityMask(table)
             log.info("%s likidite: %d (sembol, ay) çifti likit", timeframe, len(mask))
+
+        # SearchEngine'in symbol_id → sembol adı çözebilmesi için (matris
+        # meta'sındaki id'ler bu haritaya referans verir).
+        write_json_atomic(
+            {s: int(ids[s]) for s in tf_symbols}, Path(out_root or MATRIX_DIR) / "symbols.json"
+        )
 
         for length in lengths:
             results[f"{timeframe}_{length}"] = build_matrix(
