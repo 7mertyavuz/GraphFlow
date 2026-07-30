@@ -27,8 +27,12 @@ geri getirme:
   Python + NumPy. Darboğaz dil değil, veri yapısı (K-01).
 - ❌ **`if-else` formasyon kural motoru** — her formasyon 32 noktalık kanonik
   vektör, aynı DTW pipeline'ından geçer (K-04).
-- ❌ **Ham DTW** — daima DDTW (türev). Ham DTW'de düz çizgi çanağa eşleşir
-  (singularity) (K-11).
+- ⚠️ **Aşama 2 metriği K-11'de F3 ölçümüyle DEĞİŞTİ.** Artık `hybrid` =
+  (normalize DDTW + normalize ham DTW) / 2. Ne yalnız DDTW, ne yalnız ham DTW.
+  Ölçüm: AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733 (12/12 hücre). Metrik
+  `config.STAGE2_METRIC` ile seçilir; eşikler metrik başına ayrıdır
+  (`TOLERANCE_THRESHOLDS_BY_METRIC`) — tek eşik setiyle metrik çevirmek motoru
+  sessizce susturur. Gerekçe: docs/03-f3-dogrulama-raporu.md.
 - ❌ **Tek geçişli NMS** — pre-NMS (IoU 0.70) *ve* post-NMS (IoU 0.50 +
   max 3/sembol) ayrı ayrı zorunlu (K-09).
 - ❌ **Statik yüzde bariyerler** (%5 TP / %3 SL) — daima ATR tabanlı. Statik
@@ -73,9 +77,10 @@ geri getirme:
 ⬜ engine/outcome/                 F4
 ✅ engine/templates/               F2  (14 kanonik JSON + loader)
 ⬜ engine/api/                     F5
-✅ tools/                          shapes, gen_synthetic (ground truth'lu), gen_templates
-✅ tests/                          112 test (ingest, normalize, matrix, search)
-⬜ notebooks/                      F3  🚦 zorunlu kapı  ← SIRADAKİ
+✅ tools/                          shapes, variants, gen_synthetic, ab_stage2, f3_measure
+✅ tests/                          127 test (ingest, arşiv, normalize, matrix, search)
+🚦 notebooks/                      F3 ölçümleri BİTTİ — göz testi onayı bekliyor
+⬜ engine/outcome/                 F4  ← onaydan sonra
 ⬜ web/                            F6–F7
 ```
 

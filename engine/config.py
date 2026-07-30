@@ -203,22 +203,25 @@ STAGE2_METRIC: Final[str] = "hybrid"
 #: büyüktür; tek eşik setiyle metrik çevrildiğinde motor sessizce boş sonuç
 #: döner.
 #:
-#: Değerler F3 ADIM 3'te **gerçek Binance verisinden** kalibre edildi
-#: (50 likit + 30 delist edilmiş parite, 1d, 2017-08 → 2026-07; 14 şablon
-#: sorgusu + 32 negatif kontrol). Gerçek veride etiket yoktur, dolayısıyla
-#: AUC hesaplanamaz; eşikler dağılımdan okunur — türetme kuralı:
+#: Değerler F3 ADIM 3'te **gerçek Binance verisinden** kalibre edildi:
+#: 1.165 parite (delist edilenler dahil), 1d, 2017-08 → 2026-07, 1,92M
+#: pencere; 14 şablon sorgusu + 32 negatif kontrol. Gerçek veride etiket
+#: yoktur, dolayısıyla AUC hesaplanamaz; eşikler dağılımdan okunur:
 #:
 #:   Katı   = şablonların "12. sonuç" skorunun alt çeyreği
 #:   Orta   = şablonların "12. sonuç" skorunun medyanı
 #:   Esnek  = şablon skorlarının %95'lik diliminin üst çeyreği
 #:   Üst sınır: hiçbiri anlamsız sorgu tabanının %90'ını aşamaz (K-18)
 #:
-#: Anlamsız sorgu tabanı (white noise / whipsaw): hybrid 0,2355 · dtw 0,2174 ·
-#: ddtw ∞ (hiç sonuç dönmedi). Üretim: notebooks/05_esik_kalibrasyon.ipynb.
+#: Ölçülen anlamsız sorgu (white noise / whipsaw) tabanı — en gevşek kademe
+#: bunun çok altında kalıyor, yani motor gürültüye "eşleşme yok" diyebiliyor:
+#:   ddtw 0,1726 · dtw 0,2026 · hybrid 0,1897
+#:
+#: Üretim: notebooks/05_esik_kalibrasyon.ipynb, docs/03-f3-dogrulama-raporu.md
 TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
-    "ddtw": {"strict": 0.0128, "medium": 0.0188, "flexible": 0.0668},
-    "dtw": {"strict": 0.0260, "medium": 0.0472, "flexible": 0.1956},
-    "hybrid": {"strict": 0.0241, "medium": 0.0380, "flexible": 0.1754},
+    "ddtw": {"strict": 0.0118, "medium": 0.0162, "flexible": 0.0456},
+    "dtw": {"strict": 0.0184, "medium": 0.0337, "flexible": 0.1097},
+    "hybrid": {"strict": 0.0172, "medium": 0.0273, "flexible": 0.0836},
 }
 
 #: Aktif metriğin eşikleri (§5.5 tolerans toggle'ı bunu kullanır).

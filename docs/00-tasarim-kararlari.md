@@ -461,7 +461,52 @@ Bir kerelik `diff` hesabı — pratikte **sıfır**. Zaten sadece ~1.000 aday ü
 
 Sakoe-Chiba bandı korunur: `r = 0.15 × N ≈ 5` (N = 32 için). Hem maliyeti düşürür hem de aşırı bükülmeyi engeller.
 
-### ⚠️ Durum: YENİDEN AÇILDI (F2 ölçümü, 30 Temmuz 2026)
+### ✅ Durum: KARARA BAĞLANDI (F3 ölçümü, 30 Temmuz 2026)
+
+**Karar: `STAGE2_METRIC = "hybrid"`** — Aşama 2 skoru, normalize DDTW mesafesi
+ile normalize ham DTW mesafesinin **ortalamasıdır**. DDTW tek başına
+kullanılmaz; ham DTW de tek başına kullanılmaz. Kaybeden metrikler silinmedi,
+`config.STAGE2_METRIC` anahtarında kaldı.
+
+**Ölçüm** (`tools/ab_stage2.py`, tam koşul tablosu
+[03-f3-dogrulama-raporu.md](03-f3-dogrulama-raporu.md#adim-1--k-11-ab-ddtw-mi-ham-dtw-mi-hybrid-mi)):
+
+| Metrik | Genel AUC | Kazandığı hücre |
+|---|---|---|
+| **hybrid** | **0,9045** | **12/12** |
+| dtw | 0,8956 | 0/12 |
+| ddtw | 0,8733 | 0/12 |
+
+3 metrik × 4 pencere uzunluğu × 3 gürültü seviyesi, formasyon başına 300 örnek,
+9 formasyon. hybrid 9/9 formasyonda da kazandı; 108 eşli hücrenin %99'unda
+dtw'den, %80'inde ddtw'den iyi.
+
+**F2'deki iki metodolojik kusur bu ölçümde giderildi:**
+
+1. **Dairesellik.** Pozitifler artık kanonik şablonun gürültülü kopyası değil,
+   `tools/shape_variants.py` ile üretilen **farklı örnekler**: asimetrik omuz
+   yükseklikleri, eğimli boyun çizgisi, farklı kulp derinliği/uzunluğu, tepe-dip
+   zamanlama kayması. Yapısal doğrulayıcı (tepe/dip sayısı) etiketin doğruluğunu
+   garanti ediyor — %100 geçiş.
+2. **Uzunluk kırılımı.** AUC pencere uzunluğuna göre ayrı hesaplandı.
+
+**DDTW neden kaybetti:** Türev almak yüksek geçiren filtredir; gürültü gücü
+frekansla arttığı için diferansiyasyon gürültüyü yükseltir. Kayıp gürültü ve
+pencere uzunluğuyla büyüyor (100 bar / %4 gürültüde ddtw 0,637'ye karşı dtw
+0,746). Buna karşılık K-11'in dayandığı singularity senaryosu, Sakoe-Chiba
+bandı (r=5, N=32) ve z-score varken **üretilemiyor**. Yani DDTW, olmayan bir
+tehlikeye karşı gürültü dayanıklılığından feragat ediyordu.
+
+**Ham DTW neden tek başına yetmedi:** hybrid, dtw'yi 12/12 hücrede geçti. İki
+mesafenin ortalaması, tek başına hiçbirinin taşımadığı bilgiyi taşıyor —
+DDTW bileşeni küçük ağırlığına rağmen (ham DTW mesafeleri ~2–4x büyük olduğu
+için düz ortalama ham DTW ağırlıklıdır) katkı sağlıyor.
+
+**Açık kalan:** Ölçek-eşitlenmiş (z-skor) harman denenmedi; ileride ölçülebilir.
+
+---
+
+### ⚠️ Durum: YENİDEN AÇILDI (F2 ölçümü, 30 Temmuz 2026) — *yukarıda kapatıldı*
 
 F2 uygulamasında sentetik veriyle yapılan ölçüm, bu kararın **gerekçesini doğrulamadı**. Karar şimdilik korunuyor ama F3 ROC kalibrasyonunda karara bağlanacak.
 
@@ -784,7 +829,7 @@ Bu, eşiklerin asıl kaynağının **negatif testler** olduğu anlamına gelir; 
 | 4 | WebSocket canlı akış | REST + Cron | 4H/1D'de 5 dk gecikmenin maliyeti yok |
 | 5 | `if-else` kural motoru (OBO, Kama…) | Kanonik şablon vektörleri | Kırılgan, bakımı pahalı, motorla tutarsız |
 | 6 | Tek aşamalı DTW | Kaskad (kosinüs → DDTW) | O(N·M) 12M pencerede kabul edilemez |
-| 7 | Ham DTW | DDTW (türev) | ⚠️ **Yeniden açıldı** — F2 ölçümü gerekçeyi doğrulamadı, F3'te karara bağlanacak (bkz. K-11) |
+| 7 | ~~Ham DTW~~ → **Yalnız DDTW** | **hybrid** (DDTW + ham DTW ortalaması) | ✅ **F3'te karara bağlandı**: AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733; hybrid 12/12 hücrede kazandı. Singularity, Sakoe-Chiba + z-score varken üretilemiyor; türev ise gürültüyü yükseltiyor (bkz. K-11) |
 | 8 | 4'er 4'er tembel tarama | 12'li grid + cache'li sıralı liste | En iyi 4'ü bulmak için zaten hepsi skorlanmalı |
 | 9 | Tek geçişli NMS | Çift aşamalı NMS | Ya bütçe yanar ya yanlış skorla elenir |
 | 10 | Nasdaq / BIST / Forex (MVP'de) | Sadece Binance kripto | Veri lisansı maliyeti ve bürokrasisi |
