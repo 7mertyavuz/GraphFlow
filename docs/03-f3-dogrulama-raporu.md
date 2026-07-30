@@ -29,6 +29,7 @@ ve **geçemeyen testleri** kaydeder.
 | 10 | Radar (live) 23 ms — bütçe 10 ms | ⚠️ |
 | 11 | Historical arama 51 ms — bütçe 500 ms | ✅ |
 | 12 | K-09 doğrulandı: örtüşen çift 0, max 3/sembol tutuyor | ✅ |
+| 13 | **Stablecoin eşleşmeleri ilk sayfanın tepesine giriyor** (%4 volatilite) | ❌ açık soru |
 
 ---
 
@@ -392,7 +393,40 @@ sıfır değil ama düşük.
 Orta kademede 20 sorgunun **7'si** hiç sonuç döndürmedi. Bu, §3.1'deki eşik
 sorununun göz testindeki karşılığıdır.
 
-### 4.5. Karar
+### 4.5. Görsel gözlemler (esnek kademe)
+
+Orta kademede 7 sorgu boş döndüğü için göz testi **esnek kademede de** render
+edildi: `notebooks/output/goz_testi_esnek_*.png`. Bu kademede 20 sorgunun
+20'si de dolu sayfa veriyor (symmetrical_triangle hariç: 6 sonuç), örtüşen
+çift 0, sembol çeşitliliği 11–12/12.
+
+**Fincan-kulp (`goz_testi_esnek_cup_and_handle.png`)** — 12 karonun 12'si de
+gerçek çanak: dip yuvarlak, sonda kırılım var, hepsi farklı sembol ve farklı
+dönem (2021–2026), volatilite %29–150. Bu sayfa "evet, çalışıyor" izlenimi
+veriyor.
+
+**OBO (`goz_testi_esnek_head_and_shoulders.png`)** — 12 karonun ~9'u belirgin
+omuz-baş-omuz; 3'ü (XLMUSDT, XMRUSDT, MATICUSDT) daha çok "yuvarlak tepe".
+Ancak **ilk iki sıra sorunlu**: PAXUSDT (%4 volatilite) ve TUSDUSDT (%5) —
+ikisi de **stablecoin**. Z-score, sabitlenmiş bir paritenin %4'lük dalgalanmasını
+mükemmel bir OBO'ya dönüştürüyor.
+
+### 4.6. ❌ Stablecoin kirliliği — az ama en görünür yerde
+
+| Ölçüm | Değer |
+|---|---|
+| İlk-12'lerde stablecoin sonuç | 5 / 240 (%2) |
+| Genliği %10'un altında sonuç | 6 / 240 |
+| Etkilenen sorgu | 4 / 20 |
+| En uç örnek | symmetrical_triangle → %0,1 genlikli eşleşme |
+
+Oran düşük ama **sıralamanın tepesine** yerleşiyor (OBO'da 1. ve 2. sıra),
+yani kullanıcının ilk gördüğü şey oluyor. K-10 bunu öngörmüştü; çözüm zaten
+mimaride var (`min_amplitude`), sadece **varsayılan olarak kapalı**.
+
+> **Karar gerekiyor:** S-5.
+
+### 4.7. Karar
 
 Görseller üretildi, gözlemler yazıldı. **"Evet, bu çalışıyor" kararı bu
 belgede verilmemiştir** — K-18 gereği karar insana aittir.
@@ -480,6 +514,23 @@ fark edilmez).
 
 **Öneri: (d) şimdilik, (b) F5'te.** 23 ms hâlâ "anında" hissettirir.
 
+### S-5 — Stablecoin ve düşük genlikli sonuçlar
+
+İlk sayfaların tepesine %4–5 volatiliteli stablecoin eşleşmeleri giriyor
+(§4.6). Seçenekler:
+
+1. **Varsayılan `min_amplitude`** (ör. %10) — K-10 zaten bu filtreyi tanımlıyor,
+   yalnızca varsayılanı kapalı. Tek satırlık değişiklik.
+2. **Stablecoin pariteleri evrenden çıkar** — `USDCUSDT`, `TUSDUSDT`,
+   `PAXUSDT`, `FDUSDUSDT`, `USD1USDT`, `XAUTUSDT`… Sabit listeye bağlı, bakım
+   gerektirir.
+3. **Genlik bazlı skor cezası** — K-10'un "açık soru"su (genlik bonusu) buraya
+   bağlanır.
+
+**Öneri: (1).** Mimaride zaten var, kullanıcı arayüzde değiştirebilir, hiçbir
+kararı ihlal etmez. (2) ayrıca yapılabilir ama tek başına yetmez: düşük
+oynaklıklı ölü altcoin'ler de aynı sorunu üretir.
+
 ---
 
 ## Üretilen çıktılar
@@ -492,7 +543,7 @@ notebooks/
   04_negatif_kontrol.ipynb       skor dağılımı + rampa incelemesi  🚦
   05_esik_kalibrasyon.ipynb      gerçek veri eşikleri + K-11 A/B
   06_radar_duman_testi.ipynb     live mod süre + son pencere doğrulaması
-  output/                        30 PNG
+  output/                        50 PNG (orta + esnek kademe)
 
 data/f3/
   ab_stage2.json                 K-11 A/B ham sonuçları
