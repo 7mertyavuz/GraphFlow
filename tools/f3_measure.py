@@ -240,6 +240,33 @@ def freehand_vector(name: str) -> np.ndarray:
     return normalize_drawing(np.asarray(FREEHAND_QUERIES[name], dtype=float))
 
 
+def blueprint_layers(query: np.ndarray, candidate: np.ndarray):
+    """Göz testi karosu için iki katman (F3.5, Adım 6).
+
+    * **A** — kanonik şablonun kendisi: *"aradığın şey"*
+    * **B** — DTW hizalama yoluyla **bükülmüş** şablon: *"motor bunu buna hizaladı"*
+
+    A ile B'nin ayrıştığı karolar, eşleşmenin ağır bükülmeyle kurulduğunu
+    görsel olarak ele verir. Bükülme miktarı da ölçülüp etikete yazılır —
+    şimdilik yalnızca ölçülür, filtreye çevrilmez.
+    """
+    from engine.search.ddtw import warp_amount, warping_path
+
+    path = warping_path(query, candidate)
+    # Türev uzayında hizalandığı için indeksler 1 kayıktır (D[i] ↔ x[i+1]).
+    warped = np.full(query.size, np.nan)
+    for qi, cj in path:
+        warped[cj + 1] = query[qi + 1]
+    warped[0], warped[-1] = query[0], query[-1]
+
+    missing = np.isnan(warped)
+    if missing.any():  # bükülme bazı noktaları atlarsa doğrusal doldur
+        idx = np.arange(query.size)
+        warped[missing] = np.interp(idx[missing], idx[~missing], warped[~missing])
+
+    return query, warped, warp_amount(path)
+
+
 def render_top12(
     engine: SearchEngine,
     query: np.ndarray,
@@ -249,9 +276,14 @@ def render_top12(
     limit: int = PAGE_SIZE,
     tolerance: str = "medium",
     metric: str = STAGE2_METRIC,
+    blueprint: bool = True,
     **kwargs,
 ):
-    """3×4 grid PNG üretir: sembol, tarih, skor, volatilite, vurgulu pencere."""
+    """3×4 grid PNG üretir: sembol, tarih, skor, volatilite, vurgulu pencere.
+
+    ``blueprint=True`` ise her karoya kanonik şablon (soluk kesikli) ve DTW
+    yoluyla bükülmüş hâli (farklı renk) bindirilir.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -274,11 +306,28 @@ def render_top12(
         ax.plot(close, lw=1.1, color="#1f3a5f")
         ax.axvspan(lo, hi, color="#2b7a78", alpha=0.18)
         ax.plot(range(lo, hi + 1), close[lo : hi + 1], lw=1.7, color="#2b7a78")
+
+        etiket = f"skor {match.distance:.4f} · vol %{match.amplitude:.0f} · L={match.window_length}"
+        if blueprint:
+            handle = engine.handle(timeframe, match.window_length)
+            row = int(
+                np.flatnonzero(
+                    (handle.symbol_id == match.symbol_id) & (handle.end_idx == match.end_idx)
+                )[0]
+            )
+            matched = np.asarray(handle.vectors[row], dtype=np.float64)
+            canonical, warped, bukulme = blueprint_layers(np.asarray(query, dtype=np.float64), matched)
+
+            # Şablonu eşleşen pencerenin ölçeğine taşı (z-score → fiyat ekseni).
+            segment = close[lo : hi + 1]
+            mu, sigma = segment.mean(), segment.std()
+            xs = np.linspace(lo, hi, canonical.size)
+            ax.plot(xs, canonical * sigma + mu, ls="--", lw=1.0, color="#b0b0b0", alpha=0.9)
+            ax.plot(xs, warped * sigma + mu, ls="-", lw=1.0, color="#c94f4f", alpha=0.85)
+            etiket += f" · bükülme {bukulme:.1f}"
+
         tarih = bar_time(match, timeframe).date()
-        ax.set_title(
-            f"{match.symbol} · {tarih}\nskor {match.distance:.4f} · vol %{match.amplitude:.0f} · L={match.window_length}",
-            fontsize=8.5,
-        )
+        ax.set_title(f"{match.symbol} · {tarih}\n{etiket}", fontsize=8.5)
         ax.set_xticks([])
         ax.set_yticks([])
 

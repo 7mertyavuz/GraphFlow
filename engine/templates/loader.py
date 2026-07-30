@@ -36,6 +36,8 @@ class Template:
     vector: np.ndarray  # (32,) z-score'lu — motora giden
     icon: str = ""
     description_tr: str = ""
+    #: Geometrik kısıtlar (F3.5) — yoksa hiçbir ek filtre uygulanmaz.
+    constraints: tuple = ()
 
     def as_dict(self) -> dict:
         return {
@@ -70,6 +72,7 @@ def _from_payload(payload: dict) -> Template:
         vector=vector,
         icon=payload.get("icon", ""),
         description_tr=payload.get("description_tr", ""),
+        constraints=tuple(payload.get("constraints", ())),
     )
 
 

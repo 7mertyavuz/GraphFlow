@@ -36,9 +36,59 @@ DESCRIPTIONS: dict[str, str] = {
 }
 
 
+#: Geometrik kısıtlar (F3.5, Adım 7) — kanonik vektördeki çapa indeksleri.
+#: Kural KODA değil ŞABLON META-VERİSİNE yazılır; tek genel değerlendirici
+#: ``engine/search/constraints.py``'dedir. Böylece K-04 korunur: formasyon
+#: başına if-else yok. Çapalar kanonik şeklin dönüş noktalarından okundu
+#: (OBO: tepeler 7/16/24, dipler 10/21 — ikili tepe: tepeler 9/22).
+CONSTRAINTS: dict[str, list[dict]] = {
+    # OBO'yu yuvarlak tepeden ayıran şey "orta nokta yüksek" DEĞİLDİR —
+    # parabol de onu sağlar. Ayırt edici olan OMUZ BELİRGİNLİĞİ: omuzların
+    # komşu diplerin üstünde durması. F3.5 ölçümünde bu kural eksikti ve
+    # katman bu yüzden katkı gösterememişti.
+    "head_and_shoulders": [
+        {"type": "level_match", "anchors": [10, 21], "max_diff": 0.60,
+         "comment": "boyun çizgisi: omuz-baş arası iki dip aynı seviyede"},
+        {"type": "level_order", "anchors": [7, 16, 24], "order": ["<", ">"],
+         "comment": "baş, iki omuzdan da yüksek"},
+        {"type": "level_order", "anchors": [10, 7], "order": ["<"],
+         "comment": "sol omuz, boyun çizgisinin üstünde (belirginlik)"},
+        {"type": "level_order", "anchors": [21, 24], "order": ["<"],
+         "comment": "sağ omuz, boyun çizgisinin üstünde (belirginlik)"},
+    ],
+    "inverse_head_and_shoulders": [
+        {"type": "level_match", "anchors": [10, 21], "max_diff": 0.60,
+         "comment": "boyun çizgisi (ayna)"},
+        {"type": "level_order", "anchors": [7, 16, 24], "order": [">", "<"],
+         "comment": "baş, iki omuzdan da düşük"},
+        {"type": "level_order", "anchors": [10, 7], "order": [">"],
+         "comment": "sol omuz belirginliği (ayna)"},
+        {"type": "level_order", "anchors": [21, 24], "order": [">"],
+         "comment": "sağ omuz belirginliği (ayna)"},
+    ],
+    "double_top": [
+        {"type": "level_match", "anchors": [9, 22], "max_diff": 0.60,
+         "comment": "iki zirve yaklaşık eşit"},
+        {"type": "level_order", "anchors": [16, 9], "order": ["<"],
+         "comment": "aradaki dip, zirvelerin altında (tek tepe değil)"},
+        {"type": "level_order", "anchors": [16, 22], "order": ["<"],
+         "comment": "aradaki dip, ikinci zirvenin de altında"},
+    ],
+    "double_bottom": [
+        {"type": "level_match", "anchors": [9, 22], "max_diff": 0.60,
+         "comment": "iki dip yaklaşık eşit"},
+        {"type": "level_order", "anchors": [16, 9], "order": [">"],
+         "comment": "aradaki tepe, diplerin üstünde"},
+        {"type": "level_order", "anchors": [16, 22], "order": [">"],
+         "comment": "aradaki tepe, ikinci dibin de üstünde"},
+    ],
+}
+
+
 def build_template(template_id: str, n: int = N_POINTS) -> dict:
     fn, category, name_tr, name_en, bias = SHAPES[template_id]
     points = [round(float(v), 6) for v in fn(n)]
+    kisitlar = CONSTRAINTS.get(template_id)
     return {
         "id": template_id,
         "name_tr": name_tr,
@@ -48,6 +98,7 @@ def build_template(template_id: str, n: int = N_POINTS) -> dict:
         "points": points,
         "icon": f"{template_id}.svg",
         "description_tr": DESCRIPTIONS.get(template_id, ""),
+        **({"constraints": kisitlar} if kisitlar else {}),
     }
 
 

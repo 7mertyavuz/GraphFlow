@@ -32,6 +32,7 @@ from engine.config import (
     MATRIX_CHUNK_WINDOWS,
     MATRIX_DIR,
     META_DTYPE,
+    TIMEFRAME_MS,
     N_POINTS,
     STRIDE,
     TIMEFRAMES,
@@ -60,10 +61,10 @@ def matrix_dir(timeframe: str, length: int, root: Path | None = None) -> Path:
 class BuildStats:
     symbols: int = 0
     windows: int = 0
-    dropped_flat: int = 0
+    dropped: int = 0
 
     def __str__(self) -> str:  # pragma: no cover - log biçimi
-        return f"{self.symbols} sembol, {self.windows} pencere, {self.dropped_flat} düz pencere düştü"
+        return f"{self.symbols} sembol, {self.windows} pencere, {self.dropped} düştü (düz + boşluklu)"
 
 
 def window_starts(n_bars: int, length: int, stride: int = STRIDE, from_bar: int = 0) -> np.ndarray:
@@ -86,6 +87,7 @@ def build_symbol_rows(
     symbol: str,
     symbol_id: int,
     length: int,
+    timeframe: str,
     liquidity: LiquidityMask | None,
     stride: int = STRIDE,
     from_bar: int = 0,
@@ -108,6 +110,7 @@ def build_symbol_rows(
     # ATR dizisi bir kez; atr[i] yalnızca 0..i barlarını kullanır (lookahead yok).
     atr = wilder_atr(high, low, close, ATR_PERIOD)
     months = month_key(open_time)
+    expected_span = (length - 1) * TIMEFRAME_MS[timeframe]
 
     for c0 in range(0, starts.size, chunk):
         block = starts[c0 : c0 + chunk]
@@ -118,6 +121,17 @@ def build_symbol_rows(
         raw = close[idx]
 
         vectors, valid = normalize_batch(raw, N_POINTS)
+
+        # Zaman sürekliliği invariant'ı (F3.5, Adım 3): boşluk içeren pencere
+        # matrise girmez. Aksi hâlde "24 bar" sanılan bir pencere 40 takvim
+        # günü kapsayabilir — şekil yapısal olarak bozulur.
+        #
+        # Boşluk ffill ile DOLDURULMAZ: uydurma bar True Range = 0 üretir,
+        # ATR'yi yapay olarak düşürür (K-16 bariyerleri daralır → sahte TP/SL),
+        # şekle düz plato ekler ve volume = 0 ile likidite sıralamasını (K-13)
+        # bozar. Doğrusu düşürmektir; 1,9M pencerede birkaç bin kayıp önemsiz.
+        span = open_time[ends] - open_time[block]
+        valid &= span == expected_span
         if not valid.any():
             continue
 
@@ -166,14 +180,14 @@ def build_matrix(
 
             kept = 0
             for vectors, meta in build_symbol_rows(
-                df, symbol, ids.get(symbol, -1), length, liquidity, stride, chunk=chunk
+                df, symbol, ids.get(symbol, -1), length, timeframe, liquidity, stride, chunk=chunk
             ):
                 vec_writer.append(vectors)
                 meta_writer.append(meta)
                 kept += len(meta)
 
             stats.windows += kept
-            stats.dropped_flat += total_windows - kept
+            stats.dropped += total_windows - kept
     except BaseException:
         vec_writer.abort()
         meta_writer.abort()

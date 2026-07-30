@@ -39,5 +39,38 @@
     1.0
   ],
   "icon": "double_bottom.svg",
-  "description_tr": "Yaklaşık eşit iki dip; ikinci dibin korunması yükseliş dönüşü olarak okunur."
+  "description_tr": "Yaklaşık eşit iki dip; ikinci dibin korunması yükseliş dönüşü olarak okunur.",
+  "constraints": [
+    {
+      "type": "level_match",
+      "anchors": [
+        9,
+        22
+      ],
+      "max_diff": 0.6,
+      "comment": "iki dip yaklaşık eşit"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        16,
+        9
+      ],
+      "order": [
+        ">"
+      ],
+      "comment": "aradaki tepe, diplerin üstünde"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        16,
+        22
+      ],
+      "order": [
+        ">"
+      ],
+      "comment": "aradaki tepe, ikinci dibin de üstünde"
+    }
+  ]
 }

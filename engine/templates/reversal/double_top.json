@@ -39,5 +39,38 @@
     0.0
   ],
   "icon": "double_top.svg",
-  "description_tr": "Yaklaşık eşit iki zirve ve aralarındaki dip; ikinci zirvenin aşılamaması dönüş sinyali sayılır."
+  "description_tr": "Yaklaşık eşit iki zirve ve aralarındaki dip; ikinci zirvenin aşılamaması dönüş sinyali sayılır.",
+  "constraints": [
+    {
+      "type": "level_match",
+      "anchors": [
+        9,
+        22
+      ],
+      "max_diff": 0.6,
+      "comment": "iki zirve yaklaşık eşit"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        16,
+        9
+      ],
+      "order": [
+        "<"
+      ],
+      "comment": "aradaki dip, zirvelerin altında (tek tepe değil)"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        16,
+        22
+      ],
+      "order": [
+        "<"
+      ],
+      "comment": "aradaki dip, ikinci zirvenin de altında"
+    }
+  ]
 }

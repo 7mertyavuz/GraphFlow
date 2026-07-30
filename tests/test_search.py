@@ -717,3 +717,128 @@ def test_ddtw_batch_scales_to_thousand_candidates():
     print(f"\nAşama 2 (1.000 aday DDTW): {elapsed_ms:.0f} ms")
     assert scores.shape == (1_000,)
     assert elapsed_ms < 100, f"Aşama 2 bütçeyi aştı: {elapsed_ms:.0f} ms"
+
+
+# ---------------------------------------------------------------------------
+# Ters şekil tuzağı (F3.5, Adım 5)
+# ---------------------------------------------------------------------------
+
+INVERSE_PAIRS = [
+    ("cup_and_handle", "head_and_shoulders"),  # ∪ ↔ ∩
+    ("double_bottom", "double_top"),
+    ("inverse_head_and_shoulders", "head_and_shoulders"),
+    ("falling_wedge", "rising_wedge"),
+    ("bull_flag", "bear_flag"),
+]
+
+
+@pytest.mark.parametrize("positive,negative", INVERSE_PAIRS)
+def test_inverse_shape_is_not_a_match(positive, negative):
+    """Ters şekil eşleşmemeli — **aktif metrikle** (hybrid).
+
+    Geçmesi beklenir (z-score yönü korur), ama geçmezse bir yerde mutlak değer
+    veya kare alınıyor demektir: motor yükseliş formasyonu ararken düşüş
+    formasyonu döndürür. Ölümcül ve **sessiz** bir hata sınıfı.
+    """
+    from engine.config import STAGE2_METRIC
+    from engine.search.ddtw import stage2_scores
+
+    q = get_template(positive).vector
+    same = stage2_scores(q, q[None, :])[0]
+    opposite = stage2_scores(q, get_template(negative).vector[None, :])[0]
+
+    assert opposite > same
+    assert opposite > TOLERANCE_THRESHOLDS_BY_METRIC[STAGE2_METRIC]["flexible"], (
+        f"{positive} sorgusu {negative} şeklini eşleşme sayıyor"
+    )
+
+
+def test_ddtw_alone_confuses_wedge_direction():
+    """K-11 için bağımsız kanıt: DDTW tek başına takoz YÖNÜNÜ ayırt edemiyor.
+
+    Türev, iki şekli ayıran şeyi — trend bileşenini — sabite indirger; geriye
+    kalan salınım yükselen ve düşen takozda neredeyse aynıdır. Ölçüm:
+
+        ddtw   düşen↔yükselen 0,0146  (esnek eşik 0,0456 → EŞLEŞME SAYAR)
+        dtw                   2,2841  (eşik 0,1097 → eler)
+        hybrid                1,1494  (eşik 0,0836 → eler)
+
+    Bu test, varsayılan metrik DDTW'ye geri çevrilirse bedelin ne olduğunu
+    kayıt altında tutar. Bkz. K-11 "Karara bağlandı (F3)".
+    """
+    fw = get_template("falling_wedge").vector
+    rw = get_template("rising_wedge").vector
+
+    ddtw_gap = float(ddtw_scores(fw, rw[None, :])[0])
+    raw_gap = float(dtw_scores(fw, rw[None, :])[0])
+
+    assert ddtw_gap < TOLERANCE_THRESHOLDS_BY_METRIC["ddtw"]["flexible"]
+    assert raw_gap > TOLERANCE_THRESHOLDS_BY_METRIC["dtw"]["flexible"]
+
+
+def test_mirrored_series_scores_worse_than_itself():
+    """Aynı seri ve tam aynası — sentetik, şablondan bağımsız kontrol."""
+    rng = np.random.default_rng(11)
+    for _ in range(20):
+        v = z(np.cumsum(rng.normal(size=N_POINTS)))
+        assert ddtw_scores(v, (-v)[None, :])[0] > ddtw_scores(v, v[None, :])[0] + 0.01
+
+
+def test_symmetric_shapes_are_reported_not_asserted():
+    """Kendine-yakın-simetrik şekiller bu testten muaftır — raporlanır.
+
+    Simetrik üçgen gibi şekillerin aynası kendine benzeyebilir; bu bir hata
+    değil, şeklin özelliğidir.
+    """
+    q = get_template("symmetrical_triangle").vector
+    ratio = float(ddtw_scores(q, (-q)[None, :])[0] / max(1e-9, ddtw_scores(q, q[None, :])[0] + 1e-9))
+    print(f"\nsimetrik üçgen: ayna/kendisi mesafe oranı = {ratio:.0f}x (bilgi amaçlı)")
+    assert np.isfinite(ratio)
+
+
+# ---------------------------------------------------------------------------
+# Geometrik kısıt katmanı (F3.5, Adım 7) — uygulandı, motora BAĞLANMADI
+# ---------------------------------------------------------------------------
+
+
+def test_constraints_are_metadata_not_code():
+    """K-04 korunuyor: kural şablon JSON'unda, değerlendirici tek ve genel."""
+    obo = get_template("head_and_shoulders")
+    assert [c["type"] for c in obo.constraints] == [
+        "level_match", "level_order", "level_order", "level_order",
+    ]
+    assert get_template("bull_flag").constraints == ()  # kısıtsız şablon
+
+
+def test_constraint_evaluator_rejects_rounded_top():
+    """Boyun çizgisi kuralı: yuvarlak tepe elenmeli, gerçek OBO geçmeli."""
+    from engine.search.constraints import passes
+
+    obo = get_template("head_and_shoulders")
+    gercek = normalize_window(100 * np.exp(0.25 * shape("head_and_shoulders", 32)))
+    yuvarlak = z(-((np.linspace(-1, 1, N_POINTS)) ** 2))  # tek tepeli parabol
+
+    assert passes(obo.vector, gercek, obo.constraints)
+    assert not passes(obo.vector, yuvarlak, obo.constraints)
+
+
+def test_no_constraints_means_no_filtering():
+    """``constraints`` alanı olmayan şablon mevcut davranışı korur."""
+    from engine.search.constraints import filter_candidates
+
+    rng = np.random.default_rng(2)
+    V = np.stack([z(rng.normal(size=N_POINTS)) for _ in range(20)])
+    assert filter_candidates(get_template("bull_flag").vector, V, ()).all()
+
+
+def test_warping_path_is_monotone_and_banded():
+    """Blueprint overlay'in dayandığı yol: monoton ve bant içinde."""
+    from engine.search.ddtw import warp_amount, warping_path
+
+    q = get_template("cup_and_handle").vector
+    c = normalize_window(100 * np.exp(0.2 * shape("cup_and_handle", 64)))
+    path = warping_path(q, c)
+
+    assert np.all(np.diff(path[:, 0]) >= 0) and np.all(np.diff(path[:, 1]) >= 0)
+    assert np.all(np.abs(path[:, 0] - path[:, 1]) <= SAKOE_CHIBA_RADIUS)
+    assert warp_amount(path) < 5.0  # kendi şekline hizalanırken az bükülme

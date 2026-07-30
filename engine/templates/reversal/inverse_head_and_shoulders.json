@@ -39,5 +39,51 @@
     0.884393
   ],
   "icon": "inverse_head_and_shoulders.svg",
-  "description_tr": "OBO'nun ayna görüntüsü; düşüş trendinin sonunda yükseliş dönüşü."
+  "description_tr": "OBO'nun ayna görüntüsü; düşüş trendinin sonunda yükseliş dönüşü.",
+  "constraints": [
+    {
+      "type": "level_match",
+      "anchors": [
+        10,
+        21
+      ],
+      "max_diff": 0.6,
+      "comment": "boyun çizgisi (ayna)"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        7,
+        16,
+        24
+      ],
+      "order": [
+        ">",
+        "<"
+      ],
+      "comment": "baş, iki omuzdan da düşük"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        10,
+        7
+      ],
+      "order": [
+        ">"
+      ],
+      "comment": "sol omuz belirginliği (ayna)"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        21,
+        24
+      ],
+      "order": [
+        ">"
+      ],
+      "comment": "sağ omuz belirginliği (ayna)"
+    }
+  ]
 }

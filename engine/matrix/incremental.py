@@ -80,7 +80,7 @@ def update_matrix(
             continue  # yeni kapanmış bar yok
 
         for vectors, new_meta in build_symbol_rows(
-            df, symbol, symbol_id, length, liquidity, stride, from_bar=known_end + 1
+            df, symbol, symbol_id, length, timeframe, liquidity, stride, from_bar=known_end + 1
         ):
             # Güvenlik ağı: ızgara kayması olursa bile eski pencereyi tekrar yazma.
             fresh = new_meta["end_idx"] > known_end

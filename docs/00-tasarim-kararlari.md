@@ -217,6 +217,23 @@ Bunun sorunları:
 2. **Tutarsızlık:** Kural motoru ile DTW motoru aynı sorguya farklı sonuçlar verir. Kullanıcı "OBO" seçtiğinde ile OBO çizdiğinde farklı listeler görür — bu bir üründe kabul edilemez.
 3. **Kapsam:** Kurallar sadece kodlanan formasyonları bulur. Şablon vektörleri ise sınırsız genişletilebilir; yeni bir formasyon eklemek = yeni bir 32 elemanlı dizi yazmak.
 
+### ⚙️ F3.5 eki — çapa tabanlı kısıt katmanı (uygulandı, BAĞLANMADI)
+
+F3 göz testi, K-04'ün öngördüğü "geometriye indirgenemeyen ek filtre"
+ihtiyacını **ölçülmüş hâle getirdi**: DTW noktaları hizalar, hizalanan
+noktaların *seviyelerinin* mantıklı olup olmadığına bakmaz. OBO sorgusunda
+yuvarlak tepeler bu yüzden sızıyor (ilk 12'de 2 karo).
+
+Mekanizma K-04'ü bozmadan kuruldu: kural **koda değil şablon meta-verisine**
+yazılır (`constraints` alanı), tek genel değerlendirici
+`engine/search/constraints.py`, çapalar DTW hizalama yolundan okunur.
+Kısıtsız şablon hiçbir ek filtreden geçmez.
+
+**Ama motora bağlanmadı.** Ölçülen katkı: OBO 5/12 → 6/12, ikili tepe
+1/12 → 2/12; bunun için aday havuzunun %60'ı atılıyor. Kural katmanı ancak
+ölçülmüş katkı gösterirse kalır — göstermedi.
+Ayrıntı: [04-f35-raporu.md](04-f35-raporu.md#adım-7--geometrik-kısıt-katmanı--bağlanmadı).
+
 ### Sonuç
 
 - **Tek motor**, iki giriş yolu (kütüphane seçimi / serbest çizim)
@@ -501,6 +518,17 @@ tehlikeye karşı gürültü dayanıklılığından feragat ediyordu.
 mesafenin ortalaması, tek başına hiçbirinin taşımadığı bilgiyi taşıyor —
 DDTW bileşeni küçük ağırlığına rağmen (ham DTW mesafeleri ~2–4x büyük olduğu
 için düz ortalama ham DTW ağırlıklıdır) katkı sağlıyor.
+
+**F3.5'te iki bağımsız doğrulama daha:**
+
+1. **Zaman ekseni sınaması** — bozulma şiddetine göre AUC: hafif 0,896/0,907/**0,920**,
+   orta 0,872/0,895/**0,907**, şiddetli 0,810/0,872/**0,882** (ddtw/dtw/hybrid).
+   En ağır bozulmada 9/9 formasyonda hybrid kazandı; DDTW'nin açığı büyüyor.
+2. **Ters şekil tuzağı** — DDTW **tek başına düşen ve yükselen takozu ayırt
+   edemiyor** (mesafe 0,0146; esnek eşiği 0,0456 → eşleşme sayar). Türev,
+   iki şekli ayıran trend bileşenini sabite indirger. Ham DTW 2,28, hybrid 1,15
+   ile eler. Bu bir **yön hatası**dır: motor yükseliş formasyonu ararken düşüş
+   formasyonu döndürürdü.
 
 **Açık kalan:** Ölçek-eşitlenmiş (z-skor) harman denenmedi; ileride ölçülebilir.
 

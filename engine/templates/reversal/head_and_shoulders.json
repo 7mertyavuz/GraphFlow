@@ -39,5 +39,51 @@
     0.115607
   ],
   "icon": "head_and_shoulders.svg",
-  "description_tr": "İki eşit omuz arasında daha yüksek bir baş; boyun çizgisi kırılımıyla dönüş beklenir."
+  "description_tr": "İki eşit omuz arasında daha yüksek bir baş; boyun çizgisi kırılımıyla dönüş beklenir.",
+  "constraints": [
+    {
+      "type": "level_match",
+      "anchors": [
+        10,
+        21
+      ],
+      "max_diff": 0.6,
+      "comment": "boyun çizgisi: omuz-baş arası iki dip aynı seviyede"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        7,
+        16,
+        24
+      ],
+      "order": [
+        "<",
+        ">"
+      ],
+      "comment": "baş, iki omuzdan da yüksek"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        10,
+        7
+      ],
+      "order": [
+        "<"
+      ],
+      "comment": "sol omuz, boyun çizgisinin üstünde (belirginlik)"
+    },
+    {
+      "type": "level_order",
+      "anchors": [
+        21,
+        24
+      ],
+      "order": [
+        "<"
+      ],
+      "comment": "sağ omuz, boyun çizgisinin üstünde (belirginlik)"
+    }
+  ]
 }

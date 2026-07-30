@@ -285,7 +285,7 @@ def test_flat_windows_are_dropped(tmp_path):
         TF, 24, ["FLATUSDT"], {"FLATUSDT": 0}, klines_root=tmp_path / "klines", out_root=tmp_path / "m"
     )
     assert stats.windows == 0
-    assert stats.dropped_flat > 0
+    assert stats.dropped > 0
     assert load_matrix(matrix_dir(TF, 24, tmp_path / "m") / VECTORS_FILE).shape[0] == 0
 
 
@@ -343,3 +343,62 @@ def test_last_end_idx():
     meta["symbol_id"] = [0, 0, 1, 1, 1]
     meta["end_idx"] = [10, 40, 7, 99, 55]
     assert last_end_idx(meta) == {0: 40, 1: 99}
+
+
+# ---------------------------------------------------------------------------
+# Zaman sürekliliği invariant'ı (F3.5, Adım 3)
+# ---------------------------------------------------------------------------
+
+
+def test_windows_spanning_a_gap_are_dropped(tmp_path):
+    """Boşluk içeren pencere matrise girmemeli.
+
+    Aksi hâlde "24 bar" sanılan bir pencere 40 takvim günü kapsar ve şekil
+    yapısal olarak bozulur. Boşluk ffill ile DOLDURULMAZ: uydurma bar
+    True Range = 0 üretir (ATR düşer → K-16 bariyerleri daralır), şekle düz
+    plato ekler ve volume = 0 ile likidite sıralamasını (K-13) bozar.
+    """
+    step = 86_400_000
+    n = 120
+    rng = np.random.default_rng(3)
+    ot = np.arange(n, dtype=np.int64) * step + 1_500_000_000_000
+    ot[60:] += 30 * step  # 60. barda 30 günlük boşluk
+
+    close = 100 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
+    df = pd.DataFrame(
+        {
+            "open_time": ot,
+            "open": close,
+            "high": close * 1.01,
+            "low": close * 0.99,
+            "close": close,
+            "volume": np.ones(n),
+            "quote_volume": np.ones(n) * 1000,
+            "trades": np.ones(n, dtype=np.int32),
+        }
+    )
+    write_atomic(df, tmp_path / "klines" / "1d" / "GAPUSDT.parquet")
+
+    build_matrix(
+        "1d", 24, ["GAPUSDT"], {"GAPUSDT": 0},
+        klines_root=tmp_path / "klines", out_root=tmp_path / "m",
+    )
+    M = np.asarray(load_matrix(matrix_dir("1d", 24, tmp_path / "m") / META_FILE))
+    times = df["open_time"].to_numpy()
+
+    assert M.size > 0, "boşluksuz pencereler de düşmüş"
+    span = times[M["end_idx"]] - times[M["start_idx"]]
+    assert np.all(span == 23 * step), "boşluk içeren pencere matrise girmiş"
+
+
+def test_gap_free_symbol_keeps_all_windows(tmp_path):
+    """İnvariant, boşluksuz veride hiçbir pencereyi düşürmemeli."""
+    rng = np.random.default_rng(4)
+    df, _ = make_symbol("CLEANUSDT", rng, n_bars=300, n_injections=2)
+    write_atomic(df, tmp_path / "klines" / TF / "CLEANUSDT.parquet")
+
+    stats = build_matrix(
+        TF, 40, ["CLEANUSDT"], {"CLEANUSDT": 0},
+        klines_root=tmp_path / "klines", out_root=tmp_path / "m",
+    )
+    assert stats.dropped == 0

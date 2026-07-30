@@ -60,9 +60,16 @@ def auc(positive: np.ndarray, negative: np.ndarray) -> float:
     return float((pos < neg).mean() + 0.5 * (pos == neg).mean())
 
 
-def make_positive(name: str, length: int, noise: float, rng: np.random.Generator) -> np.ndarray:
-    """Formasyonun farklı bir örneği + rastgele ölçek + GBM gürültüsü."""
-    shape_curve = variant(name, length, rng, strength=1.0)
+def make_positive(
+    name: str, length: int, noise: float, rng: np.random.Generator, strength: float = 1.0
+) -> np.ndarray:
+    """Formasyonun farklı bir örneği + rastgele ölçek + GBM gürültüsü.
+
+    ``strength`` bozulma şiddetidir; hem parametre sapmasını hem **zaman ekseni
+    bükmesini** ölçekler (iç zamanlama asimetrisi: sol omuz hızlı / sağ omuz
+    yavaş, baş merkezden kayık, vb.).
+    """
+    shape_curve = variant(name, length, rng, strength=strength)
     amplitude = rng.uniform(0.15, 0.40)  # log fiyat aralığı
     log_price = shape_curve * amplitude + np.cumsum(rng.normal(0.0, noise, length))
     return normalize_window(100.0 * np.exp(log_price))
@@ -71,6 +78,38 @@ def make_positive(name: str, length: int, noise: float, rng: np.random.Generator
 def make_negative(length: int, noise: float, rng: np.random.Generator) -> np.ndarray:
     """Saf GBM penceresi — formasyon yok."""
     return normalize_window(100.0 * np.exp(np.cumsum(rng.normal(0.0, noise, length))))
+
+
+def run_by_distortion(
+    samples: int = 200,
+    strengths=(0.5, 1.0, 1.6),
+    length: int = 64,
+    noise: float = 0.02,
+    metrics=METRICS,
+    patterns=AB_PATTERNS,
+    seed: int = 777,
+) -> list[dict]:
+    """K-11'in **zaman ekseni** sınaması (F3.5, Adım 4).
+
+    Bozulma şiddetine göre AUC kırılımı. ``strength`` büyüdükçe iç zamanlama
+    asimetrisi artar (γ ∈ [0,80; 1,28] ve ±0,28 sinüs bükmesi ölçeklenir).
+    """
+    rng = np.random.default_rng(seed)
+    rows: list[dict] = []
+    for strength in strengths:
+        negatives = np.stack([make_negative(length, noise, rng) for _ in range(samples)])
+        for name in patterns:
+            query = get_template(name).vector
+            positives = np.stack(
+                [make_positive(name, length, noise, rng, strength) for _ in range(samples)]
+            )
+            for metric in metrics:
+                rows.append({
+                    "pattern": name, "strength": float(strength), "metric": metric,
+                    "auc": auc(stage2_scores(query, positives, metric=metric),
+                               stage2_scores(query, negatives, metric=metric)),
+                })
+    return rows
 
 
 def run(

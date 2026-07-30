@@ -130,6 +130,66 @@ def banded_dtw_batch(
     return distance, path_length
 
 
+def warping_path(
+    query: np.ndarray,
+    candidate: np.ndarray,
+    radius: int = SAKOE_CHIBA_RADIUS,
+    use_derivative: bool = True,
+) -> np.ndarray:
+    """Tek bir aday için hizalama yolu: ``(k, 2)`` — (sorgu_i, aday_j) çiftleri.
+
+    Toplu skorlama yolu (``banded_dtw_batch``) yalnızca mesafe ve yol uzunluğu
+    taşır; görselleştirme için yolun kendisi gerekir. Bu fonksiyon **tek aday**
+    içindir (göz testi karosu başına bir kez) — sıcak yolda kullanılmaz.
+    """
+    q = derivative(query) if use_derivative else np.asarray(query, dtype=np.float64)
+    c = derivative(candidate) if use_derivative else np.asarray(candidate, dtype=np.float64)
+    m = q.size
+    r = int(min(max(1, radius), m - 1))
+
+    inf = np.inf
+    cost = np.full((m, m), inf)
+    back = np.zeros((m, m, 2), dtype=np.int32)
+
+    for i in range(m):
+        for j in range(max(0, i - r), min(m, i + r + 1)):
+            d = (q[i] - c[j]) ** 2
+            if i == 0 and j == 0:
+                cost[i, j] = d
+                continue
+            options = []
+            if i > 0 and abs(i - 1 - j) <= r:
+                options.append((cost[i - 1, j], i - 1, j))
+            if j > 0 and abs(i - j + 1) <= r:
+                options.append((cost[i, j - 1], i, j - 1))
+            if i > 0 and j > 0:
+                options.append((cost[i - 1, j - 1], i - 1, j - 1))
+            if not options:
+                continue
+            best, bi, bj = min(options, key=lambda t: t[0])
+            if np.isfinite(best):
+                cost[i, j] = best + d
+                back[i, j] = (bi, bj)
+
+    path = [(m - 1, m - 1)]
+    i, j = m - 1, m - 1
+    while (i, j) != (0, 0):
+        i, j = int(back[i, j, 0]), int(back[i, j, 1])
+        path.append((i, j))
+    return np.array(path[::-1], dtype=np.int32)
+
+
+def warp_amount(path: np.ndarray) -> float:
+    """Hizalama yolunun köşegenden ortalama sapması (bar cinsinden).
+
+    Büyük değer = eşleşme ağır zaman bükmesiyle kurulmuş → şüpheli.
+    **Yalnızca ölçülür, filtreye çevrilmez** (F3.5, Adım 6: kanıt biriksin).
+    """
+    if path.size == 0:
+        return 0.0
+    return float(np.mean(np.abs(path[:, 0].astype(np.int64) - path[:, 1].astype(np.int64))))
+
+
 def normalized_scores(
     query: np.ndarray,
     candidates: np.ndarray,

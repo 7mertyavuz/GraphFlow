@@ -54,7 +54,11 @@ geri getirme:
 - 🚫 **Yarım mum.** Oluşmakta olan (kapanmamış) son mum her iki modda da
   veriden düşürülür (K-05, K-15).
 - 🚫 **Skor kıyaslanabilirliği.** DDTW mesafesi daima hizalama yolu
-  uzunluğuna bölünür; yoksa 24 barlık pencereler 100 barlıkları ezer (K-14).
+  uzunluğuna bölünür (K-14) — ama F3'te ölçüldü: bu **yetmiyor**, sonuçların
+  %68'i yine 24 barlık pencerede kümeleniyordu. F3.5'ten itibaren sıralama
+  **sorgu-göreli null dağılımının uzunluk-içi yüzdelik dilimine** göre yapılır.
+  Eşik de yüzdeliktir; yanında MUTLAK akıl sağlığı tavanı bulunur — yalnız
+  yüzdelik kalırsa motor her sorguya sonuç döndürür ve "eşleşme yok" diyemez.
 - 🚫 **Bağımsız N.** İstatistiğe yalnızca post-NMS'ten geçmiş tekil olaylar
   girer. Örtüşen pencereleri saymak `n`'i şişirir, güven aralığını sahte
   biçimde daraltır (K-09, K-12).
@@ -79,8 +83,9 @@ geri getirme:
 ⬜ engine/api/                     F5
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2, f3_measure
 ✅ tests/                          127 test (ingest, arşiv, normalize, matrix, search)
-🚦 notebooks/                      F3 ölçümleri BİTTİ — göz testi onayı bekliyor
-⬜ engine/outcome/                 F4  ← onaydan sonra
+✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
+✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
+⬜ engine/outcome/                 F4  ← sırada
 ⬜ web/                            F6–F7
 ```
 
