@@ -51,6 +51,10 @@ WINDOW_LENGTHS: Final[tuple[int, ...]] = (24, 40, 64, 100)
 #: Kayan pencere adımı. Stride 1'de komşu pencereler ~%99 aynı olur.
 STRIDE: Final[int] = 3
 
+#: Matris inşasında tek seferde işlenecek pencere sayısı. Tüm pencereleri
+#: aynı anda RAM'e almamak için; asıl kazanç bitişik matris yapısında (K-01).
+MATRIX_CHUNK_WINDOWS: Final[int] = 8_192
+
 #: Binance geçmişinin başlangıcı.
 HISTORY_START_MS: Final[int] = 1_502_928_000_000  # 2017-08-17
 
