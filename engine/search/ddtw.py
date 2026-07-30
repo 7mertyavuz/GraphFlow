@@ -94,8 +94,11 @@ def banded_dtw_batch(
             cur_len[:, k] = cur_len[:, k - 1] + 1
 
     # --- i >= 1 ------------------------------------------------------------
+    # Hücre başına yalnızca bir argmin + iki fancy-index; ``take_along_axis``
+    # bu iç döngüde çağrı başına ağır kaldığı için kullanılmaz.
     options = np.empty((3, n), dtype=np.float64)
     lengths = np.empty((3, n), dtype=np.int32)
+    cols = np.arange(n)
 
     for i in range(1, m):
         prev, cur = cur, prev
@@ -116,17 +119,14 @@ def banded_dtw_batch(
             lengths[2] = cur_len[:, k - 1] if k > 0 else 0
 
             best = np.argmin(options, axis=0)
-            base = np.take_along_axis(options, best[None, :], axis=0)[0]
-            base_len = np.take_along_axis(lengths, best[None, :], axis=0)[0]
-
-            reachable = np.isfinite(base)
-            cost = (q[i] - C[:, j]) ** 2
-            cur[:, k] = np.where(reachable, base + cost, inf)
-            cur_len[:, k] = np.where(reachable, base_len + 1, 0)
+            # inf + sonlu = inf olduğu için ulaşılamaz hücreler kendiliğinden
+            # inf kalır; yol uzunluğu yalnızca sonda temizlenir.
+            cur[:, k] = options[best, cols] + (q[i] - C[:, j]) ** 2
+            cur_len[:, k] = lengths[best, cols] + 1
 
     # Bitiş hücresi: i = j = m-1 → k = r
     distance = cur[:, r].copy()
-    path_length = cur_len[:, r].astype(np.float64)
+    path_length = np.where(np.isfinite(distance), cur_len[:, r], 0).astype(np.float64)
     return distance, path_length
 
 
