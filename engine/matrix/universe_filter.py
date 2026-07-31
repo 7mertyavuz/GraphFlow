@@ -27,7 +27,12 @@ from typing import Iterable, Sequence
 
 import numpy as np
 
-from engine.config import META_DIR, PEG_MIN_RATIO, PEG_TOLERANCE
+from engine.config import (
+    LEVERAGED_TOKEN_SUFFIXES,
+    META_DIR,
+    PEG_MIN_RATIO,
+    PEG_TOLERANCE,
+)
 from engine.ingest.store import read_json, read_klines, write_json_atomic
 
 log = logging.getLogger(__name__)
@@ -53,6 +58,23 @@ def is_pegged(
     if c.size < min_bars:
         return False
     return peg_ratio(c, tolerance) >= min_ratio
+
+
+def is_leveraged_token(symbol: str) -> bool:
+    """Kaldıraçlı token mu? (BTCUPUSDT, ETHDOWNUSDT, XRPBULLUSDT…)
+
+    Bunlar spot parite değil, **çürüyen türev ürünlerdir**. Periyodik yeniden
+    fiyatlandırma (redenomination) yaptıkları için tek barda 100.000x "hareket"
+    üretirler; F4 ölçümünde gölge dağılımın ortalamasını +39R'ye taşıyan sebep
+    buydu. Ad tabanlı tespit güvenlidir: Binance'in adlandırması sistematiktir.
+    """
+    from engine.ingest.symbol_universe import split_quote
+
+    parts = split_quote(symbol)
+    if parts is None:
+        return False
+    base = parts[0]
+    return any(base.endswith(sfx) and len(base) > len(sfx) + 1 for sfx in LEVERAGED_TOKEN_SUFFIXES)
 
 
 def detect_pegged(
@@ -83,6 +105,8 @@ def filter_universe(
 ) -> tuple[list[str], list[str]]:
     """(kalanlar, düşenler) döndürür ve düşenleri diske kaydeder."""
     pegged = detect_pegged(symbols, timeframe, root)
+    pegged += [s for s in symbols if s not in set(pegged) and is_leveraged_token(s)]
+    pegged = sorted(set(pegged))
     kept = [s for s in symbols if s not in set(pegged)]
 
     if pegged:

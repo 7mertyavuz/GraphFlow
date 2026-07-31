@@ -65,6 +65,14 @@ geri getirme:
 - 🚫 **Aynı barda TP ve SL** → muhafazakâr varsayım: **SL önce çarptı**.
 - 🚫 **İşlem maliyeti tabanı.** `1×ATR / close < %1` ise pencere istatistiğe
   girmez (K-16.7).
+- 🚫 **Fiyat sürekliliği.** Bar-bar oranı 10x'i aşan yer fiyat hareketi değil,
+  **redenominasyon / ticker yeniden kullanımı**dır (LUNAUSDT: 177.400x). O
+  pencere matrise girmez, ileri pencere orada kesilir. Kaldıraçlı tokenlar
+  (UP/DOWN/BULL/BEAR) evrenden düşer — F4'te gölge beklentisini +39R'ye
+  taşıyan sebep buydu.
+- 🚫 **Çoklu karşılaştırma.** 14 şablon × 2 konfigürasyon = 28 test; %95 ile
+  şans eseri ~1,4 "anlamlı" sonuç beklenir. Edge iddiaları Bonferroni ile de
+  sınanır ve **tüm şablonlar** tek tabloda raporlanır.
 
 ---
 
@@ -80,12 +88,12 @@ geri getirme:
 ✅ engine/search/                  F2  (stage1_cosine, nms, ddtw, engine)
 ⬜ engine/outcome/                 F4
 ✅ engine/templates/               F2  (14 kanonik JSON + loader)
-⬜ engine/api/                     F5
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2, f3_measure
 ✅ tests/                          127 test (ingest, arşiv, normalize, matrix, search)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
-⬜ engine/outcome/                 F4  ← sırada
+✅ engine/outcome/                 F4  (triple_barrier, shadow, metrics, pipeline)
+⬜ engine/api/                     F5  ← sırada
 ⬜ web/                            F6–F7
 ```
 

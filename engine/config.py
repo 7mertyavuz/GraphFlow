@@ -168,6 +168,22 @@ PEG_TOLERANCE: Final[float] = 0.02
 #: eşik geniş bir boşluğun ortasında, seçim hassas değil.
 PEG_MIN_RATIO: Final[float] = 0.80
 
+#: **Fiyat sürekliliği** invariant'ı (F4). Bar-bar fiyat oranı bu değeri
+#: aşıyorsa bu bir fiyat hareketi değil, **redenominasyon / token swap /
+#: ticker yeniden kullanımı**dır ve pencereyi de sonucu da geçersiz kılar.
+#:
+#: Ölçüm (1.146 parite, 1d): 3-8x bandında 52 sembol (gerçek pump olabilir),
+#: 8-20x bandında 6 (STRAX, VIDT, SKY, SNM — hepsi belgelenmiş token swap),
+#: >20x bandında 12 (DREP 1:100, COCOS 1:1000, BNX...). En uç örnek
+#: LUNAUSDT: 177.400x — bu bir fiyat hareketi değil, ticker'ın LUNA2 için
+#: yeniden kullanılmasıdır.
+PRICE_CONTINUITY_MAX_RATIO: Final[float] = 10.0
+
+#: Kaldıraçlı token sonekleri (BTCUPUSDT, ETHDOWNUSDT...). Bunlar spot parite
+#: değil, **çürüyen türev ürünlerdir**: periyodik yeniden fiyatlandırma yaptıkları
+#: için tek barda 100.000x "hareket" üretirler. Evrenden düşerler.
+LEVERAGED_TOKEN_SUFFIXES: Final[tuple[str, ...]] = ("UP", "DOWN", "BULL", "BEAR")
+
 #: Aramada varsayılan minimum genlik (%). 1d değeri ölçüldü: %15 eşiği likit
 #: pencerelerin %95,2'sini koruyor — patolojik kuyruğu kesiyor, veriyi
 #: budamıyor. 4h değeri GEÇİCİ: aynı bar sayısı 1/6 zaman kapsadığı için
@@ -365,6 +381,37 @@ MIN_ATR_PCT: Final[float] = 0.01
 
 #: Gölge dağılımda her eşleşme için çekilecek kontrol penceresi sayısı (K-12).
 SHADOW_SAMPLES_PER_MATCH: Final[int] = 20
+
+#: Binance taker gidiş-dönüş komisyonu (~%0,05 × 2). Brüt ve net ayrı raporlanır.
+#: MIN_ATR_PCT tabanına EKtir: taban patolojik pencereyi eler, komisyon
+#: düzeltmesi kalanların getirisini gerçekçileştirir.
+ROUNDTRIP_FEE_PCT: Final[float] = 0.001
+
+#: ATR ısınma süresi (2 × ATR_PERIOD). Wilder ATR bir EMA özyinelemesidir;
+#: 14 barda tohumlanır ama ~2 periyot yakınsamaya devam eder. Ayrıca
+#: listeleme günlerinin pump/dump oynaklığı hem ATR'yi hem sonucu bozar.
+MIN_BARS_SINCE_LISTING: Final[int] = 2 * ATR_PERIOD
+
+#: p-hacking kilidi: outcome daima bu kademeyle hesaplanır. Skorlar yüzdelik
+#: olduğu için kademe değişince N ve beklenti de değişir; kademe oynatarak
+#: sayı güzelleştirmek yasaktır.
+OUTCOME_TOLERANCE: Final[str] = "medium"
+
+#: Güven aralığı: hiçbir sayı GA'sız yayınlanmaz.
+#: Beklenti (R) sürekli değişken → bootstrap; başarı oranı → Wilson.
+CONFIDENCE_LEVEL: Final[float] = 0.95
+BOOTSTRAP_SAMPLES: Final[int] = 10_000
+
+#: Rejim kırılımı. Yıl bazında kırmak hücre başına ~14 olay bırakır —
+#: kullanılamaz. Üç kaba rejim, (başlangıç yılı, bitiş yılı) dahil.
+REGIMES: Final[tuple[tuple[str, int, int], ...]] = (
+    ("2017-2020", 2017, 2020),
+    ("2021-2022", 2021, 2022),
+    ("2023+", 2023, 9999),
+)
+
+#: Bu sayının altındaki rejim hücresi "yetersiz örnek" işaretlenir.
+MIN_REGIME_N: Final[int] = 30
 
 
 # ---------------------------------------------------------------------------

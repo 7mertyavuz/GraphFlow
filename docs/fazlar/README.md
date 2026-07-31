@@ -8,8 +8,8 @@ Her faz için ayrı bir belge: kapsam, alınan kararlar, ölçülen sayılar, bi
 | **F1** | [F1-normalizasyon-matris.md](F1-normalizasyon-matris.md) | ✅ Bitti | log → 32 nokta → z-score; 1.922.776 pencerelik vektör matrisi. |
 | **F2** | [F2-arama-motoru.md](F2-arama-motoru.md) | ✅ Bitti | Kaskad: kosinüs → pre-NMS → DDTW → post-NMS. 51 ms. |
 | **F3** | [F3-dogrulama.md](F3-dogrulama.md) | ✅ Geçti 🚦 | Göz testi onaylandı, K-11 karara bağlandı, 5 açık sorun. |
-| **F3.5** | [F3.5-temizlik.md](F3.5-temizlik.md) | 🔄 Sırada | Yüzdelik skorlama, geometrik kural katmanı, evren temizliği. |
-| **F4** | [F4-outcome-engine.md](F4-outcome-engine.md) | ⬜ Planlı | Triple-barrier + gölge dağılım. Ürünün tacı. |
+| **F3.5** | [F3.5-temizlik.md](F3.5-temizlik.md) | ✅ Geçti | Yüzdelik skorlama (13/14 şablon), evren temizliği, invariantlar. |
+| **F4** | [F4-outcome-engine.md](F4-outcome-engine.md) | 🔄 Sırada | Triple-barrier + gölge dağılım + güven aralıkları. Ürünün tacı. |
 | **F5** | [F5-api.md](F5-api.md) | ⬜ Planlı | FastAPI + Redis. |
 | **F6** | [F6-radar-ui.md](F6-radar-ui.md) | ⬜ Planlı | Canlı tarayıcı arayüzü (MVP 1). |
 | **F7** | [F7-backtest-ui.md](F7-backtest-ui.md) | ⬜ Planlı | Tarihsel arama + outcome kartı (MVP 2). |

@@ -32,6 +32,7 @@ from engine.config import (
     MATRIX_CHUNK_WINDOWS,
     MATRIX_DIR,
     META_DTYPE,
+    PRICE_CONTINUITY_MAX_RATIO,
     TIMEFRAME_MS,
     N_POINTS,
     STRIDE,
@@ -112,6 +113,15 @@ def build_symbol_rows(
     months = month_key(open_time)
     expected_span = (length - 1) * TIMEFRAME_MS[timeframe]
 
+    # Fiyat sürekliliği (F4): bar-bar oranı eşiği aşan yer bir fiyat hareketi
+    # değil, redenominasyon / token swap / ticker yeniden kullanımıdır
+    # (LUNAUSDT'de 177.400x). O noktayı içeren pencere geçersizdir.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        step_ratio = np.maximum(close[1:] / close[:-1], close[:-1] / close[1:])
+    jump = np.zeros(n, dtype=bool)
+    jump[1:] = ~np.isfinite(step_ratio) | (step_ratio > PRICE_CONTINUITY_MAX_RATIO)
+    jump_cum = np.concatenate([[0], np.cumsum(jump)])
+
     for c0 in range(0, starts.size, chunk):
         block = starts[c0 : c0 + chunk]
         ends = block + length - 1
@@ -132,6 +142,8 @@ def build_symbol_rows(
         # bozar. Doğrusu düşürmektir; 1,9M pencerede birkaç bin kayıp önemsiz.
         span = open_time[ends] - open_time[block]
         valid &= span == expected_span
+        # Pencere içinde fiyat sıçraması var mı? (kümülatif sayaç farkı)
+        valid &= (jump_cum[ends + 1] - jump_cum[block + 1]) == 0
         if not valid.any():
             continue
 

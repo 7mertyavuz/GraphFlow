@@ -1,0 +1,256 @@
+"""Outcome metrikleri — hiçbir sayı güven aralığı olmadan yayınlanmaz.
+
+**Neden beklenti başrolde:** SL 5×ATR yapılırsa kazanma oranı %85'e çıkar ama
+beklenti negatiftir. Kazanma oranı tek başına manipüle edilebilir bir
+metriktir (K-16.5).
+
+**Neden GA zorunlu:** ``n = 112``, ``p = 0,41`` → %95 GA ≈ ±9 puan →
+``[%32, %50]``. Teorik null %33 bu aralığın **içinde**; yani "+6 puan edge"
+istatistiksel olarak anlamsız olurdu. Karar kuralı: edge'in %95 GA'sı sıfırı
+içeriyorsa çıktı *"anlamlı fark ölçülemedi"*dir.
+
+| Metrik | Yöntem |
+|---|---|
+| Beklenti (R) | Bootstrap (R sürekli değişken; binom GA'sı uygun değil) |
+| Başarı oranı | Wilson skor aralığı |
+| Edge | İki bağımsız örneklemin farkı için bootstrap |
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+
+from engine.config import (
+    BOOTSTRAP_SAMPLES,
+    CONFIDENCE_LEVEL,
+    MIN_REGIME_N,
+    REGIMES,
+)
+from engine.outcome.triple_barrier import (
+    OUTCOME_NAMES,
+    OUTCOME_SL,
+    OUTCOME_TP,
+    theoretical_null,
+)
+
+DISCLAIMER = "Bu veriler geçmiş dağılımlardır, kesin bir işlem sinyali değildir."
+
+
+def _z(confidence: float) -> float:
+    """Normal dağılımın iki yanlı kritik değeri (scipy'siz)."""
+    return float(math.sqrt(2.0) * _erfinv(confidence))
+
+
+def _erfinv(x: float) -> float:
+    # Winitzki yaklaşımı — %95 civarında 1e-4'ten iyi.
+    a = 0.147
+    ln = math.log(1.0 - x * x)
+    t = 2.0 / (math.pi * a) + ln / 2.0
+    return math.copysign(math.sqrt(max(0.0, math.sqrt(t * t - ln / a) - t)), x)
+
+
+def wilson_interval(successes: int, n: int, confidence: float = CONFIDENCE_LEVEL) -> tuple[float, float]:
+    """Başarı oranı için Wilson skor aralığı (küçük n'de normal yaklaşımdan iyi)."""
+    if n == 0:
+        return (float("nan"), float("nan"))
+    z = _z(confidence)
+    p = successes / n
+    denom = 1.0 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    margin = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, center - margin), min(1.0, center + margin))
+
+
+def bootstrap_mean_ci(
+    values: np.ndarray,
+    samples: int = BOOTSTRAP_SAMPLES,
+    confidence: float = CONFIDENCE_LEVEL,
+    rng: np.random.Generator | None = None,
+) -> tuple[float, float]:
+    """Ortalama için bootstrap GA. R sürekli değişkendir; binom GA'sı yanlıştır."""
+    values = np.asarray(values, dtype=np.float64)
+    if values.size == 0:
+        return (float("nan"), float("nan"))
+    rng = rng if rng is not None else np.random.default_rng(20260731)
+    idx = rng.integers(0, values.size, size=(samples, values.size))
+    means = values[idx].mean(axis=1)
+    alpha = (1.0 - confidence) / 2.0
+    return (float(np.quantile(means, alpha)), float(np.quantile(means, 1.0 - alpha)))
+
+
+def bootstrap_diff_ci(
+    a: np.ndarray,
+    b: np.ndarray,
+    samples: int = BOOTSTRAP_SAMPLES,
+    confidence: float = CONFIDENCE_LEVEL,
+    rng: np.random.Generator | None = None,
+) -> tuple[float, float]:
+    """İki **bağımsız** örneklemin ortalama farkı için bootstrap GA."""
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+    if a.size == 0 or b.size == 0:
+        return (float("nan"), float("nan"))
+    rng = rng if rng is not None else np.random.default_rng(20260731)
+    ia = rng.integers(0, a.size, size=(samples, a.size))
+    ib = rng.integers(0, b.size, size=(samples, b.size))
+    diffs = a[ia].mean(axis=1) - b[ib].mean(axis=1)
+    alpha = (1.0 - confidence) / 2.0
+    return (float(np.quantile(diffs, alpha)), float(np.quantile(diffs, 1.0 - alpha)))
+
+
+def bonferroni_level(n_tests: int, alpha: float = 1.0 - CONFIDENCE_LEVEL) -> float:
+    """Çoklu karşılaştırma düzeltmesi: 14 şablon × 2 konfigürasyon = 28 test.
+
+    %95 ile 28 test yaparsan şans eseri ~1,4 "anlamlı" sonuç beklersin.
+    "En iyi 3 formasyon" sunumu tam olarak bu tuzaktır; bu yüzden tüm
+    şablonlar tek tabloda raporlanır ve edge iddiaları düzeltilmiş güven
+    düzeyiyle de sınanır.
+    """
+    return 1.0 - alpha / max(1, int(n_tests))
+
+
+@dataclass
+class OutcomeStats:
+    """Tek bir bariyer konfigürasyonunun raporu."""
+
+    config: str
+    k_tp: float
+    k_sl: float
+    n: int
+    expectancy_r: float
+    expectancy_ci: tuple[float, float]
+    expectancy_net_r: float
+    win_rate: float
+    win_rate_ci: tuple[float, float]
+    theoretical_null: float
+    outcomes: dict[str, int]
+    truncated: int
+    shadow_expectancy_r: float | None = None
+    shadow_win_rate: float | None = None
+    shadow_n: int = 0
+    edge_r: float | None = None
+    edge_ci: tuple[float, float] | None = None
+    by_regime: list[dict] = field(default_factory=list)
+
+    @property
+    def edge_is_significant(self) -> bool:
+        """GA sıfırı içeriyorsa edge iddiası ekrana YAZILMAZ (K-12)."""
+        if self.edge_ci is None or not all(np.isfinite(self.edge_ci)):
+            return False
+        return self.edge_ci[0] > 0.0 or self.edge_ci[1] < 0.0
+
+    @property
+    def verdict(self) -> str:
+        if self.shadow_n == 0:
+            return "gölge dağılım yok — edge iddiası yapılamaz"
+        if not self.edge_is_significant:
+            return "anlamlı fark ölçülemedi"
+        yon = "lehte" if (self.edge_r or 0) > 0 else "aleyhte"
+        return f"anlamlı fark ({yon}): {self.edge_r:+.3f}R"
+
+    def as_dict(self) -> dict:
+        return {
+            "config": self.config,
+            "n_independent": self.n,
+            "expectancy_r": round(self.expectancy_r, 4),
+            "expectancy_ci": [round(x, 4) for x in self.expectancy_ci],
+            "expectancy_net_r": round(self.expectancy_net_r, 4),
+            "win_rate": round(self.win_rate, 4),
+            "win_rate_ci": [round(x, 4) for x in self.win_rate_ci],
+            "theoretical_null": round(self.theoretical_null, 4),
+            "shadow_expectancy_r": None if self.shadow_expectancy_r is None else round(self.shadow_expectancy_r, 4),
+            "shadow_win_rate": None if self.shadow_win_rate is None else round(self.shadow_win_rate, 4),
+            "shadow_n": self.shadow_n,
+            "edge_r": None if self.edge_r is None else round(self.edge_r, 4),
+            "edge_ci": None if self.edge_ci is None else [round(x, 4) for x in self.edge_ci],
+            "edge_is_significant": self.edge_is_significant,
+            "verdict": self.verdict,
+            "outcomes": self.outcomes,
+            "truncated": self.truncated,
+            "by_regime": self.by_regime,
+            "disclaimer": DISCLAIMER,
+        }
+
+
+def _counts(results: np.ndarray) -> dict[str, int]:
+    return {
+        name: int((results["outcome"] == code).sum()) for code, name in OUTCOME_NAMES.items()
+    }
+
+
+def regime_of(end_time: np.ndarray) -> np.ndarray:
+    """Yıl bazında kırmak hücre başına ~14 olay bırakır — 3 kaba rejim (K-06)."""
+    years = pd.to_datetime(np.asarray(end_time), unit="ms", utc=True).year.to_numpy()
+    out = np.full(years.shape, "?", dtype=object)
+    for name, start, end in REGIMES:
+        out[(years >= start) & (years <= end)] = name
+    return out
+
+
+def _regime_table(results: np.ndarray) -> list[dict]:
+    if results.size == 0:
+        return []
+    regimes = regime_of(results["end_time"])
+    rows = []
+    for name, _, _ in REGIMES:
+        sel = regimes == name
+        n = int(sel.sum())
+        if n == 0:
+            continue
+        r = results["r_gross"][sel]
+        wins = int((results["outcome"][sel] == OUTCOME_TP).sum())
+        rows.append({
+            "period": name,
+            "n": n,
+            "expectancy_r": round(float(r.mean()), 4),
+            "win_rate": round(wins / n, 4),
+            "insufficient": n < MIN_REGIME_N,
+        })
+    return rows
+
+
+def summarize(
+    results: np.ndarray,
+    k_tp: float,
+    k_sl: float,
+    config: str = "",
+    shadow: np.ndarray | None = None,
+    rng: np.random.Generator | None = None,
+) -> OutcomeStats:
+    """Bir konfigürasyonun tüm metriklerini GA'larıyla birlikte hesaplar."""
+    n = int(results.size)
+    r = results["r_gross"].astype(np.float64) if n else np.empty(0)
+    r_net = results["r_net"].astype(np.float64) if n else np.empty(0)
+    decided = results["outcome"] != OUTCOME_SL if n else np.empty(0, dtype=bool)
+    wins = int((results["outcome"] == OUTCOME_TP).sum()) if n else 0
+
+    stats = OutcomeStats(
+        config=config or f"{k_tp:g}:{k_sl:g}",
+        k_tp=k_tp,
+        k_sl=k_sl,
+        n=n,
+        expectancy_r=float(r.mean()) if n else float("nan"),
+        expectancy_ci=bootstrap_mean_ci(r, rng=rng) if n else (float("nan"), float("nan")),
+        expectancy_net_r=float(r_net.mean()) if n else float("nan"),
+        win_rate=wins / n if n else float("nan"),
+        win_rate_ci=wilson_interval(wins, n) if n else (float("nan"), float("nan")),
+        theoretical_null=theoretical_null(k_tp, k_sl),
+        outcomes=_counts(results) if n else {},
+        truncated=int(results["truncated"].sum()) if n else 0,
+        by_regime=_regime_table(results),
+    )
+
+    if shadow is not None and shadow.size and n:
+        s = shadow["r_gross"].astype(np.float64)
+        s_wins = int((shadow["outcome"] == OUTCOME_TP).sum())
+        stats.shadow_expectancy_r = float(s.mean())
+        stats.shadow_win_rate = s_wins / shadow.size
+        stats.shadow_n = int(shadow.size)
+        stats.edge_r = float(r.mean() - s.mean())
+        stats.edge_ci = bootstrap_diff_ci(r, s, rng=rng)
+
+    return stats

@@ -1,0 +1,563 @@
+"""F4 — Outcome Engine testleri (K-06, K-12, K-16).
+
+Çıkış şartı: rastgele pencerelerde 2:1 başarı ≈ %33, 1:1 ≈ %50, beklenti ≈ 0R.
+Bu değerler teorik null'dan anlamlı şekilde sapıyorsa triple-barrier
+uygulamasında hata vardır (lookahead, yanlış ATR penceresi, bar sıralaması) ve
+**erken yakalanır**. Bu testler arama kalitesinden bağımsızdır.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from engine.config import (
+    MIN_ATR_PCT,
+    MIN_BARS_SINCE_LISTING,
+    ROUNDTRIP_FEE_PCT,
+    TIME_BARRIER_RATIO,
+)
+from engine.normalize.atr import wilder_atr
+from engine.outcome.bars import BarStore
+from engine.outcome.metrics import (
+    bootstrap_diff_ci,
+    bootstrap_mean_ci,
+    summarize,
+    wilson_interval,
+)
+from engine.outcome.triple_barrier import (
+    EVENT_DTYPE,
+    OUTCOME_FORCED,
+    OUTCOME_SL,
+    OUTCOME_TIME,
+    OUTCOME_TP,
+    eligible,
+    enforce_forward_separation,
+    evaluate,
+    evaluate_all_configs,
+    theoretical_null,
+    time_barrier,
+)
+
+
+# ---------------------------------------------------------------------------
+# Yardımcılar
+# ---------------------------------------------------------------------------
+
+
+def martingale_ohlc(n: int, sigma: float, rng: np.random.Generator, start: float = 100.0):
+    """Fiyatı martingale olan seri (log drift = −σ²/2).
+
+    Teorik null ``P(üst) = k_sl/(k_tp+k_sl)`` driftsiz yürüyüş varsayar.
+    Log getirilerin ortalaması 0 olsaydı **fiyat** yukarı sürüklenirdi (Itô);
+    testin ölçtüğü şey null'dan sapma değil, o sürüklenme olurdu.
+    """
+    steps = rng.normal(-0.5 * sigma**2, sigma, n)
+    close = start * np.exp(np.cumsum(steps))
+    open_ = np.empty(n)
+    open_[0] = close[0]
+    open_[1:] = close[:-1]
+    wick = np.abs(rng.normal(0, sigma * 0.4, (2, n)))
+    high = np.maximum(open_, close) * (1 + wick[0])
+    low = np.minimum(open_, close) * (1 - wick[1])
+    return open_, high, low, close
+
+
+def random_event_dataset(
+    n_symbols: int = 40, n_bars: int = 600, sigma: float = 0.04, seed: int = 7, length: int = 40
+):
+    """Rastgele pencereler — formasyon YOK, yalnızca gürültü."""
+    rng = np.random.default_rng(seed)
+    arrays, events = {}, []
+
+    for sid in range(n_symbols):
+        open_, high, low, close = martingale_ohlc(n_bars, sigma, rng)
+        arrays[sid] = {"open": open_, "high": high, "low": low, "close": close}
+        atr = wilder_atr(high, low, close)
+
+        horizon = time_barrier(length)
+        for t0 in range(MIN_BARS_SINCE_LISTING + 5, n_bars - horizon - 1, horizon):
+            if np.isfinite(atr[t0]):
+                events.append((sid, t0, length, atr[t0], t0 * 86_400_000))
+
+    store = BarStore.from_arrays(arrays)
+    ev = np.empty(len(events), dtype=EVENT_DTYPE)
+    for i, row in enumerate(events):
+        ev[i] = row
+    return ev, store
+
+
+def simple_store(open_, high, low, close, sid: int = 0) -> BarStore:
+    return BarStore.from_arrays(
+        {sid: {"open": open_, "high": high, "low": low, "close": close}}
+    )
+
+
+def one_event(sid=0, t0=30, length=24, atr=2.0) -> np.ndarray:
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    ev[0] = (sid, t0, length, atr, 0)
+    return ev
+
+
+# ---------------------------------------------------------------------------
+# ÇIKIŞ ŞARTI — rastgele pencerelerde teorik null
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def random_dataset():
+    return random_event_dataset()
+
+
+@pytest.mark.parametrize("config,k_tp,k_sl", [("2:1", 2.0, 1.0), ("1:1", 1.0, 1.0)])
+def test_random_windows_match_theoretical_null(random_dataset, config, k_tp, k_sl):
+    """Rastgele pencerelerde başarı oranı teorik null'a yakın olmalı.
+
+    Ölçüm **karara bağlanmış** olaylar üzerindedir (tp veya sl): teorik null,
+    "hangisine önce çarpılır" sorusunun cevabıdır; zaman bariyerinden çıkan
+    olaylar bu soruyu yanıtlamaz.
+    """
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, k_tp, k_sl)
+
+    tp = int((results["outcome"] == OUTCOME_TP).sum())
+    sl = int((results["outcome"] == OUTCOME_SL).sum())
+    decided = tp + sl
+    oran = tp / decided
+    null = theoretical_null(k_tp, k_sl)
+    lo, hi = wilson_interval(tp, decided)
+
+    print(f"\n{config}: karara bağlanan {decided} olay, başarı %{100*oran:.1f} "
+          f"(null %{100*null:.1f}, GA [%{100*lo:.1f}, %{100*hi:.1f}])")
+
+    assert decided > 300, "yeterli karara bağlanmış olay yok"
+    assert lo <= null <= hi, f"{config}: null {null:.3f} güven aralığının dışında"
+
+
+def test_random_windows_expectancy_is_zero(random_dataset):
+    """Rastgele pencerelerde beklenti ≈ 0R olmalı (GA sıfırı içermeli)."""
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, 2.0, 1.0)
+
+    r = results["r_gross"]
+    lo, hi = bootstrap_mean_ci(r, samples=2000)
+    print(f"\nbeklenti {r.mean():+.4f}R, %95 GA [{lo:+.4f}, {hi:+.4f}], n={r.size}")
+    assert lo <= 0.0 <= hi, "rastgele pencerelerde beklenti sıfırdan anlamlı sapıyor"
+
+
+# ---------------------------------------------------------------------------
+# Lookahead — tüm istatistik katmanının geçerliliği buna bağlı
+# ---------------------------------------------------------------------------
+
+
+def test_outcome_uses_only_bars_after_t0():
+    """t₀ SONRASI barlar değişince sonuç değişmeli; ÖNCESİ değişince değişmemeli."""
+    rng = np.random.default_rng(3)
+    open_, high, low, close = martingale_ohlc(200, 0.03, rng)
+    atr = wilder_atr(high, low, close)
+    t0 = 100
+
+    base = evaluate(one_event(t0=t0, atr=atr[t0]), simple_store(open_, high, low, close), 2.0, 1.0)
+
+    # (a) t₀'dan ÖNCEKİ barları boz → sonuç aynı kalmalı
+    o2, h2, l2, c2 = open_.copy(), high.copy(), low.copy(), close.copy()
+    h2[:t0] *= 3.0
+    l2[:t0] /= 3.0
+    before = evaluate(one_event(t0=t0, atr=atr[t0]), simple_store(o2, h2, l2, c2), 2.0, 1.0)
+    assert before["r_gross"][0] == pytest.approx(base["r_gross"][0])
+    assert before["outcome"][0] == base["outcome"][0]
+
+    # (b) t₀'dan SONRAKİ barları boz → sonuç değişmeli
+    o3, h3, l3, c3 = open_.copy(), high.copy(), low.copy(), close.copy()
+    h3[t0 + 1 :] *= 5.0
+    after = evaluate(one_event(t0=t0, atr=atr[t0]), simple_store(o3, h3, l3, c3), 2.0, 1.0)
+    assert after["outcome"][0] == OUTCOME_TP
+
+
+def test_atr_input_is_computed_without_lookahead():
+    """ATR'nin kendisi t₀'a kadarki barlardan gelmeli (K-16.4)."""
+    rng = np.random.default_rng(5)
+    _, high, low, close = martingale_ohlc(300, 0.03, rng)
+    t0 = 150
+    tam = wilder_atr(high, low, close)[t0]
+    kesik = wilder_atr(high[: t0 + 1], low[: t0 + 1], close[: t0 + 1])[-1]
+    assert tam == pytest.approx(kesik, rel=0, abs=0)
+
+
+# ---------------------------------------------------------------------------
+# Bariyer mekaniği — tuzaklar
+# ---------------------------------------------------------------------------
+
+
+def test_same_bar_tp_and_sl_counts_as_sl():
+    """Muhafazakâr varsayım: aynı barda ikisi de vurulduysa SL önce (K-16.4)."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 100.0)
+    low = np.full(n, 100.0)
+    high[35] = 105.0  # TP = 100 + 2×2 = 104
+    low[35] = 97.0  # SL = 100 − 1×2 = 98
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0)
+    assert r["outcome"][0] == OUTCOME_SL
+    assert r["r_gross"][0] == pytest.approx(-1.0)
+
+
+def test_gap_through_stop_exits_at_open():
+    """Bariyer 98, mum 95'ten açıldıysa 98'de satamazdın — çıkış 95."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_[35], high[35], low[35], close[35] = 95.0, 95.5, 94.0, 95.0
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0)
+    assert r["outcome"][0] == OUTCOME_SL
+    assert r["r_gross"][0] == pytest.approx((95.0 - 100.0) / 2.0)  # −2,5R, −1R değil
+
+
+def test_gap_through_target_exits_at_open():
+    """Aynı kural yukarı yönde de geçerli — yalnız SL'e uygulamak yanlılık yaratır."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = np.full(n, 100.0)
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_[35], high[35], low[35], close[35] = 110.0, 111.0, 109.5, 110.0
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0)
+    assert r["outcome"][0] == OUTCOME_TP
+    assert r["r_gross"][0] == pytest.approx((110.0 - 100.0) / 2.0)  # +5R, +2R değil
+
+
+def test_time_barrier_exits_at_close_of_last_bar():
+    """T süresince bariyer vurulmazsa çıkış t₀+T barının Close'u."""
+    n = 80
+    close = 100.0 + 0.01 * np.arange(n)  # çok yavaş yükseliş, bariyere değmez
+    open_ = close.copy()
+    high = close + 0.02
+    low = close - 0.02
+
+    ev = one_event(t0=30, length=24, atr=5.0)  # T = 12
+    r = evaluate(ev, simple_store(open_, high, low, close), 2.0, 1.0)
+
+    assert r["outcome"][0] == OUTCOME_TIME
+    assert r["exit_bar"][0] == time_barrier(24)
+    beklenen = (close[30 + time_barrier(24)] - close[30]) / 5.0
+    assert r["r_gross"][0] == pytest.approx(beklenen)
+
+
+def test_time_barrier_scales_with_window_length():
+    """T = round(0,5 × L) — sabit 10 bar değil (K-16.4)."""
+    assert time_barrier(24) == 12
+    assert time_barrier(100) == 50
+    assert time_barrier(40) == 20
+
+
+def test_padding_never_triggers_a_barrier():
+    """Kısa satırların dolgusu (−inf / +inf) bariyer tetiklememeli."""
+    n = 40
+    close = np.full(n, 100.0)
+    store = simple_store(close.copy(), close + 0.1, close - 0.1, close)
+
+    # t0 = 35, T = 12 → yalnızca 4 bar var
+    r = evaluate(one_event(t0=35, length=24, atr=2.0), store, 2.0, 1.0)
+    assert r["outcome"][0] == OUTCOME_FORCED
+    assert bool(r["truncated"][0])
+
+
+def test_delisted_symbol_is_forced_exit_not_dropped():
+    """⛔ Kesik ileri pencereli olay ELENMEZ — survivorship bias arka kapısı.
+
+    Elenirse, ölmek üzere olan coinlerin en kötü sonuçları sistematik olarak
+    atılmış olur; K-13'te evren düzeyinde önlenen bias buradan geri girer.
+    """
+    n = 45
+    close = np.concatenate([np.full(40, 100.0), np.full(5, 40.0)])  # çöküş, sonra delist
+    open_ = close.copy()
+    r = evaluate(
+        one_event(t0=38, length=40, atr=2.0),  # T = 20 ama yalnız 6 bar var
+        simple_store(open_, close + 0.1, close - 0.1, close),
+        2.0,
+        1.0,
+    )
+    assert r.size == 1, "kesik pencereli olay düşürülmüş"
+    assert r["outcome"][0] in (OUTCOME_SL, OUTCOME_FORCED)
+    assert r["r_gross"][0] < 0  # çöküş sonucu istatistiğe giriyor
+
+
+def test_event_without_forward_bars_is_dropped():
+    """t₀ son bar ise ölçülecek bir şey yok."""
+    n = 40
+    close = np.full(n, 100.0)
+    r = evaluate(one_event(t0=n - 1, atr=2.0), simple_store(close, close, close, close), 2.0, 1.0)
+    assert r.size == 0
+
+
+# ---------------------------------------------------------------------------
+# Ön filtreler
+# ---------------------------------------------------------------------------
+
+
+def test_min_atr_pct_floor():
+    """1×ATR / C₀ < %1 → pencere istatistiğe girmez (K-16.7)."""
+    n = 60
+    close = np.full(n, 100.0)
+    store = simple_store(close, close + 1, close - 1, close)
+
+    dusuk = one_event(t0=30, atr=100.0 * MIN_ATR_PCT * 0.5)
+    yuksek = one_event(t0=30, atr=100.0 * MIN_ATR_PCT * 2.0)
+    assert not eligible(dusuk, store)[0]
+    assert eligible(yuksek, store)[0]
+
+
+def test_atr_warmup_filter():
+    """Listeleme sonrası ilk barlarda ATR ısınmamıştır (2 × ATR_PERIOD)."""
+    n = 80
+    close = np.full(n, 100.0)
+    store = simple_store(close, close + 5, close - 5, close)
+    erken = one_event(t0=MIN_BARS_SINCE_LISTING - 1, atr=3.0)
+    gec = one_event(t0=MIN_BARS_SINCE_LISTING + 1, atr=3.0)
+    assert not eligible(erken, store)[0]
+    assert eligible(gec, store)[0]
+
+
+def test_commission_reduces_r():
+    """R_net = R_brüt − komisyon/atr_pct; ikisi de raporlanır."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = close.copy()
+    high = close.copy()
+    low = close.copy()
+    high[35] = 106.0  # TP
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0)
+    atr_pct = 2.0 / 100.0
+    assert r["r_net"][0] == pytest.approx(r["r_gross"][0] - ROUNDTRIP_FEE_PCT / atr_pct)
+    assert r["r_net"][0] < r["r_gross"][0]
+
+
+# ---------------------------------------------------------------------------
+# Bağımsız N — ileri pencere örtüşmesi (K-09)
+# ---------------------------------------------------------------------------
+
+
+def test_forward_separation_removes_overlapping_horizons():
+    """NMS formasyon pencerelerini ayırır ama SONUÇ pencerelerini denetlemez."""
+    ev = np.empty(4, dtype=EVENT_DTYPE)
+    ev["symbol_id"] = [1, 1, 1, 2]
+    ev["t0"] = [100, 105, 130, 100]  # L=24 → T=12
+    ev["length"] = 24
+    ev["atr"] = 1.0
+    ev["end_time"] = 0
+
+    keep = enforce_forward_separation(ev)
+    kalan = ev[keep]
+    assert keep.sum() == 3  # 105 elenir (100'e 5 bar mesafede, T=12)
+    assert set(zip(kalan["symbol_id"].tolist(), kalan["t0"].tolist())) == {(1, 100), (1, 130), (2, 100)}
+
+
+def test_forward_separation_uses_window_length():
+    """Ayrım eşiği T'dir; L büyüdükçe daha çok olay elenir."""
+    ev = np.empty(2, dtype=EVENT_DTYPE)
+    ev["symbol_id"] = 1
+    ev["t0"] = [100, 130]
+    ev["atr"] = 1.0
+    ev["end_time"] = 0
+
+    ev["length"] = 24  # T = 12 → 30 bar ayrım yeterli
+    assert enforce_forward_separation(ev).sum() == 2
+
+    ev["length"] = 100  # T = 50 → 30 bar yetersiz
+    assert enforce_forward_separation(ev).sum() == 1
+
+
+# ---------------------------------------------------------------------------
+# Gölge dağılım (K-12)
+# ---------------------------------------------------------------------------
+
+
+def _pool_meta(n_symbols=20, months=3, per_month=30, length=24):
+    from engine.config import META_DTYPE
+
+    rows = []
+    for sid in range(n_symbols):
+        for m in range(months):
+            base = 1_600_000_000_000 + m * 31 * 86_400_000
+            for k in range(per_month):
+                rows.append((sid, 0, 40 + k * 3, base + k * 86_400_000, 20.0, 1.5, True))
+    meta = np.empty(len(rows), dtype=META_DTYPE)
+    for i, row in enumerate(rows):
+        meta[i] = row
+    return meta
+
+
+def test_shadow_samples_same_month_different_symbols():
+    """Kontrol grubu: aynı ay, FARKLI sembol (K-12)."""
+    from engine.matrix.liquidity import month_key
+    from engine.outcome.shadow import ShadowPool, sample_shadow
+
+    meta = _pool_meta()
+    pool = ShadowPool.from_meta(meta, 24)
+
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    ev[0] = (0, 100, 24, 1.5, meta["end_time"][0])
+
+    shadow, report = sample_shadow(ev, {24: pool}, p=10, rng=np.random.default_rng(1))
+
+    assert shadow.size > 0
+    assert not (shadow["symbol_id"] == 0).any(), "gölge aynı sembolden çekilmiş"
+    hedef_ay = month_key(np.array([ev["end_time"][0]]))[0]
+    assert (month_key(shadow["end_time"]) == hedef_ay).all(), "gölge farklı aydan"
+    assert report["shadow_events"] == shadow.size
+
+
+def test_shadow_enforces_forward_separation_across_pool():
+    """Gölge pencerelerin ileri ufukları kesişirse null otokorelasyonlu olur.
+
+    Sonuç: gölgenin varyansı olduğundan küçük ölçülür → edge'in GA'sı sahte
+    biçimde daralır → anlamsız bir farkı anlamlı ilan edersin.
+    """
+    from engine.outcome.shadow import ShadowPool, sample_shadow
+
+    meta = _pool_meta(n_symbols=3, per_month=40)
+    pool = ShadowPool.from_meta(meta, 24)
+
+    ev = np.empty(3, dtype=EVENT_DTYPE)
+    for i in range(3):
+        ev[i] = (99, 100 + i * 50, 24, 1.5, meta["end_time"][0])
+
+    shadow, _ = sample_shadow(ev, {24: pool}, p=20, rng=np.random.default_rng(2))
+
+    horizon = time_barrier(24)
+    for sid in np.unique(shadow["symbol_id"]):
+        ends = np.sort(shadow["end_idx" if "end_idx" in shadow.dtype.names else "t0"][shadow["symbol_id"] == sid])
+        if ends.size > 1:
+            assert np.all(np.diff(ends) >= horizon), "gölgede örtüşen ileri pencere var"
+
+
+def test_shadow_reports_short_pools():
+    """Havuz yetersizse P < 20'ye düşülür ve KAYDEDİLİR — sessizce eksilmez."""
+    from engine.outcome.shadow import ShadowPool, sample_shadow
+
+    meta = _pool_meta(n_symbols=2, months=1, per_month=3)
+    pool = ShadowPool.from_meta(meta, 24)
+
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    ev[0] = (0, 100, 24, 1.5, meta["end_time"][0])
+
+    shadow, report = sample_shadow(ev, {24: pool}, p=20, rng=np.random.default_rng(3))
+    assert report["matches_with_short_pool"] == 1
+    assert shadow.size < 20
+
+
+# ---------------------------------------------------------------------------
+# Metrikler ve güven aralıkları
+# ---------------------------------------------------------------------------
+
+
+def test_wilson_matches_documented_example():
+    """n=112, p=%41 → %95 GA ≈ [%32, %50] (belgedeki örnek)."""
+    lo, hi = wilson_interval(46, 112)
+    assert lo == pytest.approx(0.32, abs=0.01)
+    assert hi == pytest.approx(0.50, abs=0.01)
+
+
+def test_edge_claim_requires_significant_ci():
+    """Edge'in GA'sı sıfırı içeriyorsa 'anlamlı fark ölçülemedi' denir."""
+    rng = np.random.default_rng(4)
+    a = rng.normal(0.18, 1.4, 112)
+    b = rng.normal(0.02, 1.4, 400)
+    lo, hi = bootstrap_diff_ci(a, b, samples=2000, rng=rng)
+    assert lo < 0 < hi  # bu örneklem büyüklüğünde fark anlamlı değil
+
+
+def test_summarize_verdict_is_honest(random_dataset):
+    """Rastgele veride edge iddiası YAPILMAMALI."""
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, 2.0, 1.0)
+
+    yarim = results.size // 2
+    stats = summarize(results[:yarim], 2.0, 1.0, "2:1", shadow=results[yarim:],
+                      rng=np.random.default_rng(0))
+
+    assert stats.n == yarim
+    assert not stats.edge_is_significant
+    assert stats.verdict == "anlamlı fark ölçülemedi"
+    assert stats.theoretical_null == pytest.approx(1 / 3)
+    assert "disclaimer" in stats.as_dict()
+
+
+def test_both_configs_are_computed_together(random_dataset):
+    """2:1 ve 1:1 birlikte hesaplanır ve saklanır (K-16.6)."""
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    out = evaluate_all_configs(events, store)
+    assert set(out) == {"2:1", "1:1"}
+    assert out["2:1"].size == out["1:1"].size
+
+
+def test_regime_breakdown_flags_small_cells(random_dataset):
+    """n < 30 olan rejim hücresi 'yetersiz örnek' işaretlenir."""
+    events, store = random_dataset
+    events = events[eligible(events, store)][:40]
+    results = evaluate(events, store, 2.0, 1.0)
+    stats = summarize(results, 2.0, 1.0, "2:1", rng=np.random.default_rng(0))
+    for row in stats.by_regime:
+        assert row["insufficient"] == (row["n"] < 30)
+
+
+# ---------------------------------------------------------------------------
+# Fiyat sürekliliği (F4 bulgusu) — redenominasyon / ticker yeniden kullanımı
+# ---------------------------------------------------------------------------
+
+
+def test_forward_window_stops_at_price_discontinuity():
+    """LUNAUSDT'de 177.400x bar-bar oranı bir fiyat hareketi DEĞİLDİR.
+
+    Binance ticker'ı LUNA2 için yeniden kullandı: aynı sembol adı altında
+    farklı bir varlık başlıyor. Ölçüm o noktada kesilmezse tek bir olay
+    gölge dağılımın ortalamasını +39R'ye taşıyabiliyor.
+    """
+    n = 60
+    close = np.full(n, 100.0)
+    close[40:] = 0.0005  # ticker yeniden kullanımı / redenominasyon
+    open_ = close.copy()
+
+    r = evaluate(
+        one_event(t0=30, length=40, atr=2.0),  # T = 20 → sıçramayı kapsıyor
+        simple_store(open_, close * 1.01, close * 0.99, close),
+        2.0,
+        1.0,
+    )
+    assert r.size == 1
+    assert bool(r["truncated"][0]), "sıçramadan sonrası ölçüme girmiş"
+    assert abs(r["r_gross"][0]) < 10, f"absürt R: {r['r_gross'][0]}"
+
+
+def test_normal_volatility_is_not_treated_as_discontinuity():
+    """Gerçek pump kesilmemeli — eşik sıçrama için, oynaklık için değil."""
+    n = 60
+    close = np.full(n, 100.0)
+    close[35:] = 250.0  # tek barda +%150: sert ama gerçek
+    open_ = close.copy()
+
+    r = evaluate(one_event(t0=30, length=40, atr=2.0), simple_store(open_, close * 1.01, close * 0.99, close), 2.0, 1.0)
+    assert r["outcome"][0] == OUTCOME_TP
+    assert not bool(r["truncated"][0])
+
+
+def test_leveraged_tokens_are_filtered_from_universe():
+    """Kaldıraçlı tokenlar spot parite değil, çürüyen türev ürünlerdir."""
+    from engine.matrix.universe_filter import is_leveraged_token
+
+    assert is_leveraged_token("BTCUPUSDT")
+    assert is_leveraged_token("ETHDOWNUSDT")
+    assert is_leveraged_token("XRPBULLUSDT")
+    assert not is_leveraged_token("BTCUSDT")
+    assert not is_leveraged_token("JUPUSDT")  # yanlış pozitif olmamalı

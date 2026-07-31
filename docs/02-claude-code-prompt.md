@@ -492,3 +492,226 @@ KURALLAR
 • F4'e geçme. • Test geçmiyorsa eşiği gevşetme, sor. • Sihirli sayı yok.
 • Her adımda commit. • Belirsizlikte sor.
 ```
+
+---
+
+# Oturum 3 — F4 Prompt'u (Outcome Engine)
+
+F3.5 **geçti** (göz testi onaylandı, 31 Tem 2026). Bu, ürünün tacı — ve
+istatistiksel dürüstlüğün sınandığı yer.
+
+```text
+GraphFlow F4 — Outcome Engine. CLAUDE.md yüklendi. F3.5 GEÇTİ.
+
+ÖNCE OKU: K-06, K-09, K-12, K-16 (tüm alt bölümleriyle) ve
+docs/fazlar/F4-outcome-engine.md.
+
+Bu faz "sonra ne oldu?" kartını üretir. Ürünün tek satılabilir iddiası bu
+sayıların DÜRÜST olmasıdır. Bir edge'i olduğundan büyük göstermek, hiç
+edge bulamamaktan daha kötüdür.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 0 — Kapsam ve p-hacking kilidi
+────────────────────────────────────────────────────────────────────────
+Skorlar artık yüzdelik olduğu için istatistiğe giren eşleşme kümesi
+tolerans kademesine göre DEĞİŞİR — dolayısıyla N ve beklenti de değişir.
+
+• config.OUTCOME_TOLERANCE = "medium" SABİTLE ve rapora yaz.
+• Kademe oynatarak sayı güzelleştirme YASAK. Başka kademe merak
+  ediliyorsa hepsi birlikte raporlanır, biri seçilip sunulmaz.
+• Aynı kural şablon seçimi için de geçerli: 14 şablonun TAMAMI tek
+  tabloda raporlanır. "En iyi 3 formasyon" diye sunum yapma — bu,
+  çoklu karşılaştırma probleminin ta kendisi.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 1 — Triple-barrier çekirdeği (K-16)
+────────────────────────────────────────────────────────────────────────
+t₀ = formasyonun bittiği bar · C₀ = kapanış · ATR = ATR(14)
+
+🚫 ATR YALNIZCA t₀'A KADARKİ BARLARDAN. Geleceğe bakan tek satır tüm
+   katmanı geçersiz kılar. Birim testi ZORUNLU.
+
+Bariyerler:  TP = C₀ + k_tp·ATR   SL = C₀ − k_sl·ATR   T = round(0,5·L)
+Konfigürasyonlar: 2:1 (null %33,3) ve 1:1 (null %50) — İKİSİ BİRDEN.
+
+Zorunlu kurallar:
+ • Aynı barda hem TP hem SL → SL ÖNCE ÇARPTI (muhafazakâr). Raporla.
+ • 1×ATR / C₀ < %1 ise pencere istatistiğe GİRMEZ (K-16.7).
+ • Komisyon: R_net = R_brüt − (gidiş_dönüş_ücret / atr_pct).
+   config.ROUNDTRIP_FEE_PCT = 0.001 (Binance taker ~%0,05 ×2).
+   Hem brüt hem net raporla.
+
+⚠️ DELİST TUZAĞI — bunu yanlış yaparsan K-13'ün tüm emeği çöpe gider:
+   Bir eşleşme, delist edilmiş bir paritenin sonuna yakınsa ileri pencere
+   kesiktir. Bu pencereleri ELEME — elersen ölmek üzere olan coinlerin
+   en kötü sonuçlarını sistematik olarak atmış olursun ve survivorship
+   bias arka kapıdan geri girer.
+   DOĞRUSU: delist = zorunlu çıkış. Son mevcut kapanıştan çık, sonucu
+   "delist_exit" olarak etiketle ve döküme ayrı satır olarak yaz.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 1B — Uygulama mekaniği (bunlar olmadan motor ya yavaş ya yanlış)
+────────────────────────────────────────────────────────────────────────
+
+■ VEKTÖRİZASYON — argmax hilesi
+  Python for döngüsü yazma. ~10.000 olay × 20 gölge × 50 bar = 10M kontrol.
+
+    tp_mask = High_mat >= TP[:, None]          # (N, T)
+    sl_mask = Low_mat  <= SL[:, None]
+    tp_idx = np.where(tp_mask.any(1), tp_mask.argmax(1), T)   # ⚠️ argmax
+    sl_idx = np.where(sl_mask.any(1), sl_mask.argmax(1), T)   #    hiç
+    # çarpmadığında da 0 döner — .any() maskesi ZORUNLU
+    first = np.minimum(tp_idx, sl_idx)
+    is_sl = sl_idx <= tp_idx                   # eşitse SL kazanır (K-16)
+
+  ⚠️ İKİ TUZAK:
+  1) T DEĞİŞKEN: T = 0,5·L ve L ∈ {24,40,64,100} → T ∈ {12,20,32,50}.
+     Tek bir (N,T) matrisi kurulamaz. Olayları PENCERE UZUNLUĞUNA GÖRE
+     GRUPLA, her grubu kendi matrisi olarak işle.
+  2) KISA İLERİ PENCERE (delist / veri sonu): satırlar T bardan kısa olur.
+     Dolgu yaparken high'ı −inf, low'u +inf ile doldur — böylece dolgu
+     hücreleri hiçbir zaman bariyer tetikleyemez. Geçerli bar sayısını
+     ayrı bir maskede tut, delist çıkışı son GEÇERLİ kapanıştan al.
+
+■ GAP / SLİPAJ GERÇEKLİĞİ
+  Bariyer 58.000, mum 57.000'den AÇILDI → 58.000'de satamazdın.
+  KURAL: Bir mumun Open fiyatı bariyerin ötesindeyse, çıkış fiyatı bariyer
+  değil o mumun OPEN fiyatıdır.
+
+    exit_px = where(gap_beyond_barrier, Open[first], barrier_px)
+
+  ⚠️ BU KURAL HER İKİ YÖNE DE UYGULANIR — yalnız SL'e uygularsan sistematik
+  aşağı yanlılık yaratırsın ve edge'i olduğundan kötü gösterirsin. Yukarı
+  gap'te TP çıkışı 2R'den İYİ olabilir; bu gerçektir, kırpma.
+  Kripto 1D'de gap seyrektir ama bakım/delist/flash-crash anlarında olur.
+
+■ ZAMAN BARİYERİ ÇIKIŞ FİYATI
+  T süresince TP/SL vurulmazsa çıkış, t₀+T barının KAPANIŞ (Close) fiyatıdır.
+  O barın High/Low'u önemsizdir — süre dolduğu an taker market emri.
+
+■ ATR ISINMA SÜRESİ
+  Coin 8 gündür listeliyse ATR(14) hesaplanamaz; listeleme günlerinin
+  pump/dump oynaklığı hem ATR'yi hem sonucu bozar.
+  config.MIN_BARS_SINCE_LISTING = 28  (2 × ATR_PERIOD)
+  Wilder ATR bir EMA özyinelemesidir; 14 barda tohumlanır ama ~2 periyot
+  boyunca yakınsamaya devam eder. t₀ bu eşiğin altındaysa olay DÜŞER.
+  Not: pencere zaten L ≥ 24 bar istediği için bağlayıcı olan kısım dar;
+  yine de kaç olayın düştüğünü raporla — bu hafif bir seçim etkisidir.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 2 — 🚦 NULL KAPISI (her şeyden önce bu geçmeli)
+────────────────────────────────────────────────────────────────────────
+GERÇEK SONUÇ ÜRETMEDEN ÖNCE motoru rastgele pencerelerde çalıştır
+(n ≥ 5.000, aynı likidite ve maliyet filtreleriyle):
+
+    2:1 başarı  ≈ %33,3   (±%2)
+    1:1 başarı  ≈ %50,0   (±%2)
+    beklenti    ≈ 0R      (net R'de hafif negatif olmalı — komisyon)
+
+Sapma varsa DURDUR ve sebebini bul. Olası sebepler: lookahead, bar
+sıralama hatası, ATR penceresi kayması, aynı-bar kuralının yanlış
+uygulanması, delist kesintisinin yanlış ele alınması.
+
+Bu test, mimarinin kendi kendini denetleme mekanizmasıdır ve arama
+kalitesinden BAĞIMSIZDIR. Geçmeden ADIM 3'e geçme.
+
+Not: kripto uzun vadede yukarı eğilimli olduğu için 1:1'de %50'nin biraz
+üstü beklenebilir. Ölçtüğün sapmayı raporla, gizleme — bu sapma zaten
+gölge dağılımın var olma sebebidir.
+
+⚠️ GAP KURALI NULL KAPISINI ETKİLER: Gap çıkışları ödemeleri tam ±k·ATR
+olmaktan çıkarır, dolayısıyla teorik null yalnızca ÇARPMA ORANI için
+geçerlidir; beklenti gap etkisiyle biraz kayar.
+  • Kapı kriteri = çarpma oranı (%33,3 / %50,0 ± %2) — sert.
+  • Beklenti için tolerans daha geniş tut ve sapmayı gap istatistiğiyle
+    birlikte raporla (kaç çıkış gap'ten oldu, ortalama gap büyüklüğü).
+  • Ek doğrulama: gap kuralını KAPATIP çalıştır — o zaman beklenti 0R'ye
+    çok daha yakın çıkmalı. Çıkmıyorsa hata gap'te değil, başka yerde.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 3 — Zaman-eşleştirmeli gölge dağılım (K-12)
+────────────────────────────────────────────────────────────────────────
+Her eşleşme için: bitiş ayını al → AYNI AYDAN, FARKLI SEMBOLLERDEN,
+aynı likidite + genlik + maliyet filtrelerini geçen P=20 rastgele pencere
+çek → aynı triple-barrier'ı uygula.
+
+• F3.5'te kurduğun rastgele pencere örnekleme ve önbellekleme tesisatını
+  YENİDEN YAZMA, üstüne bindir. (Örnekleme kuralı farklı, tesisat aynı.)
+• Gölge havuzu eşleşmelerin zaman dağılımını BİREBİR taklit etmeli;
+  doğrula ve raporla (ay bazında eşleşme sayısı vs gölge sayısı).
+
+⚠️ GÖLGEYE DE İLERİ PENCERE NMS'i UYGULA — atlanması çok kolay ve
+   doğrudan dürüstlük garantisini hedef alır:
+   Aynı sembolde çekilen gölge pencerelerin T-barlık ileri ufukları
+   kesişirse null dağılımı KENDİ İÇİNDE otokorelasyonlu olur → gölgenin
+   varyansı olduğundan küçük ölçülür → edge'in GA'sı sahte biçimde daralır
+   → anlamsız bir farkı ANLAMLI ilan edersin.
+   Kural: gölge örnekleminde de aynı sembolde ardışık pencereler arasında
+   en az T bar ayrım. Ayrıca tekilleştirme AY HAVUZU GENELİNDE yapılsın —
+   yalnız tek bir eşleşmenin 20'lisi içinde değil; farklı eşleşmelerin
+   gölgeleri de birbirini tekrar edebilir.
+   Reddedilen örnek sayısını raporla; havuz yetersiz kalırsa P<20'ye düş
+   ve bunu kaydet, aynı pencereyi iki kez sayma.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 4 — İstatistik: güven aralığı olmadan sayı yayınlama
+────────────────────────────────────────────────────────────────────────
+⚠️ EN KRİTİK ADIM. Örnek hesap: n=112, p=0,41 → %95 GA ≈ ±9 puan →
+   [%32, %50]. Teorik null %33 bu aralığın İÇİNDE. Yani "+6 puan edge"
+   istatistiksel olarak ANLAMSIZ olurdu.
+
+Zorunlular:
+ • Beklenti (R) için BOOTSTRAP güven aralığı (≥10.000 yeniden örnekleme).
+   R sürekli bir değişken; binom GA'sı yerine bootstrap kullan.
+ • Başarı oranı için Wilson skor aralığı.
+ • Edge = E_formasyon − E_gölge için de GA. İki dağılımın farkını
+   bootstrap'la (eşleştirilmiş değil, bağımsız iki örneklem).
+ • KARAR KURALI: Edge'in %95 GA'sı sıfırı içeriyorsa çıktı
+   "anlamlı fark ölçülemedi" olur. "+6 puan" diye yazılmaz.
+
+BAĞIMSIZ N — iki katman:
+ 1. Post-NMS'ten geçmiş tekil olaylar (K-09) — zaten var.
+ 2. ⚠️ İLERİ PENCERE ÖRTÜŞMESİ — bu YENİ ve atlanması kolay:
+    NMS formasyon pencerelerinin örtüşmediğini garanti eder, ama iki
+    eşleşme aynı sembolde 5 bar arayla ise T=12'lik SONUÇ pencereleri
+    7 bar örtüşür → sonuçlar korelasyonlu → N yine şişer.
+    Aynı sembolde ardışık eşleşmeler arasında en az T bar ayrım zorunlu
+    kıl. Kaç olayın bu yüzden düştüğünü raporla.
+
+REJİM KIRILIMI:
+ • Yıl bazında kırarsan hücre başına ~14 olay kalır — kullanılamaz.
+ • 3 kaba rejim kullan: 2017-2020 · 2021-2022 · 2023-bugün.
+ • Her hücrede n < 30 ise sayıyı göster ama "yetersiz örnek" işaretle.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 5 — Rapor ve kart
+────────────────────────────────────────────────────────────────────────
+14 şablon × 2 konfigürasyon için tam tablo: n, başarı, GA, beklenti (brüt
+ve net), GA, teorik null, gölge, edge, edge GA, sonuç dökümü
+(tp/sl/time/delist_exit).
+
+Kart formatı (K-06):
+    Hedef: 2R (≈ %7,4)  ·  Stop: 1R (≈ %3,7)
+    Beklenti: +0,18R  [%95 GA: −0,04 … +0,41]
+    Başarı:   %41 [%32–%50]  (null %33 · gölge %34)
+    N = 112 bağımsız olay
+    ⓘ Bu veriler geçmiş dağılımlardır, kesin bir işlem sinyali değildir.
+
+GA sıfırı içeriyorsa kart bunu AÇIKÇA söylesin. Ürünün itibarı buna bağlı.
+
+────────────────────────────────────────────────────────────────────────
+ÇIKTILAR
+────────────────────────────────────────────────────────────────────────
+1. engine/outcome/ (triple_barrier, shadow, metrics)
+2. docs/05-f4-raporu.md — null kapısı sonuçları, tam şablon tablosu,
+   rejim kırılımı, anlamlı çıkmayan formasyonlar DAHİL
+3. notebooks/06_outcome.ipynb — dağılım grafikleri, GA görselleri
+4. Güncellenmiş docs/fazlar/F4-outcome-engine.md ve CLAUDE.md
+
+KURALLAR
+• F5'e (API) geçme.
+• Hiçbir sayı baseline ve GA olmadan yayınlanmaz.
+• Anlamlı çıkmayan formasyonlar da raporlanır — asıl değer orada.
+• Sihirli sayı yok, her şey config'den. • Her adımda commit.
+• Null kapısı geçmeden ilerleme. • Belirsizlikte sor.
+```
