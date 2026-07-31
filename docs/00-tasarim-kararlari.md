@@ -594,6 +594,28 @@ Sonuç, eşleşmelerin zaman dağılımını **birebir taklit eden** bir kontrol
 
 > "+6 puanlık edge" iddiası ekrana **ancak gölge dağılım aşılırsa** yazılır.
 
+### ⚙️ F4.5 eki — kesitsel korelasyon ve ay-bloklu bootstrap
+
+Gölge dağılımın **çekilmesi** zaman-eşleştirmelidir, ama **güven aralığının
+hesaplanması** başlangıçta değildi: iid bootstrap, aynı aydan çekilen 20
+gölgeyi 20 bağımsız gözlem sayıyordu.
+
+Ölçülen ampirik değer (250 parite, 37 ay): **ay içi ortalama ikili getiri
+korelasyonu 0,384**. Kripto sembolleri birlikte hareket eder; aynı ayın 20
+sembolü efektif olarak çok daha az bağımsız bilgi taşır.
+
+**Yöntemin parçası (F4.5'ten itibaren):** Edge güven aralıkları **ay-bloklu
+bootstrap** ile hesaplanır. Blok birimi takvim ayıdır; seçilen ayın *tüm*
+eşleşmeleri ve *tüm* gölgeleri birlikte çekilir — ay içi korelasyon bloğun
+içinde kalır, zaman eşleştirmesi bootstrap'ta da korunur.
+
+Ölçülen tasarım etkisi (`SE_blok / SE_iid`): **medyan 1,28**, aralık
+0,89–2,03. iid varsayımı belirsizliği ortalama %29 eksik ölçüyordu.
+
+**Somut sonucu:** F4'ün tek pozitif bulgusu (alçalan üçgen, edge +0,29R)
+bu düzeltmeyle anlamlılığını **kaybetti** — o testte tasarım etkisi 1,91'di.
+Bkz. [06-f45-raporu.md](06-f45-raporu.md).
+
 ### İkinci referans: teorik null
 
 ATR tabanlı asimetrik bariyerler, analitik olarak bilinen bir null hipotezi de sağlar (bkz. [K-16](#k-16--triple-barrier-atr-tabanlı-göreli-bariyerler)). İki referans birbirini doğruluyorsa metodoloji sağlamdır; ayrışıyorsa bir yerde hata vardır ve bu **erken görülür**. Bu, kendi kendini denetleyen bir tasarımdır.

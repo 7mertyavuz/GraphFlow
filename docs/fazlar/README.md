@@ -9,7 +9,8 @@ Her faz için ayrı bir belge: kapsam, alınan kararlar, ölçülen sayılar, bi
 | **F2** | [F2-arama-motoru.md](F2-arama-motoru.md) | ✅ Bitti | Kaskad: kosinüs → pre-NMS → DDTW → post-NMS. 51 ms. |
 | **F3** | [F3-dogrulama.md](F3-dogrulama.md) | ✅ Geçti 🚦 | Göz testi onaylandı, K-11 karara bağlandı, 5 açık sorun. |
 | **F3.5** | [F3.5-temizlik.md](F3.5-temizlik.md) | ✅ Geçti | Yüzdelik skorlama (13/14 şablon), evren temizliği, invariantlar. |
-| **F4** | [F4-outcome-engine.md](F4-outcome-engine.md) | 🔄 Sırada | Triple-barrier + gölge dağılım + güven aralıkları. Ürünün tacı. |
+| **F4** | [F4-outcome-engine.md](F4-outcome-engine.md) | ✅ Bitti | Triple-barrier + gölge dağılım. Null kapısı geçti; 1 pozitif, 5 negatif, 8 nötr. |
+| **F4.5** | [F4.5-istatistiksel-saglamlastirma.md](F4.5-istatistiksel-saglamlastirma.md) | 🔄 Sırada | Ay-bloklu bootstrap + ayna (short) yönü. |
 | **F5** | [F5-api.md](F5-api.md) | ⬜ Planlı | FastAPI + Redis. |
 | **F6** | [F6-radar-ui.md](F6-radar-ui.md) | ⬜ Planlı | Canlı tarayıcı arayüzü (MVP 1). |
 | **F7** | [F7-backtest-ui.md](F7-backtest-ui.md) | ⬜ Planlı | Tarihsel arama + outcome kartı (MVP 2). |

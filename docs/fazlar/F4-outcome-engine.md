@@ -1,6 +1,10 @@
 # F4 — Outcome Engine ("Sonra Ne Oldu?")
 
-**Durum:** ✅ Tamamlandı (31 Tem 2026) — [rapor](../05-f4-raporu.md)
+**Durum:** ✅ Tamamlandı (31 Tem 2026) — [F4 raporu](../05-f4-raporu.md) · [F4.5 raporu](../06-f45-raporu.md)
+
+> ⚠️ **F4.5 düzeltmesi:** F4'ün tek pozitif sonucu (alçalan üçgen) ay-bloklu
+> bootstrap sonrası anlamlılığını kaybetti. Güncel sonuç: **yükselen takoz**,
+> short +0,331R / long −0,388R (52 testlik ailede Bonferroni'den sağ çıkıyor).
 **Modül:** `engine/outcome/`
 **İlgili kararlar:** [K-06](../00-tasarim-kararlari.md#k-06--öldürücü-özellik-sonra-ne-oldu) · [K-09](../00-tasarim-kararlari.md#k-09--çift-aşamalı-nms-deduplication) · [K-12](../00-tasarim-kararlari.md#k-12--zaman-eşleştirmeli-baseline-gölge-dağılım) · [K-16](../00-tasarim-kararlari.md#k-16--triple-barrier-atr-tabanlı-göreli-bariyerler)
 

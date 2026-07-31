@@ -561,3 +561,155 @@ def test_leveraged_tokens_are_filtered_from_universe():
     assert is_leveraged_token("XRPBULLUSDT")
     assert not is_leveraged_token("BTCUSDT")
     assert not is_leveraged_token("JUPUSDT")  # yanlış pozitif olmamalı
+
+
+# ---------------------------------------------------------------------------
+# F4.5 — Ayna (short) yönü
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("config,k_tp,k_sl", [("2:1", 2.0, 1.0), ("1:1", 1.0, 1.0)])
+def test_short_null_matches_long_null(random_dataset, config, k_tp, k_sl):
+    """Short null kapısı: fiyat martingale olduğu için long ile AYNI olmalı.
+
+    Değilse bariyer çevirmede hata var — ucuz ve kesin bir kontrol.
+    """
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, k_tp, k_sl, direction="short")
+
+    tp = int((results["outcome"] == OUTCOME_TP).sum())
+    sl = int((results["outcome"] == OUTCOME_SL).sum())
+    decided = tp + sl
+    null = theoretical_null(k_tp, k_sl)
+    lo, hi = wilson_interval(tp, decided)
+
+    print(f"\nshort {config}: {decided} karara bağlanan, başarı %{100*tp/decided:.1f} "
+          f"(null %{100*null:.1f}, GA [%{100*lo:.1f}, %{100*hi:.1f}])")
+    assert lo <= null <= hi, f"short {config}: null aralık dışında — bariyer çevirmede hata"
+
+
+def test_short_barriers_are_mirrored():
+    """TP aşağıda, SL yukarıda; kâr fiyat DÜŞÜNCE."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = close.copy()
+    high = close.copy()
+    low = close.copy()
+    low[35] = 94.0  # short TP = 100 − 2×2 = 96
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0,
+                 direction="short")
+    assert r["outcome"][0] == OUTCOME_TP
+    assert r["r_gross"][0] > 0  # düşüş short'ta kârdır
+
+
+def test_short_same_bar_rule_still_favours_sl():
+    """Short'ta SL yukarıdadır; aynı barda ikisi de vurulduysa yine SL önce."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = close.copy()
+    high = np.full(n, 100.0)
+    low = np.full(n, 100.0)
+    high[35] = 103.0  # short SL = 102
+    low[35] = 95.0  # short TP = 96
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0,
+                 direction="short")
+    assert r["outcome"][0] == OUTCOME_SL
+    assert r["r_gross"][0] == pytest.approx(-1.0)
+
+
+def test_short_gap_rule_is_symmetric():
+    """Short'ta yukarı gap SL'i kötüleştirir, aşağı gap TP'yi iyileştirir."""
+    n = 60
+    close = np.full(n, 100.0)
+    open_ = close.copy()
+    high = np.full(n, 100.5)
+    low = np.full(n, 99.5)
+    open_[35], high[35], low[35], close[35] = 112.0, 113.0, 111.0, 112.0  # SL'i aşan gap
+
+    r = evaluate(one_event(t0=30, atr=2.0), simple_store(open_, high, low, close), 2.0, 1.0,
+                 direction="short")
+    assert r["outcome"][0] == OUTCOME_SL
+    assert r["r_gross"][0] == pytest.approx((100.0 - 112.0) / 2.0)  # −6R, −1R değil
+
+
+def test_long_and_short_cannot_both_win_on_a_trend():
+    """Aynı pencerede iki yön birden kazanamaz — tutarlılık kontrolü."""
+    n = 120
+    close = np.linspace(100, 180, n)
+    store = simple_store(close, close * 1.001, close * 0.999, close)
+    ev = one_event(t0=40, length=40, atr=3.0)
+
+    uzun = evaluate(ev, store, 2.0, 1.0, direction="long")["r_gross"][0]
+    kisa = evaluate(ev, store, 2.0, 1.0, direction="short")["r_gross"][0]
+    assert not (uzun > 0 and kisa > 0), "aynı pencerede long ve short birlikte kazanıyor"
+
+
+def test_direction_is_validated():
+    n = 60
+    close = np.full(n, 100.0)
+    with pytest.raises(ValueError):
+        evaluate(one_event(), simple_store(close, close, close, close), 2.0, 1.0, direction="yukarı")
+
+
+# ---------------------------------------------------------------------------
+# F4.5 — Ay-bloklu bootstrap
+# ---------------------------------------------------------------------------
+
+
+def test_block_bootstrap_preserves_pairing():
+    """Blok çekiminde ayın TÜM eşleşmeleri ve TÜM gölgeleri birlikte gelir.
+
+    Ay etkisi her ikisinde de ortak olduğu için farkta birbirini götürür;
+    K-12'nin zaman eşleştirmesi bootstrap'ta da korunur.
+    """
+    from engine.outcome.metrics import block_bootstrap_diff_ci, bootstrap_diff_ci
+
+    rng = np.random.default_rng(0)
+    ay = rng.normal(0, 0.5, 12)  # güçlü ay etkisi
+    a, am, b, bm = [], [], [], []
+    for m in range(12):
+        a += list(ay[m] + rng.normal(0.1, 0.05, 20))
+        am += [m] * 20
+        b += list(ay[m] + rng.normal(0.0, 0.05, 20))
+        bm += [m] * 20
+
+    a, b = np.array(a), np.array(b)
+    iid = bootstrap_diff_ci(a, b, samples=3000, rng=rng)
+    blok, design = block_bootstrap_diff_ci(a, np.array(am), b, np.array(bm), samples=3000, rng=rng)
+
+    # Ortak ay etkisi götürüldüğü için blok GA daha dar olmalı
+    assert (blok[1] - blok[0]) < (iid[1] - iid[0])
+    assert np.isfinite(design)
+
+
+def test_block_bootstrap_widens_when_effect_is_not_shared():
+    """Ay etkisi yalnız bir tarafta ise blok bootstrap GA'yı GENİŞLETİR."""
+    from engine.outcome.metrics import block_bootstrap_diff_ci, bootstrap_diff_ci
+
+    rng = np.random.default_rng(1)
+    ay = rng.normal(0, 0.6, 10)
+    a, am, b, bm = [], [], [], []
+    for m in range(10):
+        a += list(ay[m] + rng.normal(0.0, 0.05, 25))  # ay etkisi yalnız eşleşmelerde
+        am += [m] * 25
+        b += list(rng.normal(0.0, 0.05, 25))
+        bm += [m] * 25
+
+    iid = bootstrap_diff_ci(np.array(a), np.array(b), samples=3000, rng=rng)
+    blok, design = block_bootstrap_diff_ci(
+        np.array(a), np.array(am), np.array(b), np.array(bm), samples=3000, rng=rng
+    )
+    assert (blok[1] - blok[0]) > (iid[1] - iid[0])
+    assert design > 1.0
+
+
+def test_bonferroni_family_grows_with_short():
+    """Short eklenince aile 28 → 56; long sonuçlar da yeni eşikle sertleşir."""
+    from engine.outcome.metrics import bonferroni_level
+
+    assert bonferroni_level(28) == pytest.approx(1 - 0.05 / 28)
+    assert bonferroni_level(56) == pytest.approx(1 - 0.05 / 56)
+    assert bonferroni_level(56) > bonferroni_level(28)

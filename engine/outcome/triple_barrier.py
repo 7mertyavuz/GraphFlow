@@ -70,6 +70,10 @@ RESULT_DTYPE = np.dtype(
 )
 
 OUTCOME_TP, OUTCOME_SL, OUTCOME_TIME, OUTCOME_FORCED = 0, 1, 2, 3
+
+#: Yön. Short, ayna bariyerlerdir — ikinci bir kod yolu değil, işaret çarpanı.
+LONG, SHORT = "long", "short"
+DIRECTIONS = (LONG, SHORT)
 OUTCOME_NAMES = {OUTCOME_TP: "tp", OUTCOME_SL: "sl", OUTCOME_TIME: "time", OUTCOME_FORCED: "forced"}
 
 
@@ -132,21 +136,37 @@ def enforce_forward_separation(events: np.ndarray, ratio: float = TIME_BARRIER_R
 
 
 def _evaluate_group(
-    events: np.ndarray, store: BarStore, k_tp: float, k_sl: float, horizon: int
+    events: np.ndarray,
+    store: BarStore,
+    k_tp: float,
+    k_sl: float,
+    horizon: int,
+    direction: str = LONG,
 ) -> np.ndarray:
-    """Tek bir pencere uzunluğu grubu (aynı ``T``) — tamamen vektörize."""
+    """Tek bir pencere uzunluğu grubu (aynı ``T``) — tamamen vektörize.
+
+    ``direction`` yalnızca bir **işaret çarpanıdır**; ikinci bir kod yolu
+    açılmaz. Short'ta bariyerler çevrilir (TP aşağıda, SL yukarıda) ama
+    muhafazakâr aynı-bar kuralı, gap kuralı, komisyon ve zorunlu çıkış aynen
+    geçerlidir.
+    """
+    sign = 1.0 if direction == LONG else -1.0
     sid, t0 = events["symbol_id"], events["t0"]
     atr = events["atr"].astype(np.float64)
     c0 = store.close_at(sid, t0)
 
-    tp = c0 + k_tp * atr
-    sl = c0 - k_sl * atr
+    tp = c0 + sign * k_tp * atr
+    sl = c0 - sign * k_sl * atr
 
     high, low, open_, close, valid = store.forward_window(sid, t0, horizon)
     n_valid = valid.sum(axis=1)
 
-    tp_hit = high >= tp[:, None]
-    sl_hit = low <= sl[:, None]
+    if direction == LONG:
+        tp_hit = high >= tp[:, None]
+        sl_hit = low <= sl[:, None]
+    else:  # short: TP aşağıda (low ile), SL yukarıda (high ile)
+        tp_hit = low <= tp[:, None]
+        sl_hit = high >= sl[:, None]
 
     # argmax hiç çarpmayınca da 0 döner → any() maskesi ZORUNLU
     tp_idx = np.where(tp_hit.any(axis=1), tp_hit.argmax(axis=1), horizon)
@@ -163,8 +183,14 @@ def _evaluate_group(
     # Gap/slipaj: mumun Open'ı bariyerin ötesindeyse çıkış Open'dır.
     # Her iki yöne de uygulanır; yukarı gap'te TP çıkışı 2R'den iyi olabilir —
     # bu gerçektir, kırpılmaz.
-    exit_sl = np.where(np.isfinite(bar_open) & (bar_open <= sl), bar_open, sl)
-    exit_tp = np.where(np.isfinite(bar_open) & (bar_open >= tp), bar_open, tp)
+    if direction == LONG:
+        gapped_sl = bar_open <= sl
+        gapped_tp = bar_open >= tp
+    else:  # short'ta yönler simetrik olarak çevrilir
+        gapped_sl = bar_open >= sl
+        gapped_tp = bar_open <= tp
+    exit_sl = np.where(np.isfinite(bar_open) & gapped_sl, bar_open, sl)
+    exit_tp = np.where(np.isfinite(bar_open) & gapped_tp, bar_open, tp)
     exit_price = np.where(is_sl, exit_sl, exit_tp)
 
     outcome = np.where(is_sl, OUTCOME_SL, OUTCOME_TP).astype(np.int8)
@@ -183,7 +209,7 @@ def _evaluate_group(
     exit_bar = np.where(no_hit, last_valid + 1, exit_bar)
     outcome = np.where(forced, OUTCOME_FORCED, np.where(timed, OUTCOME_TIME, outcome)).astype(np.int8)
 
-    r_gross = (exit_price - c0) / atr
+    r_gross = sign * (exit_price - c0) / atr
     atr_pct = atr / c0
     r_net = r_gross - ROUNDTRIP_FEE_PCT / atr_pct
 
@@ -209,15 +235,20 @@ def evaluate(
     k_tp: float,
     k_sl: float,
     ratio: float = TIME_BARRIER_RATIO,
+    direction: str = LONG,
 ) -> np.ndarray:
     """Tüm olaylar için triple-barrier. Olaylar ``T``'ye göre gruplanır."""
     if events.size == 0:
         return np.empty(0, dtype=RESULT_DTYPE)
+    if direction not in (LONG, SHORT):
+        raise ValueError(f"bilinmeyen yön: {direction}")
 
     parts = []
     for length in np.unique(events["length"]):
         group = events[events["length"] == length]
-        parts.append(_evaluate_group(group, store, k_tp, k_sl, time_barrier(int(length), ratio)))
+        parts.append(
+            _evaluate_group(group, store, k_tp, k_sl, time_barrier(int(length), ratio), direction)
+        )
 
     return np.concatenate(parts) if parts else np.empty(0, dtype=RESULT_DTYPE)
 
@@ -226,13 +257,17 @@ def evaluate_all_configs(
     events: np.ndarray,
     store: BarStore,
     configs: dict[str, tuple[float, float]] = BARRIER_CONFIGS,
+    direction: str = LONG,
 ) -> dict[str, np.ndarray]:
     """2:1 ve 1:1 **birlikte** hesaplanır (K-16.6) — maliyeti sıfıra yakın.
 
     1:1'in null'u tam %50'dir: "bu formasyonun gerçekten yön bilgisi var mı"
     sorusunun akademik savunması olan hâli.
     """
-    return {name: evaluate(events, store, k_tp, k_sl) for name, (k_tp, k_sl) in configs.items()}
+    return {
+        name: evaluate(events, store, k_tp, k_sl, direction=direction)
+        for name, (k_tp, k_sl) in configs.items()
+    }
 
 
 def theoretical_null(k_tp: float, k_sl: float) -> float:

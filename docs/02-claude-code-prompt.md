@@ -715,3 +715,114 @@ KURALLAR
 • Sihirli sayı yok, her şey config'den. • Her adımda commit.
 • Null kapısı geçmeden ilerleme. • Belirsizlikte sor.
 ```
+
+---
+
+# Oturum 3.5 — F4.5 Prompt'u (İstatistiksel Sağlamlaştırma)
+
+F4 bitti. İki iş kaldı ve ikisi de **tek pozitif iddianın (alçalan üçgen)
+kaderini** belirliyor. Küçük bir oturum; F5'i bloke etmiyor ama yanlış GA
+yayınlayıp sonra düzeltmekten iyidir.
+
+```text
+GraphFlow F4.5 — istatistiksel sağlamlaştırma. CLAUDE.md yüklendi.
+F4 bitti (a5be140, 176 test, null kapısı geçti).
+
+ÖNCE OKU: docs/05-f4-raporu.md (özellikle "bilinen sınırlar"), K-12, K-16.
+
+F4'ün iki açık sınırı var; ikisi de raporun TEK pozitif sonucunu tehdit
+ediyor. Bu oturum yeni özellik eklemez, mevcut sayıları sağlamlaştırır.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 1 — Ay-bloklu bootstrap (kesitsel korelasyon)
+────────────────────────────────────────────────────────────────────────
+PROBLEM: Gölge havuzu "aynı ay, farklı sembol" kuralıyla çekiliyor. Ama
+kripto sembolleri birbirine yüksek korelasyonlu; aynı aydan 20 farklı
+sembol 20 BAĞIMSIZ gözlem vermez. Mevcut bootstrap onları iid varsayıyor
+→ gölge varyansı olduğundan küçük → edge GA'sı sahte biçimde dar →
+anlamsız bir farkı ANLAMLI ilan etme riski.
+
+ÇÖZÜM — blok bootstrap, blok birimi = TAKVİM AYI:
+ • Ayları yerine koyarak (with replacement) yeniden örnekle.
+ • Seçilen her ayın TÜM eşleşmelerini ve TÜM gölgelerini birlikte al —
+   böylece ay içi korelasyon bloğun içinde kalır ve eşleştirme korunur.
+ • Her yeniden örneklemede E_eşleşme − E_gölge hesapla. ≥10.000 tekrar.
+ • Yeni altyapı yazma; mevcut bootstrap'ın ÖRNEKLEME BİRİMİNİ değiştir.
+
+ÖLÇ VE RAPORLA:
+ • Tasarım etkisi = SE_blok / SE_iid. Tek sayı, korelasyonun anlamlılığı
+   ne kadar şişirdiğini doğrudan gösterir. Raporun en açıklayıcı satırı.
+ • Evren geneli aylık ortalama ikili getiri korelasyonu (ampirik sayı).
+ • ⚠️ Formasyon başına n_events YANINDA n_months yaz. n=112'nin 8 aya
+   yayılması ile 60 aya yayılması TAMAMEN farklı kanıt gücüdür; blok
+   bootstrap bunu otomatik cezalandıracak ama okuyucu sebebini görmeli.
+
+Tüm 14 şablon × 2 konfigürasyon yeniden çalıştırılır, Bonferroni tekrar
+uygulanır.
+
+BEKLENTİM: alçalan üçgen anlamlılığını KAYBEDER (+0,303R [+0,023; +0,590]
+alt sınırı zaten sıfıra çok yakın). Kaybederse rapor "hiçbir formasyonda
+anlamlı pozitif edge ölçülemedi" olur — bu dürüst ve savunulabilir bir
+sonuçtur, kötü bir sonuç değil. Sayıyı kurtarmaya ÇALIŞMA.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 2 — Ayna (short) yönü
+────────────────────────────────────────────────────────────────────────
+Alçalan üçgen bir DÜŞÜŞ formasyonu ama long ölçüldü; pozitif sonuç şu hâlde
+yorumlanamıyor. Ayna yönü bunu ayrıştırır.
+
+UYGULAMA (makine hazır, bariyerleri çevir):
+ • TP = C₀ − k_tp·ATR   ·   SL = C₀ + k_sl·ATR
+ • Aynı-bar kuralı da çevrilir: ikisi de aynı barda vurulduysa yine SL
+   önce sayılır (SL artık YUKARIDA).
+ • Gap kuralı simetrik uygulanır.
+ • Komisyon, maliyet tabanı, delist zorunlu çıkışı aynen geçerli.
+
+NULL KAPISINI SHORT İÇİN DE ÇALIŞTIR: −σ²/2 düzeltmesiyle fiyat martingale
+olduğundan short null'ları long ile AYNI olmalı (%33,3 / %50,0). Değilse
+bariyer çevirmede hata var. Bu ucuz ve kesin bir kontrol.
+
+AYRIŞTIRICI TEST — alçalan üçgen:
+ • short da POZİTİF → ölçüm hatası. Aynı pencerelerde iki yön birden
+   kazanamaz. Dur ve sebebini bul.
+ • short NEGATİF → long pozitifi tutarlı bir hikâyeye oturur
+   (kapitülasyon sonrası ortalamaya dönüş).
+ • short NULL → long pozitifi büyük olasılıkla gürültüdür.
+
+AYRICA İLGİNÇ: F4'te gölgesinden anlamlı biçimde KÖTÜ çıkan beş yükseliş
+dönüş formasyonu (çanak dip, ters OBO, ikili dip, fincan-kulp, yükselen
+takoz) short yönde İYİ çıkıyor mu? Çıkıyorsa bu tersine çevrilmiş ama
+gerçek bir bulgudur ve raporun en ilginç kısmı olur. Çıkmıyorsa da yaz.
+
+────────────────────────────────────────────────────────────────────────
+ADIM 3 — Çoklu karşılaştırma ailesini güncelle
+────────────────────────────────────────────────────────────────────────
+Short eklenince test sayısı 28 → 56 olur. Bonferroni ailesi 56 üzerinden
+yeniden hesaplanır (α = 0,05/56) ve LONG sonuçlar da bu yeni eşikle tekrar
+raporlanır — aile büyüdüğünde eski sonuçlar da sertleşir, bunu gizleme.
+
+simmetrical_triangle N=4 ile kullanılamaz: tablodan çıkarma ama
+"ölçülemedi (N yetersiz)" diye işaretle ve test ailesine DAHİL ETME.
+
+────────────────────────────────────────────────────────────────────────
+ÇIKTILAR
+────────────────────────────────────────────────────────────────────────
+1. docs/06-f45-raporu.md — tasarım etkisi, ampirik korelasyon, n_months
+   sütunlu tam tablo (14 × 2 konfig × 2 yön), yeni Bonferroni eşiği,
+   alçalan üçgen kararı, beş yükseliş formasyonunun short karşılığı.
+2. Güncellenmiş K-12 (blok bootstrap artık yöntemin parçası) ve
+   docs/fazlar/F4-outcome-engine.md.
+3. CLAUDE.md'ye yeni kural: "Gölge dağılımda kesitsel korelasyon —
+   GA'lar daima ay-bloklu bootstrap ile; iid bootstrap anlamlılığı şişirir."
+4. Sonuç özeti tek cümlede: kaç formasyonda anlamlı pozitif edge var.
+
+SINIR OLARAK YAZ (çözme, kaydet):
+ • Tüm ölçüm tek veri kümesi üzerinde (Binance spot, 1d, 2017–2026).
+   Örneklem dışı doğrulama yok. 4h matrisleri kurulduğunda kısmî bir
+   sağlamlık kontrolü olarak kullanılabilir — aynı varlıklar ama aynı
+   sürecin farklı örneklemesi.
+
+KURALLAR
+• F5'e geçme. • Sayı kurtarmaya çalışma; ölçüm ne diyorsa o.
+• Sihirli sayı yok. • Her adımda commit. • Belirsizlikte sor.
+```

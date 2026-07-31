@@ -55,6 +55,7 @@ class TemplateOutcome:
     dropped_filters: int
     shadow_report: dict = field(default_factory=dict)
     stats: dict[str, OutcomeStats] = field(default_factory=dict)
+    direction: str = "long"
 
     def as_dict(self) -> dict:
         return {
@@ -64,6 +65,7 @@ class TemplateOutcome:
             "n_independent": self.events,
             "dropped_forward_overlap": self.dropped_separation,
             "dropped_filters": self.dropped_filters,
+            "direction": self.direction,
             "shadow": self.shadow_report,
             "configs": {name: s.as_dict() for name, s in self.stats.items()},
         }
@@ -100,8 +102,13 @@ def run_template(
     limit: int = 5_000,
     p: int = SHADOW_SAMPLES_PER_MATCH,
     rng: np.random.Generator | None = None,
+    direction: str = "long",
+    confidence: float | None = None,
 ) -> TemplateOutcome:
-    """Tek bir şablon için uçtan uca outcome."""
+    """Tek bir şablon için uçtan uca outcome (long veya short)."""
+    from engine.config import CONFIDENCE_LEVEL
+
+    confidence = CONFIDENCE_LEVEL if confidence is None else confidence
     rng = rng if rng is not None else np.random.default_rng(20260731)
 
     result = engine.search(query, timeframe=timeframe, tolerance=OUTCOME_TOLERANCE, limit=limit)
@@ -137,10 +144,18 @@ def run_template(
     shadow_events = shadow_events[eligible(shadow_events, store)] if shadow_events.size else shadow_events
     outcome.shadow_report = shadow_report
 
+    outcome.direction = direction
     for name, (k_tp, k_sl) in BARRIER_CONFIGS.items():
-        results = evaluate(events, store, k_tp, k_sl)
-        shadow_results = evaluate(shadow_events, store, k_tp, k_sl) if shadow_events.size else None
-        outcome.stats[name] = summarize(results, k_tp, k_sl, name, shadow=shadow_results, rng=rng)
+        results = evaluate(events, store, k_tp, k_sl, direction=direction)
+        shadow_results = (
+            evaluate(shadow_events, store, k_tp, k_sl, direction=direction)
+            if shadow_events.size
+            else None
+        )
+        outcome.stats[name] = summarize(
+            results, k_tp, k_sl, name, shadow=shadow_results, rng=rng,
+            direction=direction, confidence=confidence,
+        )
 
     return outcome
 

@@ -70,6 +70,11 @@ geri getirme:
   pencere matrise girmez, ileri pencere orada kesilir. Kaldıraçlı tokenlar
   (UP/DOWN/BULL/BEAR) evrenden düşer — F4'te gölge beklentisini +39R'ye
   taşıyan sebep buydu.
+- 🚫 **Gölge dağılımda kesitsel korelasyon.** Güven aralıkları **daima
+  ay-bloklu bootstrap** ile hesaplanır; iid bootstrap aynı aydan çekilen 20
+  gölgeyi 20 bağımsız gözlem sayar. Ölçülen ay içi korelasyon 0,384, tasarım
+  etkisi medyan 1,28 — iid, belirsizliği ~%29 eksik ölçüyordu ve F4'ün tek
+  pozitif bulgusu bu yüzden sahte çıktı (K-12).
 - 🚫 **Çoklu karşılaştırma.** 14 şablon × 2 konfigürasyon = 28 test; %95 ile
   şans eseri ~1,4 "anlamlı" sonuç beklenir. Edge iddiaları Bonferroni ile de
   sınanır ve **tüm şablonlar** tek tabloda raporlanır.
@@ -92,7 +97,7 @@ geri getirme:
 ✅ tests/                          127 test (ingest, arşiv, normalize, matrix, search)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
-✅ engine/outcome/                 F4  (triple_barrier, shadow, metrics, pipeline)
+✅ engine/outcome/                 F4 + F4.5 (short yönü, ay-bloklu bootstrap)
 ⬜ engine/api/                     F5  ← sırada
 ⬜ web/                            F6–F7
 ```

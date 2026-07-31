@@ -76,7 +76,8 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 | [F2](docs/fazlar/F2-arama-motoru.md) | Arama motoru (kaskad) | ✅ 51 ms |
 | [**F3**](docs/fazlar/F3-dogrulama.md) | **Notebook doğrulaması** 🚦 zorunlu kapı | ✅ **Geçti** |
 | [F3.5](docs/fazlar/F3.5-temizlik.md) | Temizlik (yüzdelik skorlama, evren) | ✅ **Geçti** |
-| [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | 🔄 Sırada |
+| [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | ✅ **Bitti** |
+| [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | 🔄 Sırada |
 | [F5](docs/fazlar/F5-api.md) | FastAPI + Redis | ⬜ |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js — Radar (MVP 1) | ⬜ |
 | [F7](docs/fazlar/F7-backtest-ui.md) | Next.js — Backtest (MVP 2) | ⬜ |
