@@ -128,7 +128,7 @@ QUOTE_ASSETS: Final[tuple[str, ...]] = ("USDT", "BTC")
 #: kısıtının kaydıdır, tasarım tercihi değil.
 MAX_STALENESS_BARS: Final[dict[str, int]] = {
     "4h": 12,  # arşiv gecikmesi nedeniyle gevşek — REST'te 3 olmalı
-    "1d": 3,
+    "1d": 5,
 }
 
 #: İndirmede kaç sayfada bir diske yazılacağı. Sık yazmak kesintiden devamı

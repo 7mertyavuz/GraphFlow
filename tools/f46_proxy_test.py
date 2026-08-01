@@ -296,7 +296,7 @@ def main():
             "n_months": r.n_months,
             "design_effect": r.design_effect,
         })
-    with open(output_dir / "f46_raw.json", "w") as f:
+    with open(output_dir / "f46_raw.json", "w", encoding="utf-8") as f:
         json.dump(raw, f, indent=2, ensure_ascii=False)
     log.info("Sonuçlar: %s", output_dir / "f46_raw.json")
 
@@ -323,7 +323,7 @@ Duyarlılık: ±0.15σ, ±0.25σ, ±0.50σ.
 
 Fallback zinciri: band genişlet → ay esnet (±1 ay) → uyarı ver.
 """
-    with open(output_dir / "f46_raporu.md", "w") as f:
+    with open(output_dir / "f46_raporu.md", "w", encoding="utf-8") as f:
         f.write(report)
     log.info("Rapor: %s", output_dir / "f46_raporu.md")
 

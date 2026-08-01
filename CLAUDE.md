@@ -144,12 +144,15 @@ Her motor modülünün `pytest` testi olmalı. Özellikle:
 - NMS: örtüşen pencereler tekilleşmeli, `max_per_symbol` uygulanmalı.
 - Triple-barrier: rastgele pencerelerde 2:1 başarı ≈ %33, 1:1 ≈ %50,
   beklenti ≈ 0R. Sapma varsa lookahead veya bar sıralama hatası vardır.
+- F4.6 Vekil Testi: Ön-getiri eşleştirmeli gölge havuzlarında (±0.15σ / ±0.25σ / ±0.50σ) 3 aşamalı fallback zinciri (band genişlet → ay esnet → uyarı).
+- F5 API: Çıplak sayı döndürmek yasak (StatEnvelope zorunlu), oturum sayacı ile Bonferroni çoğul test uyarıları, DTW path önbelleği.
 
 ## Komutlar
 
 ```bash
 python -m engine.ingest.download        # F0: Binance klines indir
 python -m engine.matrix.build           # F1: vektör matrislerini üret
+python -m tools.f46_proxy_test          # F4.6: Vekil testi ve ön-getiri eşleştirmeli gölge analizi
 pytest -q                               # testler
 uvicorn engine.api.main:app --reload    # F5: API
 ```

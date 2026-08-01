@@ -117,10 +117,13 @@ class Match:
     amplitude: float
     atr: float
     percentile: float = 1.0
+    row: int = 0
+    dtw_path: tuple[tuple[int, int], ...] | None = None
 
     def as_dict(self) -> dict:
         return {
             "symbol": self.symbol,
+            "symbol_id": self.symbol_id,
             "timeframe": self.timeframe,
             "window_length": self.window_length,
             "start_idx": self.start_idx,
@@ -131,6 +134,7 @@ class Match:
             "percentile": float(self.percentile),
             "amplitude": round(float(self.amplitude), 2),
             "atr": float(self.atr),
+            "warp_path": [list(p) for p in self.dtw_path] if self.dtw_path is not None else None,
         }
 
 
@@ -530,4 +534,25 @@ class SearchEngine:
             amplitude=float(c["amplitude"]),
             atr=float(c["atr"]),
             percentile=float(c["percentile"]),
+            row=int(c["row"]),
         )
+
+    def compute_warp_paths(
+        self,
+        matches: Sequence[Match],
+        query_vector: np.ndarray,
+        radius: int = SAKOE_CHIBA_RADIUS,
+    ) -> list[list[list[int]]]:
+        """Verilen eşleşmeler için DDTW hizalama yollarını (warp_path) hesaplar."""
+        from engine.search.ddtw import warping_path
+
+        paths: list[list[list[int]]] = []
+        for m in matches:
+            try:
+                h = self.handle(m.timeframe, m.window_length)
+                cand = np.asarray(h.vectors[m.row])
+                path_arr = warping_path(query_vector, cand, radius=radius, use_derivative=True)
+                paths.append(path_arr.tolist())
+            except Exception:
+                paths.append([])
+        return paths

@@ -51,6 +51,7 @@ Kullanıcı çizimi ──▶ log fiyat → 32 noktaya resample → z-score
 |---|---|
 | [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) | **Karar kaydı** — 18 mimari karar, gerekçeleri ve reddedilen 19 alternatif |
 | [docs/01-mimari.md](docs/01-mimari.md) | **Teknik spesifikasyon** — veri katmanı, algoritmalar, API, repo yapısı, yol haritası |
+| [docs/07-f46-raporu.md](docs/07-f46-raporu.md) | **F4.6 Vekil Testi Raporu** — Formasyonların şekil mi yoksa momentum vekili mi olduğunun kanıtı |
 | [docs/fazlar/](docs/fazlar/README.md) | **Faz belgeleri** — F0…F7 için ayrı ayrı kapsam, ölçümler, bilinen sorunlar, çıkış şartları |
 
 Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
@@ -78,7 +79,8 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 | [F3.5](docs/fazlar/F3.5-temizlik.md) | Temizlik (yüzdelik skorlama, evren) | ✅ **Geçti** |
 | [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | ✅ **Bitti** |
 | [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | ✅ **Bitti** |
-| [F5](docs/fazlar/F5-api.md) | F4.6 vekil testi + FastAPI/Redis | 🔄 Sırada |
+| [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Bitti** |
+| [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js — Radar (MVP 1) | ⬜ |
 | [F7](docs/fazlar/F7-backtest-ui.md) | Next.js — Backtest (MVP 2) | ⬜ |
 
