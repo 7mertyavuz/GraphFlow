@@ -713,3 +713,173 @@ def test_bonferroni_family_grows_with_short():
     assert bonferroni_level(28) == pytest.approx(1 - 0.05 / 28)
     assert bonferroni_level(56) == pytest.approx(1 - 0.05 / 56)
     assert bonferroni_level(56) > bonferroni_level(28)
+
+
+# ---------------------------------------------------------------------------
+# F4.6 — Ön-getiri eşleştirmeli gölge testleri
+# ---------------------------------------------------------------------------
+
+
+def _shadow_pool_with_returns(n_symbols=10, n_bars=200, length=40):
+    """Ön-getirili gölge havuzu için test veri seti oluşturur."""
+    from engine.outcome.shadow import ShadowPool
+
+    rng = np.random.default_rng(42)
+    meta_rows = []
+    all_close = []
+    offsets = {}
+    offset = 0
+
+    for sid in range(n_symbols):
+        open_, high, low, close = martingale_ohlc(n_bars, 0.04, rng)
+        offsets[sid] = offset
+        all_close.extend(close)
+        offset += n_bars
+
+        atr = wilder_atr(high, low, close)
+        stride = 3
+        for start in range(0, n_bars - length, stride):
+            end = start + length
+            if end >= n_bars:
+                break
+            a = atr[end] if end < n_bars and np.isfinite(atr[end]) else 0.0
+            if a <= 0:
+                continue
+            amp = (max(close[start:end + 1]) - min(close[start:end + 1])) / min(close[start:end + 1]) * 100
+            meta_rows.append((sid, start, end, end * 86_400_000, amp, a, True))
+
+    from engine.config import META_DTYPE
+    meta = np.array(meta_rows, dtype=META_DTYPE)
+    klines_close = np.array(all_close, dtype=np.float64)
+
+    pool = ShadowPool.from_meta(
+        meta, length,
+        klines_close=klines_close,
+        klines_offsets=offsets,
+    )
+    return pool, meta, klines_close, offsets
+
+
+def test_shadow_return_matching_filters_by_band():
+    """Ön-getiri eşleştirmeli gölge, band dışındaki adayları elemeli."""
+    from engine.outcome.shadow import sample_shadow
+
+    pool, meta, klines_close, offsets = _shadow_pool_with_returns()
+
+    # Yüksek ön-getirili bir olay oluştur
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    # Havuzun ilk ayından bir olay seç
+    first_month = sorted(pool.by_month.keys())[0]
+    first_rows = pool.by_month[first_month]
+    ev[0] = (0, int(pool.end_idx[first_rows[0]]), pool.length,
+             float(pool.atr[first_rows[0]]), int(pool.end_time[first_rows[0]]))
+
+    # match_return=False → standart gölge
+    std_shadow, std_report = sample_shadow(
+        ev, {pool.length: pool}, p=5, match_return=False,
+        rng=np.random.default_rng(99),
+    )
+
+    # match_return=True → ön-getiri eşleştirmeli gölge
+    matched_shadow, matched_report = sample_shadow(
+        ev, {pool.length: pool}, p=5, match_return=True,
+        return_band_sigma=0.25,
+        rng=np.random.default_rng(99),
+    )
+
+    # Rapor return_matched alanı
+    assert std_report["return_matched"] is False
+    assert matched_report["return_matched"] is True
+    assert "return_band_sigma" in matched_report
+
+
+def test_shadow_return_matching_backward_compatible():
+    """match_return=False ise mevcut davranış korunmalı — geriye uyumlu."""
+    from engine.outcome.shadow import sample_shadow
+
+    pool, _, _, _ = _shadow_pool_with_returns()
+
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    first_month = sorted(pool.by_month.keys())[0]
+    first_rows = pool.by_month[first_month]
+    ev[0] = (0, int(pool.end_idx[first_rows[0]]), pool.length,
+             float(pool.atr[first_rows[0]]), int(pool.end_time[first_rows[0]]))
+
+    shadow, report = sample_shadow(
+        ev, {pool.length: pool}, p=5, match_return=False,
+        rng=np.random.default_rng(99),
+    )
+
+    # Raporda fallback alanları OLMAMALI
+    assert "fallback_band_widened" not in report
+    assert "fallback_month_expanded" not in report
+
+
+def test_shadow_pool_log_return_computed():
+    """ShadowPool.from_meta ile log return hesaplanmalı."""
+    pool, _, _, _ = _shadow_pool_with_returns()
+
+    assert pool.log_return.size > 0
+    assert pool.return_sigma > 0
+    # Log return'lerin çoğu sıfır olmamalı (martingale fiyatlar)
+    nonzero = np.abs(pool.log_return) > 1e-10
+    assert nonzero.sum() > 0
+
+
+def test_shadow_pool_without_klines_has_zero_returns():
+    """Klines verilmezse log return sıfır ve sigma 1.0 olmalı."""
+    from engine.outcome.shadow import ShadowPool
+    from engine.config import META_DTYPE
+
+    rng = np.random.default_rng(42)
+    meta_rows = []
+    for sid in range(3):
+        for end in range(40, 100, 3):
+            meta_rows.append((sid, end - 40, end, end * 86_400_000, 20.0, 2.0, True))
+    meta = np.array(meta_rows, dtype=META_DTYPE)
+
+    pool = ShadowPool.from_meta(meta, 40)
+    assert pool.return_sigma == 1.0
+    assert np.all(pool.log_return == 0)
+
+
+def test_shadow_fallback_reports_counts():
+    """Fallback kullanıldığında raporda fallback sayıları olmalı."""
+    from engine.outcome.shadow import sample_shadow
+
+    pool, _, _, _ = _shadow_pool_with_returns(n_symbols=3, n_bars=100)
+
+    # Çok dar band ile zorla fallback tetikle
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    first_month = sorted(pool.by_month.keys())[0]
+    first_rows = pool.by_month[first_month]
+    ev[0] = (0, int(pool.end_idx[first_rows[0]]), pool.length,
+             float(pool.atr[first_rows[0]]), int(pool.end_time[first_rows[0]]))
+
+    _, report = sample_shadow(
+        ev, {pool.length: pool}, p=5, match_return=True,
+        return_band_sigma=0.001,  # Çok dar band → fallback zorunlu
+        rng=np.random.default_rng(99),
+    )
+
+    assert "fallback_band_widened" in report
+    assert "fallback_month_expanded" in report
+
+
+def test_adjacent_months():
+    """Komşu ay hesaplama doğruluğu."""
+    from engine.outcome.shadow import _adjacent_months
+    from engine.matrix.liquidity import month_key
+
+    # 2023-06-01 → ms
+    base_ms = int(np.datetime64("2023-06-01").astype("datetime64[ms]").astype("int64"))
+    adj = _adjacent_months(base_ms, 1)
+
+    # ±1 ay: Mayıs ve Temmuz
+    expected_may = int(np.datetime64("2023-05-01").astype("datetime64[ms]").astype("int64"))
+    expected_jul = int(np.datetime64("2023-07-01").astype("datetime64[ms]").astype("int64"))
+
+    assert expected_may in adj
+    assert expected_jul in adj
+    assert len(adj) == 2
+

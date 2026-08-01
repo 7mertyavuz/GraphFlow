@@ -26,6 +26,7 @@ import numpy as np
 from engine.config import (
     BARRIER_CONFIGS,
     OUTCOME_TOLERANCE,
+    RETURN_MATCH_BAND_SIGMA,
     SHADOW_SAMPLES_PER_MATCH,
     WINDOW_LENGTHS,
 )
@@ -83,12 +84,24 @@ def load_shadow_pools(
     timeframe: str,
     lengths: Sequence[int] = WINDOW_LENGTHS,
     matrix_root: Path | None = None,
+    store: BarStore | None = None,
 ) -> dict[int, ShadowPool]:
+    """Gölge havuzlarını yükler.
+
+    ``store`` verilirse her pencere için ön-getiri hesaplanır (F4.6).
+    """
     pools: dict[int, ShadowPool] = {}
+    klines_close = store.close if store is not None else None
+    klines_offsets = store.offset if store is not None else None
     for length in lengths:
         path = matrix_dir(timeframe, length, matrix_root) / META_FILE
         if path.exists():
-            pools[int(length)] = ShadowPool.from_meta(np.asarray(load_matrix(path)), int(length))
+            pools[int(length)] = ShadowPool.from_meta(
+                np.asarray(load_matrix(path)),
+                int(length),
+                klines_close=klines_close,
+                klines_offsets=klines_offsets,
+            )
     return pools
 
 
@@ -104,8 +117,14 @@ def run_template(
     rng: np.random.Generator | None = None,
     direction: str = "long",
     confidence: float | None = None,
+    return_matched_shadow: bool = False,
+    return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
 ) -> TemplateOutcome:
-    """Tek bir şablon için uçtan uca outcome (long veya short)."""
+    """Tek bir şablon için uçtan uca outcome (long veya short).
+
+    ``return_matched_shadow=True`` ise F4.6 ön-getiri eşleştirmeli gölge
+    kullanılır — vekil testi için zorunlu.
+    """
     from engine.config import CONFIDENCE_LEVEL
 
     confidence = CONFIDENCE_LEVEL if confidence is None else confidence
@@ -140,7 +159,11 @@ def run_template(
     if events.size == 0:
         return outcome
 
-    shadow_events, shadow_report = sample_shadow(events, pools, p=p, rng=rng)
+    shadow_events, shadow_report = sample_shadow(
+        events, pools, p=p, rng=rng,
+        match_return=return_matched_shadow,
+        return_band_sigma=return_band_sigma,
+    )
     shadow_events = shadow_events[eligible(shadow_events, store)] if shadow_events.size else shadow_events
     outcome.shadow_report = shadow_report
 
@@ -167,6 +190,8 @@ def run_all_templates(
     limit: int = 5_000,
     p: int = SHADOW_SAMPLES_PER_MATCH,
     seed: int = 20260731,
+    return_matched_shadow: bool = False,
+    return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
 ) -> list[TemplateOutcome]:
     """**14 şablonun tamamı** tek tabloda — p-hacking kilidi.
 
@@ -176,18 +201,23 @@ def run_all_templates(
     from engine.templates import load_all
 
     engine = SearchEngine(matrix_root)
-    pools = load_shadow_pools(timeframe, matrix_root=matrix_root)
-
-    symbols = list(engine.symbols.values())
-    ids = {name: sid for sid, name in engine.symbols.items()}
+    symbols_dict = engine.symbols
+    symbols = list(symbols_dict.values())
+    ids = {name: sid for sid, name in symbols_dict.items()}
     store = BarStore.from_klines(symbols, timeframe, ids, klines_root)
+    pools = load_shadow_pools(
+        timeframe, matrix_root=matrix_root,
+        store=store if return_matched_shadow else None,
+    )
     log.info("bar deposu: %d sembol, %d bar", len(store.offset), store.close.size)
 
     rng = np.random.default_rng(seed)
     out = []
     for template_id, template in load_all().items():
         outcome = run_template(
-            engine, template_id, template.vector, store, pools, timeframe, limit, p, rng
+            engine, template_id, template.vector, store, pools, timeframe, limit, p, rng,
+            return_matched_shadow=return_matched_shadow,
+            return_band_sigma=return_band_sigma,
         )
         out.append(outcome)
         log.info("%s: %d eşleşme → %d bağımsız olay", template_id, outcome.matches, outcome.events)

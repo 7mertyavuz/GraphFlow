@@ -382,6 +382,32 @@ MIN_ATR_PCT: Final[float] = 0.01
 #: Gölge dağılımda her eşleşme için çekilecek kontrol penceresi sayısı (K-12).
 SHADOW_SAMPLES_PER_MATCH: Final[int] = 20
 
+# ---------------------------------------------------------------------------
+# F4.6 — Ön-getiri eşleştirmeli gölge (vekil testi)
+#
+# Şüphe: short yönde iyi çıkan formasyonların hepsi yükselen bir hareketin
+# tepesinde bitiyor. Ölçülen şey formasyonun ŞEKLİ değil, "yakın zamanda çok
+# yükseldi" nin ortalamaya dönüşü olabilir. Bunu ayırmak için gölge havuzuna
+# "benzer ön-getiri" kısıtı eklenir.
+#
+# Fallback zinciri (gölge tüketimi riski):
+#   1) Bandı genişlet (±0.25σ → ±0.50σ)
+#   2) Hâlâ yoksa ay kısıtını ±1 ay esnet
+#   3) Hâlâ yoksa uyarı ver
+# ---------------------------------------------------------------------------
+
+#: Pencere ön-getirisi eşleştirme bandı (evren geneli σ'nın katı).
+RETURN_MATCH_BAND_SIGMA: Final[float] = 0.25
+
+#: Duyarlılık testi için band genişlikleri.
+RETURN_MATCH_BAND_SENSITIVITY: Final[tuple[float, ...]] = (0.15, 0.25, 0.50)
+
+#: Fallback'te bandı bu değere kadar genişletmeye izin verilir.
+RETURN_MATCH_BAND_FALLBACK: Final[float] = 0.50
+
+#: Fallback'te ay kısıtını bu kadar ay genişletmeye izin verilir (±).
+RETURN_MATCH_MONTH_EXPAND: Final[int] = 1
+
 #: Binance taker gidiş-dönüş komisyonu (~%0,05 × 2). Brüt ve net ayrı raporlanır.
 #: MIN_ATR_PCT tabanına EKtir: taban patolojik pencereyi eler, komisyon
 #: düzeltmesi kalanların getirisini gerçekçileştirir.
