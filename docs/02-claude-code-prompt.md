@@ -826,3 +826,150 @@ KURALLAR
 • F5'e geçme. • Sayı kurtarmaya çalışma; ölçüm ne diyorsa o.
 • Sihirli sayı yok. • Her adımda commit. • Belirsizlikte sor.
 ```
+
+---
+
+# Oturum 4 — F4.6 + F5 (Vekil Testi + API)
+
+F4.5 bitti. Elimizde **tek bir iddia** var: yükselen takoz, short +0,331R.
+Bu oturum önce o iddianın gerçek olup olmadığını sınar, sonra API'yi kurar.
+
+```text
+GraphFlow F4.6 + F5. CLAUDE.md yüklendi. F4.5 bitti.
+
+ÖNCE OKU: docs/06-f45-raporu.md · docs/01-mimari.md §9-§10 · K-06, K-08,
+K-12, K-15 · docs/fazlar/F5-api.md
+
+Bu oturum iki parçalı. BÖLÜM A'yı bitirmeden BÖLÜM B'ye geçme — A'nın
+sonucu API'nin servis edeceği manşeti değiştirebilir.
+
+════════════════════════════════════════════════════════════════════════
+BÖLÜM A — F4.6: Yükselen takoz gerçek mi, vekil mi?
+════════════════════════════════════════════════════════════════════════
+
+ŞÜPHE: F4.5'te short yönde iyi çıkan formasyonların HEPSİ (yükselen takoz,
+ters OBO, çanak dip, fincan-kulp, ikili dip) ortak bir özelliği paylaşıyor:
+yükselen bir hareketin sonunda, yerel bir tepede bitiyorlar. Üstüne
+min_amplitude=%15 filtresi var. Yani her eşleşme "en az %15 yükselmiş ve
+tepede bitmiş" bir pencere.
+
+Ölçtüğümüz şey formasyonun ŞEKLİ olmayabilir — "yakın zamanda çok yükseldi"
+nin kısa vadeli ortalamaya dönüşü olabilir. O zaman 6 ayrı formasyon bulgusu
+değil, TEK bir momentum-tersine-dönüş bulgusu vardır.
+
+Mevcut gölge bunu ayıramıyor: aynı AYDAN çekiyor, aynı ÖN-GETİRİDEN değil.
+
+■ ADIM A1 — Genlik/yön eşleştirmeli gölge
+  Gölge örnekleme kriterine bir koşul daha ekle:
+    aynı ay  VE  farklı sembol  VE  benzer ön-getiri
+  Ön-getiri = pencerenin kendi içindeki toplam log getirisi.
+  Eşleştirme bandı: ±0,25σ (evren geneli pencere getirisi dağılımının σ'sı).
+  Bandı config'e koy, seçimini gerekçelendir, duyarlılık için ±0,15 ve
+  ±0,50 ile de çalıştır — sonuç banda duyarlıysa bu başlı başına bir bulgu.
+
+  Diğer her şey aynı kalır: ay-bloklu bootstrap, ileri pencere NMS, gölge
+  içi NMS, maliyet tabanı, delist çıkışı.
+
+■ ADIM A2 — Karar
+  Yükselen takoz (short) bu gölgeye karşı:
+   • Edge SAĞ KALIRSA  → bulgu şekille ilgili. Manşet: "yükselen takoz,
+     benzer büyüklükte yükselmiş pencerelere göre de daha kötü performans
+     veriyor." Bu güçlü bir iddia.
+   • Edge KAYBOLURSA   → formasyon bir VEKİL. Manşet değişir: "kriptoda
+     kısa vadeli momentum tersine dönüşü ölçtük; klasik formasyonlar bunu
+     seçiyor ama şekil ek bilgi taşımıyor." Bu da değerli ve dürüst bir
+     bulgudur — gizleme, ÖNE ÇIKAR.
+  Aynı testi diğer dört formasyona da uygula; hepsi birlikte kaybolursa
+  tek-etki hipotezi doğrulanmış olur.
+
+■ ADIM A3 — Eksik sayıyı raporla
+  Yükselen takozun n_months değeri raporda yok. 252 olayın kaç aya yayıldığı
+  kanıt gücünü belirliyor. Tüm formasyonlar için n_months tablosunu ver.
+
+■ ADIM A4 — 4h ile kısmî örneklem dışı kontrol
+  4h matrisleri henüz kurulmadıysa kur (F1 pipeline hazır). Yükselen takozu
+  4h'de de çalıştır. Tam bağımsız değil (aynı varlıklar, aynı dönemler) —
+  raporda BÖYLE yaz, "örneklem dışı doğrulandı" deme.
+
+  ÇIKTI: docs/07-f46-raporu.md + güncellenmiş K-12.
+
+════════════════════════════════════════════════════════════════════════
+BÖLÜM B — F5: API katmanı
+════════════════════════════════════════════════════════════════════════
+
+Mimari docs/01-mimari.md §10'da. Aşağıdakiler ONA EK ve zorunlu.
+
+■ B1 — ÇIPLAK SAYI DÖNDÜRMEK YASAK
+  Ürünün tek iddiası metodolojik dürüstlük. API bunu ŞEMA DÜZEYİNDE
+  garanti etmeli: arayüzün bağlamsız bir sayı gösterebilmesi mümkün
+  OLMAMALI. Oran/beklenti alanları hep şu zarfla döner:
+
+    { "value": 0.41, "ci95": [0.324, 0.503], "ci_method": "month_block",
+      "null": 0.333, "shadow": 0.34,
+      "n_events": 112, "n_months": 37,
+      "significant": false,
+      "verdict": "anlamlı fark ölçülemedi",
+      "design_effect": 1.28 }
+
+  `significant` ve `verdict` SUNUCUDA hesaplanır, istemciye bırakılmaz.
+  Bare float döndüren hiçbir istatistik alanı olmayacak — testle zorla.
+
+■ B2 — KULLANICI DA P-HACKING YAPABİLİR
+  İçeride 52 testlik Bonferroni uyguladık. Ama serbest çizim yapan bir
+  kullanıcı 50 şekil deneyip "anlamlı" birini bulursa, aynı problemi
+  kendisi üretmiş olur — ve bizim düzeltmemiz onu kapsamaz.
+
+  ZORUNLU: oturum başına sorgu sayacı. Yanıtta
+    { "session_queries": 17,
+      "multiple_comparison_warning": true,
+      "adjusted_alpha": 0.0029 }
+  ve outcome kartında görünür uyarı: "Bu oturumda 17 farklı şekil denediniz;
+  şans eseri 'anlamlı' sonuç görme olasılığınız arttı."
+  Bu, piyasada hiçbir aracın yapmadığı şey ve ürünün karakteri.
+
+■ B3 — Uç noktalar
+  POST /api/search                → §10 şeması + data_as_of + bayatlık bayrağı
+  GET  /api/search/{id}?offset=   → cache'ten dilim, YENİDEN HESAPLAMA YOK
+  GET  /api/search/{id}/stats     → outcome kartı (B1 zarfıyla)
+  GET  /api/templates             → şablon kütüphanesi
+  GET  /api/chart/{symbol}        → OHLCV + vurgu sınırları + blueprint
+                                    overlay noktaları + bükülme miktarı
+  GET  /api/findings              → YENİ. F4/F4.5/F4.6 çalışma sonuçları:
+                                    aşamalı sıkılaşma tablosu (13/26 → 8/26
+                                    → 14/52 → 2/52), tam 14×2×2 tablo,
+                                    yöntem notları. Bu bir iç rapor değil,
+                                    BİRİNCİ SINIF ÜRÜN SAYFASIDIR.
+
+■ B4 — Outcome maliyeti ve önbellekleme
+  10.000 tekrarlı blok bootstrap etkileşimli değil (~2 sn+).
+   • 14 şablon için outcome ÖNCEDEN hesaplanır, Redis'te tutulur.
+   • Serbest çizim için outcome ASENKRON iş: POST → job_id → poll.
+     Bootstrap tekrar sayısını DÜŞÜRME; aynı 10.000 kalsın, kullanıcı
+     beklesin. Farklı tekrar sayısı farklı GA üretir ve iki farklı
+     kalitede sayıyı aynı arayüzde göstermek dürüstlük sorunudur.
+   • Radar sonuçları Cron ile 5 dk'da bir önceden hesaplanır.
+
+■ B5 — Cache ve sayfalama (K-08)
+  search:{id} → sıralı tam liste, TTL 1 saat. İkinci sayfa < 5 ms.
+  En iyi 12'yi bulmak için zaten hepsi skorlanıyor; tembel tarama YOK.
+
+■ B6 — Sağlık ve gözlemlenebilirlik
+  GET /health → veri tazeliği (evren geneli + aktif semboller ayrı),
+  matris sürümü, son cron zamanı. Bayat veri API'yi KIRMAZ, uyarır (F3.5).
+  Arama ve outcome için ayrı rate limit — biri 51 ms, diğeri 2 sn.
+
+■ B7 — Testler
+  • Şema testi: hiçbir istatistik alanı bare float dönmüyor
+  • significant/verdict sunucuda hesaplanıyor, GA sıfırı içeriyorsa
+    significant=false
+  • Sayfalama cache'ten geliyor (ikinci istekte motor çağrılmıyor — mock'la)
+  • Bayat veride API 200 dönüyor + uyarı bayrağı
+  • Oturum sayacı artıyor, adjusted_alpha doğru
+
+════════════════════════════════════════════════════════════════════════
+KURALLAR
+• F6'ya (UI) geçme.
+• BÖLÜM A bitmeden B'ye başlama; A manşeti değiştirebilir.
+• A'da sayı kurtarmaya çalışma. Vekil çıkarsa vekil yaz.
+• Sihirli sayı yok. • Her bölüm sonunda commit. • Belirsizlikte sor.
+```
