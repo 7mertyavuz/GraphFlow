@@ -3,6 +3,7 @@
 import { BlueprintChart } from "./BlueprintChart";
 import { SkeletonGrid } from "./SkeletonChart";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { type paths } from "@/types/api";
 
 type Match = paths["/api/search"]["post"]["responses"]["200"]["content"]["application/json"]["results"][number];
@@ -11,6 +12,7 @@ interface MatchGridProps {
   results: Match[];
   queryVector: number[];
   isLoading?: boolean;
+  isFetching?: boolean;
   total?: number;
   hasMore?: boolean;
   onLoadMore?: () => void;
@@ -20,6 +22,7 @@ export function MatchGrid({
   results,
   queryVector,
   isLoading,
+  isFetching,
   total,
   hasMore,
   onLoadMore,
@@ -61,7 +64,15 @@ export function MatchGrid({
         ))}
       </div>
       {hasMore && onLoadMore && (
-        <Button variant="outline" onClick={onLoadMore} className="w-full sm:w-auto self-center">
+        <Button
+          variant="outline"
+          onClick={onLoadMore}
+          disabled={isFetching}
+          className="w-full self-center sm:w-auto"
+        >
+          {isFetching ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : null}
           Daha Fazla (+12)
         </Button>
       )}

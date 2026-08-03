@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DrawPad } from "@/components/canvas/DrawPad";
 import { TemplatePicker } from "@/components/canvas/TemplatePicker";
 import { MatchGrid } from "@/components/charts/MatchGrid";
+import { QueryPreview } from "@/components/charts/QueryPreview";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useCreateSearch, usePaginatedSearch } from "@/hooks/useGraphFlowApi";
@@ -86,6 +87,13 @@ export default function RadarPage() {
             <DrawPad onChange={setVector} initialVector={vector.length >= 32 ? vector : undefined} />
           ) : (
             <TemplatePicker onSelect={handleTemplateSelect} />
+          )}
+
+          {vector.length >= 32 && (
+            <div className="mt-4">
+              <span className="mb-1 block text-xs text-muted-foreground">Aranan şekil</span>
+              <QueryPreview vector={vector} />
+            </div>
           )}
         </div>
 
@@ -191,6 +199,7 @@ export default function RadarPage() {
           results={results}
           queryVector={vector}
           isLoading={isLoading || createSearch.isPending}
+          isFetching={isFetching}
           total={total}
           hasMore={hasMore}
           onLoadMore={loadMore}
