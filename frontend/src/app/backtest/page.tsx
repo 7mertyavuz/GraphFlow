@@ -15,7 +15,9 @@ import {
   useSearchStats,
 } from "@/hooks/useGraphFlowApi";
 import { formatR, formatPercent } from "@/utils/formatters";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Pencil, Library, Search, Loader2 } from "lucide-react";
+
+const TOLERANCE_LABELS = ["Katı", "Orta", "Esnek"];
 
 export default function BacktestPage() {
   const [mode, setMode] = useState<"draw" | "template">("draw");
@@ -50,65 +52,100 @@ export default function BacktestPage() {
     setVector(templateVector);
   };
 
+  const isReady = vector.length >= 32 || mode === "template";
   const configs = statsData?.configs ? Object.entries(statsData.configs) : [];
   const primaryConfig = configs[0]?.[1];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 lg:flex-row">
-      <aside className="flex w-full flex-col gap-4 lg:w-80">
-        <div className="flex gap-2">
+    <div className="flex flex-1 flex-col gap-6 p-4 lg:flex-row lg:p-6">
+      <aside className="flex w-full flex-shrink-0 flex-col gap-5 lg:w-96">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="mb-4 text-lg font-semibold">Sorgu</h2>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <Button
+              variant={mode === "draw" ? "default" : "outline"}
+              onClick={() => setMode("draw")}
+              size="sm"
+              className="gap-2"
+            >
+              <Pencil className="size-4" /> Çizim
+            </Button>
+            <Button
+              variant={mode === "template" ? "default" : "outline"}
+              onClick={() => setMode("template")}
+              size="sm"
+              className="gap-2"
+            >
+              <Library className="size-4" /> Şablon
+            </Button>
+          </div>
+
+          {mode === "draw" ? (
+            <DrawPad onChange={setVector} initialVector={vector.length >= 32 ? vector : undefined} />
+          ) : (
+            <TemplatePicker onSelect={handleTemplateSelect} />
+          )}
+        </div>
+
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Filtreler
+          </h3>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Tolerans</span>
+                <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {TOLERANCE_LABELS[tolerance[0]]}
+                </span>
+              </div>
+              <Slider
+                value={tolerance}
+                onValueChange={(v) => setTolerance(Array.isArray(v) ? [...v] : [v])}
+                min={0}
+                max={2}
+                step={1}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Min. Genlik</span>
+                <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  %{minAmplitude[0]}
+                </span>
+              </div>
+              <Slider
+                value={minAmplitude}
+                onValueChange={(v) => setMinAmplitude(Array.isArray(v) ? [...v] : [v])}
+                min={5}
+                max={50}
+                step={5}
+              />
+            </div>
+          </div>
+
           <Button
-            variant={mode === "draw" ? "default" : "outline"}
-            onClick={() => setMode("draw")}
+            onClick={handleSearch}
+            disabled={createSearch.isPending || !isReady}
+            size="lg"
+            className="mt-6 w-full gap-2"
           >
-            Çizim
+            {createSearch.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Search className="size-4" />
+            )}
+            {createSearch.isPending ? "Taranıyor…" : "Geçmişte Tara"}
           </Button>
-          <Button
-            variant={mode === "template" ? "default" : "outline"}
-            onClick={() => setMode("template")}
-          >
-            Şablon
-          </Button>
+
+          {createSearch.error && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>Arama başarısız oldu.</span>
+            </div>
+          )}
         </div>
-
-        {mode === "draw" ? (
-          <DrawPad onChange={setVector} />
-        ) : (
-          <TemplatePicker onSelect={handleTemplateSelect} />
-        )}
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span>Tolerans</span>
-            <span className="font-medium">
-              {({ strict: "Katı", medium: "Orta", flexible: "Esnek" } as const)[toleranceValue]}
-            </span>
-          </div>
-          <Slider value={tolerance} onValueChange={(v) => setTolerance(Array.isArray(v) ? [...v] : [v])} min={0} max={2} step={1} />
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span>Min. Genlik</span>
-            <span className="font-medium">%{minAmplitude[0]}</span>
-          </div>
-          <Slider value={minAmplitude} onValueChange={(v) => setMinAmplitude(Array.isArray(v) ? [...v] : [v])} min={5} max={50} step={5} />
-        </div>
-
-        <Button
-          onClick={handleSearch}
-          disabled={createSearch.isPending || (mode === "draw" && vector.length < 32)}
-          size="lg"
-        >
-          {createSearch.isPending ? "Taranıyor…" : "Geçmişte Tara"}
-        </Button>
-
-        {createSearch.error && (
-          <div className="flex items-center gap-2 text-sm text-destructive">
-            <AlertCircle className="size-4" />
-            <span>Arama başarısız oldu.</span>
-          </div>
-        )}
 
         {searchData?.session && (
           <PValueWarning
@@ -120,41 +157,42 @@ export default function BacktestPage() {
       </aside>
 
       <section className="flex flex-1 flex-col gap-6">
-        {primaryConfig && (
-          <div className="rounded-xl border border-border bg-card p-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-xl font-semibold">Sonra Ne Oldu?</h2>
+        {primaryConfig ? (
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-xl font-semibold">Sonra Ne Oldu?</h1>
+                <p className="text-sm text-muted-foreground">
+                  Hedef: 2R · Stop: 1R · Teorik null: {formatPercent(primaryConfig.win_rate.null ?? 0)}
+                </p>
+              </div>
               {!primaryConfig.expectancy.significant && (
-                <span className="w-fit rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                <span className="w-fit rounded-md border border-muted bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
                   İstatistiksel Edge Bulunamadı
                 </span>
               )}
             </div>
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <StatEnvelope label="Beklenti (R)" envelope={primaryConfig.expectancy} />
               <StatEnvelope label="Başarı Oranı" envelope={primaryConfig.win_rate} />
               {primaryConfig.edge && (
-                <StatEnvelope label="Edge (R)" envelope={primaryConfig.edge} showEdge />
+                <StatEnvelope label="Edge (R)" envelope={primaryConfig.edge} />
               )}
             </div>
-            <div className="mt-4 flex gap-4 text-sm text-muted-foreground">
-              <span>Hedef: 2R</span>
-              <span>Stop: 1R</span>
-              <span>Teorik null: {formatPercent(primaryConfig.win_rate.null ?? 0)}</span>
-            </div>
             {statsData?.disclaimer && (
-              <p className="mt-4 text-xs text-muted-foreground">{statsData.disclaimer}</p>
+              <p className="mt-5 text-xs text-muted-foreground">{statsData.disclaimer}</p>
             )}
           </div>
-        )}
-
-        {statsLoading && searchId && (
-          <div className="text-sm text-muted-foreground">İstatistikler hesaplanıyor…</div>
-        )}
+        ) : searchId && statsLoading ? (
+          <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            <Loader2 className="mr-2 inline size-4 animate-spin" />
+            İstatistikler hesaplanıyor…
+          </div>
+        ) : null}
 
         {primaryConfig && primaryConfig.by_regime && (
           <div>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Rejim Kırılımı
             </h3>
             <RegimeTable regimes={primaryConfig.by_regime as { period: string; n: number; win_rate: number; expectancy_r: number }[]} />
@@ -162,7 +200,7 @@ export default function BacktestPage() {
         )}
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             Eşleşmeler
           </h3>
           <MatchGrid

@@ -21,23 +21,25 @@ export function RegimeTable({ regimes }: RegimeTableProps) {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
       <table className="w-full text-sm">
         <thead className="border-b border-border bg-muted/50">
           <tr>
-            <th className="px-3 py-2 text-left font-medium">Dönem</th>
-            <th className="px-3 py-2 text-right font-medium">N</th>
-            <th className="px-3 py-2 text-right font-medium">Başarı</th>
-            <th className="px-3 py-2 text-right font-medium">Beklenti</th>
+            <th className="px-4 py-3 text-left font-medium">Dönem</th>
+            <th className="px-4 py-3 text-right font-medium">N</th>
+            <th className="px-4 py-3 text-right font-medium">Başarı</th>
+            <th className="px-4 py-3 text-right font-medium">Beklenti</th>
           </tr>
         </thead>
         <tbody>
           {regimes.map((r) => (
             <tr key={r.period} className="border-b border-border last:border-0">
-              <td className="px-3 py-2">{r.period}</td>
-              <td className="px-3 py-2 text-right">{r.n}</td>
-              <td className="px-3 py-2 text-right">{formatPercent(r.win_rate)}</td>
-              <td className="px-3 py-2 text-right">{formatR(r.expectancy_r)}</td>
+              <td className="px-4 py-3 font-medium">{r.period}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{r.n}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{formatPercent(r.win_rate)}</td>
+              <td className={`px-4 py-3 text-right tabular-nums font-medium ${r.expectancy_r > 0 ? "text-green-400" : r.expectancy_r < 0 ? "text-red-400" : ""}`}>
+                {formatR(r.expectancy_r)}
+              </td>
             </tr>
           ))}
         </tbody>

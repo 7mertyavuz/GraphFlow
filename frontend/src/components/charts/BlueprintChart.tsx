@@ -47,11 +47,11 @@ export function BlueprintChart({ match, queryVector }: BlueprintChartProps) {
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { color: "transparent" },
-        textColor: "currentColor",
+        textColor: "#94a3b8",
       },
       grid: {
-        vertLines: { color: "rgba(128,128,128,0.1)" },
-        horzLines: { color: "rgba(128,128,128,0.1)" },
+        vertLines: { color: "rgba(148,163,184,0.08)" },
+        horzLines: { color: "rgba(148,163,184,0.08)" },
       },
       rightPriceScale: {
         borderVisible: false,
@@ -75,7 +75,7 @@ export function BlueprintChart({ match, queryVector }: BlueprintChartProps) {
     candleSeriesRef.current = candleSeries;
 
     const blueprintSeries = chart.addSeries(LineSeries, {
-      color: "rgba(56,189,248,0.5)",
+      color: "rgba(56,189,248,0.55)",
       lineWidth: 2,
       lastValueVisible: false,
       priceLineVisible: false,
@@ -128,17 +128,29 @@ export function BlueprintChart({ match, queryVector }: BlueprintChartProps) {
   if (isLoading || !chartData) return <SkeletonChart />;
 
   return (
-    <div className="flex flex-col rounded-md border border-border bg-card p-2">
-      <div className="flex items-center justify-between px-1 py-1">
-        <span className="font-semibold text-sm">{match.symbol}</span>
-        <span className="text-xs text-muted-foreground">
-          Vol: {formatAmplitude(match.amplitude)}
+    <div className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm">{match.symbol}</span>
+          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+            {match.percentile.toFixed(1)}%
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground">
+          {match.timeframe} · {match.window_length} bar
         </span>
       </div>
-      <div ref={chartContainerRef} className="h-40 w-full" />
-      <div className="px-1 py-1 text-xs text-muted-foreground">
-        {match.timeframe} · {match.window_length} bar · skor{" "}
-        {match.percentile.toFixed(1)}%
+      <div className="relative h-44 w-full">
+        <div ref={chartContainerRef} className="absolute inset-0" />
+      </div>
+      <div className="flex items-center justify-between border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
+        <span>Vol: {formatAmplitude(match.amplitude)}</span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-400" />
+          şablon
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+          warp
+        </span>
       </div>
     </div>
   );

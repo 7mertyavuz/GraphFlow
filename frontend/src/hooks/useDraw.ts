@@ -121,21 +121,21 @@ export function useDraw(canvasSize: { width: number; height: number }) {
 export function drawPath(
   canvas: HTMLCanvasElement,
   points: DrawPoint[],
-  canvasSize: { width: number; height: number }
+  canvasSize: { width: number; height: number },
+  strokeStyle = "#38bdf8"
 ): void {
   const ctx = canvas.getContext("2d");
   if (!ctx || points.length < 2) return;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
-  ctx.strokeStyle = "#38bdf8";
+  ctx.strokeStyle = strokeStyle;
   ctx.lineWidth = 2;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
   points.forEach((p, i) => {
-    const x = p.x * canvas.width;
-    const y = (1 - p.y) * canvas.height;
+    const x = p.x * canvasSize.width;
+    const y = (1 - p.y) * canvasSize.height;
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   });

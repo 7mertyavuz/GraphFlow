@@ -9,46 +9,54 @@ type StatEnvelopeType =
 interface StatEnvelopeProps {
   label: string;
   envelope: StatEnvelopeType;
-  showEdge?: boolean;
 }
 
-export function StatEnvelope({ label, envelope, showEdge }: StatEnvelopeProps) {
+export function StatEnvelope({ label, envelope }: StatEnvelopeProps) {
   const { value, ci95, null: nullVal, shadow, significant, verdict, n_events } = envelope;
   const [lo, hi] = ci95;
 
   let tone = "text-muted-foreground";
-  let badge = "bg-muted text-muted-foreground";
+  let badgeClass = "bg-muted text-muted-foreground";
   if (significant) {
-    tone = value > 0 ? "text-green-600" : "text-red-600";
-    badge = value > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700";
+    if (value > 0) {
+      tone = "text-green-400";
+      badgeClass = "bg-green-500/15 text-green-400 border border-green-500/20";
+    } else {
+      tone = "text-red-400";
+      badgeClass = "bg-red-500/15 text-red-400 border border-red-500/20";
+    }
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${badge}`}>
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badgeClass}`}>
           {significant ? "Anlamlı" : "Anlamsız"}
         </span>
       </div>
-      <div className={`mt-2 text-3xl font-bold ${tone}`}>
-        {showEdge ? formatR(value) : formatR(value)}
+      <div className={`mt-2 text-4xl font-bold tracking-tight ${tone}`}>
+        {formatR(value)}
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">
+      <div className="mt-1 text-xs tabular-nums text-muted-foreground">
         %95 GA: [{formatDecimal(lo, 3)}, {formatDecimal(hi, 3)}] · N = {n_events}
       </div>
-      {(nullVal !== null && nullVal !== undefined) && (
-        <div className="mt-2 text-xs text-muted-foreground">
-          Teorik null: {formatR(nullVal)}
-        </div>
-      )}
-      {(shadow !== null && shadow !== undefined) && (
-        <div className="text-xs text-muted-foreground">
-          Gölge: {formatR(shadow)}
-        </div>
-      )}
+      <div className="mt-3 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground">
+        {(nullVal !== null && nullVal !== undefined) && (
+          <div className="flex justify-between">
+            <span>Teorik null</span>
+            <span className="font-medium text-foreground">{formatR(nullVal)}</span>
+          </div>
+        )}
+        {(shadow !== null && shadow !== undefined) && (
+          <div className="flex justify-between">
+            <span>Gölge dağılım</span>
+            <span className="font-medium text-foreground">{formatR(shadow)}</span>
+          </div>
+        )}
+      </div>
       {verdict && (
-        <div className="mt-2 border-t border-border pt-2 text-xs italic text-muted-foreground">
+        <div className="mt-3 border-t border-border pt-3 text-xs italic leading-relaxed text-muted-foreground">
           {verdict}
         </div>
       )}
