@@ -91,15 +91,14 @@ geri getirme:
 ✅ engine/normalize/               F1  (pipeline, amplitude, atr)
 ✅ engine/matrix/                  F1  (build, incremental, liquidity, npy_store)
 ✅ engine/search/                  F2  (stage1_cosine, nms, ddtw, engine)
-⬜ engine/outcome/                 F4
+✅ engine/outcome/                 F4 + F4.5 (short yönü, ay-bloklu bootstrap)
 ✅ engine/templates/               F2  (14 kanonik JSON + loader)
+✅ engine/api/                     F5  (FastAPI, StatEnvelope, oturum sayacı, cache)
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2, f3_measure
-✅ tests/                          127 test (ingest, arşiv, normalize, matrix, search)
+✅ tests/                          196 test (ingest, arşiv, normalize, matrix, search, outcome, api)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
-✅ engine/outcome/                 F4 + F4.5 (short yönü, ay-bloklu bootstrap)
-⬜ engine/api/                     F5  ← sırada
-⬜ web/                            F6–F7
+✅ frontend/                       F6 + F7  (Next.js 16, Radar/Backtest UI, MVP)
 ```
 
 Sabitler `engine/config.py`'de merkezîdir. **Kod içine sihirli sayı yazma** —

@@ -81,8 +81,8 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 | [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | ✅ **Bitti** |
 | [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Bitti** |
 | [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
-| [F6](docs/fazlar/F6-radar-ui.md) | Next.js — Radar (MVP 1) | ⬜ |
-| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js — Backtest (MVP 2) | ⬜ |
+| [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
+| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti (MVP)** |
 
 ---
 

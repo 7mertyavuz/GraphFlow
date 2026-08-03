@@ -751,14 +751,18 @@ GraphFlow/
 │   ├── 04_negatif_kontrol.ipynb     # ⚠️ ÇIKIŞ KAPISI
 │   └── 05_esik_kalibrasyon.ipynb    # ROC
 │
-├── web/                             # Next.js
-│   ├── app/
-│   ├── components/
-│   │   ├── DrawCanvas.tsx           # ~100 satır, bağımlılıksız
-│   │   ├── TemplateLibrary.tsx
-│   │   ├── ResultGrid.tsx
-│   │   └── OutcomeCard.tsx
-│   └── lib/
+├── frontend/                        # Next.js 16 + TypeScript + Tailwind v4
+│   ├── src/app/                     # App Router (/, /radar, /backtest)
+│   ├── src/components/
+│   │   ├── canvas/                  # DrawPad, TemplatePicker
+│   │   ├── charts/                  # MatchGrid, BlueprintChart, QueryPreview, SkeletonChart
+│   │   ├── outcome/                 # StatEnvelope, RegimeTable, PValueWarning
+│   │   ├── layout/                  # Header
+│   │   └── ui/                      # shadcn/ui temel bileşenleri
+│   ├── src/hooks/                   # useDraw, useGraphFlowApi, useSessionId
+│   ├── src/services/                # apiClient, endpoints
+│   ├── src/types/                   # openapi-typescript çıktısı (api.ts)
+│   └── src/utils/                   # dtwCoords, formatters
 │
 └── data/                            # .gitignore
     ├── klines/
@@ -779,8 +783,11 @@ GraphFlow/
 | Uygulama DB | **PostgreSQL** | Kullanıcı, sembol, likidite sıralaması |
 | Cache | **Redis** | Sayfalama + Radar önbelleği |
 | Zamanlama | **Cron** (5 dk) | Kafka yok |
-| Frontend | **Next.js + TailwindCSS** | |
-| Grafik | **TradingView Lightweight Charts** | |
+| Frontend | **Next.js 16 + TailwindCSS v4 + TypeScript** | App Router |
+| State / Cache | **TanStack React Query v5** | Sayfalama, stale-time, mutation |
+| UI Bileşenleri | **shadcn/ui** (Base UI tabanı) | Button, Slider, Tooltip |
+| API Tipleri | **openapi-typescript** | Backend OpenAPI → `src/types/api.ts` |
+| Grafik | **TradingView Lightweight Charts v5** | |
 | Çizim | **Düz HTML5 Canvas** | Bkz. [K-17](00-tasarim-kararlari.md#k-17--frontend-hafifleştirmesi) |
 | Notebook | Jupyter + Matplotlib + `ipywidgets` | Doğrulama kapısı |
 
@@ -798,8 +805,8 @@ GraphFlow/
 | **F3** | **Notebook doğrulaması** | Göz testi + negatif kontrol + eşik kalibrasyonu | 🚦 **ZORUNLU KAPI** |
 | **F4** | Outcome Engine | Triple-barrier + gölge dağılım + metrikler | İstatistiksel tutarlılık testi |
 | **F5** | FastAPI + Redis | Çalışan API | Yük testi |
-| **F6** | Next.js — Radar (MVP 1) | Canlı tarayıcı arayüzü | Kullanıcı testi |
-| **F7** | Next.js — Backtest (MVP 2) | Tarihsel arama + outcome kartı | Kullanıcı testi |
+| **F6** | Next.js 16 — Radar (MVP 1) | Canlı tarayıcı arayüzü | Kullanıcı testi |
+| **F7** | Next.js 16 — Backtest (MVP 2) | Tarihsel arama + outcome kartı | Kullanıcı testi |
 
 ### F3 kapısının anlamı
 

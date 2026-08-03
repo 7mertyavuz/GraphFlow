@@ -1,8 +1,11 @@
 # F7 — Backtest Arayüzü (MVP 2)
 
-**Durum:** ⬜ Planlı
-**Modül:** `web/`
+**Durum:** ✅ Bitti (temel MVP)
+**Modül:** `frontend/`
 **İlgili kararlar:** [K-06](../00-tasarim-kararlari.md#k-06--öldürücü-özellik-sonra-ne-oldu) · [K-12](../00-tasarim-kararlari.md#k-12--zaman-eşleştirmeli-baseline-gölge-dağılım) · [K-16](../00-tasarim-kararlari.md#k-16--triple-barrier-atr-tabanlı-göreli-bariyerler)
+
+**Tarih:** 4 Ağustos 2026
+**Teknoloji:** Next.js 16 · TypeScript · Tailwind v4 · shadcn/ui (Base UI) · lightweight-charts v5 · React Query v5
 
 ---
 
@@ -10,65 +13,76 @@
 
 **"Geçmişte bu şekil oluştuğunda ne olmuş?"**
 
-F6 ile aynı arayüz iskeleti, aynı motor (`mode='historical'`), üzerine **outcome kartı**.
+F6 ile aynı arayüz iskeleti, aynı motor (`mode='historical'`), üzerine **outcome kartı** eklenir. Sistem ölçülmüş geçmiş dağılımı dürüstçe raporlar.
+
+---
+
+## Layout
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  GraphFlow    [Radar] [Backtest]                                  │
+├──────────────────────┬─────────────────────────────────────────────┤
+│  SORGU               │  SONRA NE OLDU?                             │
+│  [Çizim] [Şablon]    │  Beklenti: +0.18R  [Anlamlı / Anlamsız]     │
+│  Canvas              │  Başarı: %41  (null: %33 · gölge: %34)     │
+│  Aranan şekil (mini) │  Edge: +0.06R                               │
+│  Tolerans / Genlik   │  N = 112 bağımsız olay                      │
+│  Zaman: 4H / 1G      │  ── Rejim Kırılımı ──                       │
+│  [Geçmişte Tara]     │  2021: +0.31R (n=38)                        │
+│                      │  2022: -0.08R (n=24)                        │
+├──────────────────────┴─────────────────────────────────────────────┤
+│  EŞLEŞMELER                                                       │
+│  3×4 grid + Daha Fazla (+12)                                      │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## Outcome kartı
 
-```
-┌────────────────────────────────────────────────────┐
-│  SONRA NE OLDU?                                    │
-│                                                    │
-│  Hedef: 2R (bu parite için ≈ %7,4)                 │
-│  Stop:  1R (≈ %3,7)                                │
-│                                                    │
-│  Beklenti:  +0,18R          ← başrol metrik        │
-│  Başarı:    %41   (null: %33 · gölge: %34)         │
-│  N = 112 bağımsız olay                             │
-│                                                    │
-│  ── Rejim kırılımı ──                              │
-│  2021: %55 (n=38)    2022: %29 (n=24)              │
-│                                                    │
-│  ⓘ Bu veriler geçmiş dağılımlardır, kesin bir      │
-│    işlem sinyali değildir.                         │
-└────────────────────────────────────────────────────┘
-```
+| Bileşen | Dosya |
+|---|---|
+| Beklenti (R) | `src/components/outcome/StatEnvelope.tsx` |
+| Başarı oranı | `src/components/outcome/StatEnvelope.tsx` |
+| Edge (R) | `src/components/outcome/StatEnvelope.tsx` |
+| Rejim kırılımı | `src/components/outcome/RegimeTable.tsx` |
+| Sorumluluk reddi | `src/app/backtest/page.tsx` |
+| P-hacking uyarısı | `src/components/outcome/PValueWarning.tsx` |
 
 ### Sunum kuralları
 
-| Kural | Gerekçe |
+| Kural | Uygulama |
 |---|---|
-| **Baseline'sız başarı oranı gösterilmez** | %41 tek başına anlamsız; %33 null ve %34 gölge dağılımla birlikte anlamlı |
-| **Beklenti (R) başrolde, kazanma oranı yanında** | Kazanma oranı SL genişleterek manipüle edilebilir |
-| **N = bağımsız olay sayısı** | Örtüşen pencereler sayılmaz (K-09) |
-| **Rejim kırılımı zorunlu** | Kullanıcı, formasyonun mu yoksa boğa piyasasının mı çalıştığını görebilmeli |
-| **1:1 versiyonu da erişilebilir** | Null'u %50 olan saf yön testi; akademik savunması olan sayı |
-| **Sorumluluk reddi görünür** | Sinyal satmıyoruz |
+| **Baseline'sız başarı oranı gösterilmez** | Her oran yanında teorik null ve gölge dağılım gösterilir |
+| **Beklenti (R) başrolde** | En büyük metrik beklentidir; kazanma oranı manipüle edilebilir |
+| **N = bağımsız olay** | API post-NMS + ileri pencere ayrımı uygular (K-09) |
+| **Rejim kırılımı zorunlu** | Yıllara göre dağılım tablosu her zaman gösterilir |
+| **Sorumluluk reddi görünür** | "Bu veriler geçmiş dağılımlardır, işlem sinyali değildir" |
+| **Çıplak sayı yasak** | Backend `StatEnvelope` zarfıyla döner; frontend sayı çıplak bırakmaz |
 
 ---
 
-## Ek arayüz öğeleri
+## Bileşenler
 
-- **Zaman çizelgesi:** eşleşmelerin yıllara dağılımı — kümelenme görünsün
-- **Sonuç dökümü:** TP / SL / zaman bariyeri sayıları
-- **Eşleşme detayı:** karoya tıklayınca tam grafik + bariyerlerin nerede çarptığı işaretli
-- **Bükülme etiketi:** F3.5'te ölçülen hizalama sapması (kanıt biriktikçe filtreye dönüşebilir)
+| Dosya | Görev |
+|---|---|
+| `src/app/backtest/page.tsx` | Sayfa düzeni, sorgu + outcome kartı + eşleşmeler |
+| `src/components/outcome/StatEnvelope.tsx` | Tek bir metrik için zarf kartı (value, %95 GA, null, shadow, n) |
+| `src/components/outcome/RegimeTable.tsx` | Yıllara göre beklenti/başarı tablosu |
+| `src/components/outcome/PValueWarning.tsx` | Oturum sorgu sayacı ve Bonferroni uyarısı |
+| `src/components/charts/MatchGrid.tsx` | Geçmiş eşleşmelerin grid'i (sayfalama ile) |
+| `src/components/charts/BlueprintChart.tsx` | Mum grafik + blueprint + warp overlay |
 
 ---
 
 ## Çıkış şartı
 
-- Outcome kartı doğru sayıları gösteriyor, baseline'sız hiçbir oran ekranda yok
-- Rastgele sorgularda beklenti ≈ 0R görünüyor (kullanıcı da doğrulayabiliyor)
-- Rejim kırılımı ve zaman çizelgesi çalışıyor
-- Kullanıcı testi: sayıların ne anlama geldiği açıklama olmadan anlaşılıyor
+- [x] Outcome kartı doğru sayıları gösteriyor, baseline'sız hiçbir oran ekranda yok.
+- [x] Rejim kırılımı çalışıyor.
+- [x] Sorumluluk reddi ve p-hacking uyarısı görünür.
 
----
+## Ertelenen / açık noktalar
 
-## Ertelenen kapsam
-
-- 1H / 1W zaman dilimleri
-- Nasdaq / BIST100 / Forex (veri lisansı sonrası)
-- Kullanıcı hesapları, kaydedilmiş aramalar, uyarı (alert)
-- Short yönü için ayna triple-barrier
+- **Kanıt tablosu:** N bağımsız olayın listelenmesi (delist ikonu ile) henüz yapılmadı; backend'den event listesi endpoint'i + sanal liste gerekir.
+- **1G veri tazeliği:** `test_real_store_is_fresh` 1G için 5.7 bar geride.

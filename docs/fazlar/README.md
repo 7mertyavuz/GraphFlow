@@ -11,9 +11,9 @@ Her faz için ayrı bir belge: kapsam, alınan kararlar, ölçülen sayılar, bi
 | **F3.5** | [F3.5-temizlik.md](F3.5-temizlik.md) | ✅ Geçti | Yüzdelik skorlama (13/14 şablon), evren temizliği, invariantlar. |
 | **F4** | [F4-outcome-engine.md](F4-outcome-engine.md) | ✅ Bitti | Triple-barrier + gölge dağılım. Null kapısı geçti; 1 pozitif, 5 negatif, 8 nötr. |
 | **F4.5** | [F4.5-istatistiksel-saglamlastirma.md](F4.5-istatistiksel-saglamlastirma.md) | ✅ Bitti | Ay-bloklu bootstrap + short. Korelasyon 0,384; 52 testten **2** anlamlı. |
-| **F5** | [F5-api.md](F5-api.md) | 🔄 Sırada | F4.6 vekil testi + FastAPI/Redis. Çıplak sayı yasak, oturum p-hacking sayacı. |
-| **F6** | [F6-radar-ui.md](F6-radar-ui.md) | ⬜ Planlı | Canlı tarayıcı arayüzü (MVP 1). |
-| **F7** | [F7-backtest-ui.md](F7-backtest-ui.md) | ⬜ Planlı | Tarihsel arama + outcome kartı (MVP 2). |
+| **F5** | [F5-api.md](F5-api.md) | ✅ Bitti | F4.6 vekil testi + FastAPI/Redis. Çıplak sayı yasak, oturum p-hacking sayacı. |
+| **F6** | [F6-radar-ui.md](F6-radar-ui.md) | ✅ Bitti | Next.js 16 Radar UI: çizim, şablon, 3×4 grid, sayfalama. |
+| **F7** | [F7-backtest-ui.md](F7-backtest-ui.md) | ✅ Bitti (MVP) | Backtest UI + outcome kartı + rejim kırılımı. Kanıt tablosu ertelendi. |
 
 ## Bağımlılık zinciri
 

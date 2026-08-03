@@ -1,8 +1,28 @@
 # F5 — API Katmanı
 
-**Durum:** 🔄 Sırada (F4.6 vekil testiyle birlikte)
+**Durum:** ✅ Bitti
 **Modül:** `engine/api/`
 **Prompt:** [`../02-claude-code-prompt.md`](../02-claude-code-prompt.md) → *Oturum 4*
+
+**Tarih:** 4 Ağustos 2026
+**Yapan:** Claude Code (F5 API + F6/F7 frontend)
+
+---
+
+## Sonuç
+
+FastAPI + Redis (in-memory cache) tabanlı API tamamlandı. Uç noktalar şunlar:
+
+- `POST /api/search` — arama başlatır, cache'ye yazar, ilk 12 sonucu döner.
+- `GET /api/search/{id}?offset=&limit=` — cache'ten sayfalama (yeniden hesaplama yok).
+- `GET /api/search/{id}/stats` — triple-barrier + gölge dağılım + ay-bloklu bootstrap.
+- `GET /api/templates` — 14 kanonik şablon kütüphanesi.
+- `GET /api/chart/{symbol}` — OHLCV + vurgu sınırları.
+- `GET /api/health` — sağlık kontrolü.
+
+**Bilinen hata giderildi:** `/api/templates` endpoint `Template.name` alanı arıyordu; `Template.name_tr` kullanılarak düzeltildi.
+
+**Test:** `pytest -q` 196 passed, 1 failed. Kalan hata `test_real_store_is_fresh` (1d veri 5.7 bar geride) — veri tazeliği sorunu, yazılım hatası değil.
 
 ---
 
