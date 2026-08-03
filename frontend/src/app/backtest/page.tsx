@@ -18,12 +18,17 @@ import { formatR, formatPercent } from "@/utils/formatters";
 import { AlertCircle, Pencil, Library, Search, Loader2 } from "lucide-react";
 
 const TOLERANCE_LABELS = ["Katı", "Orta", "Esnek"];
+const TIMEFRAMES = [
+  { value: "4h", label: "4H" },
+  { value: "1d", label: "1G" },
+] as const;
 
 export default function BacktestPage() {
   const [mode, setMode] = useState<"draw" | "template">("draw");
   const [vector, setVector] = useState<number[]>([]);
   const [tolerance, setTolerance] = useState<number[]>([1]);
   const [minAmplitude, setMinAmplitude] = useState<number[]>([10]);
+  const [timeframe, setTimeframe] = useState<"4h" | "1d">("4h");
   const [searchId, setSearchId] = useState<string | null>(null);
   const [sessionInfo, setSessionInfo] = useState<
     { session_queries: number; multiple_comparison_warning: boolean; adjusted_alpha: number } | null
@@ -41,7 +46,7 @@ export default function BacktestPage() {
       points: mode === "draw" ? vector.slice(0, 32) : undefined,
       template_id: undefined as string | undefined,
       mode: "historical" as const,
-      timeframe: "4h" as const,
+      timeframe,
       tolerance: toleranceValue,
       min_amplitude: minAmplitude[0],
       limit: 12,
@@ -99,6 +104,26 @@ export default function BacktestPage() {
             Filtreler
           </h3>
           <div className="space-y-5">
+            <div className="space-y-2">
+              <span className="text-sm">Zaman Dilimi</span>
+              <div className="flex gap-1 rounded-md border border-border p-1">
+                {TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.value}
+                    type="button"
+                    onClick={() => setTimeframe(tf.value)}
+                    className={`flex-1 rounded px-2 py-1 text-sm font-medium transition-colors ${
+                      timeframe === tf.value
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span>Tolerans</span>
