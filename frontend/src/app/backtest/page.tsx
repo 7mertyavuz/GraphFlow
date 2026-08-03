@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
   useCreateSearch,
-  useSearchResults,
+  usePaginatedSearch,
   useSearchStats,
 } from "@/hooks/useGraphFlowApi";
 import { formatR, formatPercent } from "@/utils/formatters";
@@ -25,10 +25,14 @@ export default function BacktestPage() {
   const [tolerance, setTolerance] = useState<number[]>([1]);
   const [minAmplitude, setMinAmplitude] = useState<number[]>([10]);
   const [searchId, setSearchId] = useState<string | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<
+    { session_queries: number; multiple_comparison_warning: boolean; adjusted_alpha: number } | null
+  >(null);
 
   const toleranceValue = ["strict", "medium", "flexible"][tolerance[0]] as "strict" | "medium" | "flexible";
   const createSearch = useCreateSearch();
-  const { data: searchData, isLoading: resultsLoading } = useSearchResults(searchId, 0, 12);
+  const { results, total, isLoading: resultsLoading, loadMore, hasMore } =
+    usePaginatedSearch(searchId, 12);
   const { data: statsData, isLoading: statsLoading } = useSearchStats(searchId);
 
   const handleSearch = () => {
@@ -43,7 +47,10 @@ export default function BacktestPage() {
       limit: 12,
     };
     createSearch.mutate(payload, {
-      onSuccess: (data) => setSearchId(data.search_id),
+      onSuccess: (data) => {
+        setSearchId(data.search_id);
+        setSessionInfo(data.session);
+      },
     });
   };
 
@@ -147,11 +154,11 @@ export default function BacktestPage() {
           )}
         </div>
 
-        {searchData?.session && (
+        {sessionInfo && (
           <PValueWarning
-            sessionQueries={searchData.session.session_queries}
-            multipleComparisonWarning={searchData.session.multiple_comparison_warning}
-            adjustedAlpha={searchData.session.adjusted_alpha}
+            sessionQueries={sessionInfo.session_queries}
+            multipleComparisonWarning={sessionInfo.multiple_comparison_warning}
+            adjustedAlpha={sessionInfo.adjusted_alpha}
           />
         )}
       </aside>
@@ -204,10 +211,12 @@ export default function BacktestPage() {
             Eşleşmeler
           </h3>
           <MatchGrid
-            results={searchData?.results ?? []}
+            results={results}
             queryVector={vector}
             isLoading={resultsLoading || createSearch.isPending}
-            total={searchData?.total}
+            total={total}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
           />
         </div>
       </section>

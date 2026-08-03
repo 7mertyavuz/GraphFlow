@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import {
   useQuery,
   useMutation,
@@ -55,6 +56,53 @@ export function useSearchResults(searchId: string | null, offset = 0, limit = 12
     },
     enabled: !!searchId,
   });
+}
+
+export type Match = SearchResponse["results"][number];
+
+export function usePaginatedSearch(searchId: string | null, limit = 12) {
+  const [offset, setOffset] = useState(0);
+  const [results, setResults] = useState<Match[]>([]);
+  const [total, setTotal] = useState(0);
+
+  const { data, isLoading, isFetching } = useSearchResults(searchId, offset, limit);
+
+  useEffect(() => {
+    if (data) {
+      setTotal(data.total);
+      setResults((prev) => {
+        if (offset === 0) return data.results;
+        const existing = new Set(prev.map((r) => `${r.symbol}-${r.start_idx}-${r.window_length}`));
+        const next = [...prev];
+        data.results.forEach((r) => {
+          const key = `${r.symbol}-${r.start_idx}-${r.window_length}`;
+          if (!existing.has(key)) next.push(r);
+        });
+        return next;
+      });
+    }
+  }, [data, offset]);
+
+  useEffect(() => {
+    setOffset(0);
+    setResults([]);
+    setTotal(0);
+  }, [searchId]);
+
+  const loadMore = useCallback(() => {
+    if (!isFetching && results.length < total) {
+      setOffset(results.length);
+    }
+  }, [isFetching, results.length, total]);
+
+  return {
+    results,
+    total,
+    isLoading: isLoading && offset === 0,
+    isFetching,
+    loadMore,
+    hasMore: results.length < total,
+  };
 }
 
 export function useSearchStats(searchId: string | null) {

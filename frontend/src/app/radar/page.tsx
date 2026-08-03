@@ -6,7 +6,7 @@ import { TemplatePicker } from "@/components/canvas/TemplatePicker";
 import { MatchGrid } from "@/components/charts/MatchGrid";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { useCreateSearch, useSearchResults } from "@/hooks/useGraphFlowApi";
+import { useCreateSearch, usePaginatedSearch } from "@/hooks/useGraphFlowApi";
 import { PValueWarning } from "@/components/outcome/PValueWarning";
 import { AlertCircle, Pencil, Library, Search, Loader2 } from "lucide-react";
 
@@ -24,7 +24,8 @@ export default function RadarPage() {
 
   const toleranceValue = ["strict", "medium", "flexible"][tolerance[0]] as "strict" | "medium" | "flexible";
   const createSearch = useCreateSearch();
-  const { data: searchData, isLoading } = useSearchResults(searchId, 0, 12);
+  const { results, total, isLoading, isFetching, loadMore, hasMore } =
+    usePaginatedSearch(searchId, 12);
 
   const handleSearch = () => {
     if (mode === "draw" && vector.length < 32) return;
@@ -155,17 +156,19 @@ export default function RadarPage() {
       <section className="flex flex-1 flex-col">
         <div className="mb-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">Canlı Radar</h1>
-          {searchData && !isLoading && (
+          {!isLoading && (
             <span className="text-sm text-muted-foreground">
-              {searchData.total.toLocaleString("tr-TR")} eşleşme
+              {total.toLocaleString("tr-TR")} eşleşme
             </span>
           )}
         </div>
         <MatchGrid
-          results={searchData?.results ?? []}
+          results={results}
           queryVector={vector}
           isLoading={isLoading || createSearch.isPending}
-          total={searchData?.total}
+          total={total}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
         />
       </section>
     </div>

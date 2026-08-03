@@ -2,6 +2,7 @@
 
 import { BlueprintChart } from "./BlueprintChart";
 import { SkeletonGrid } from "./SkeletonChart";
+import { Button } from "@/components/ui/button";
 import { type paths } from "@/types/api";
 
 type Match = paths["/api/search"]["post"]["responses"]["200"]["content"]["application/json"]["results"][number];
@@ -11,6 +12,8 @@ interface MatchGridProps {
   queryVector: number[];
   isLoading?: boolean;
   total?: number;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 export function MatchGrid({
@@ -18,6 +21,8 @@ export function MatchGrid({
   queryVector,
   isLoading,
   total,
+  hasMore,
+  onLoadMore,
 }: MatchGridProps) {
   if (isLoading) {
     return (
@@ -43,7 +48,7 @@ export function MatchGrid({
     <div className="flex flex-col gap-4">
       {total !== undefined && (
         <p className="text-sm font-medium text-muted-foreground">
-          {total.toLocaleString("tr-TR")} eşleşme bulundu · ilk {results.length} gösteriliyor
+          {total.toLocaleString("tr-TR")} eşleşme bulundu · {results.length} gösteriliyor
         </p>
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -55,6 +60,11 @@ export function MatchGrid({
           />
         ))}
       </div>
+      {hasMore && onLoadMore && (
+        <Button variant="outline" onClick={onLoadMore} className="w-full sm:w-auto self-center">
+          Daha Fazla (+12)
+        </Button>
+      )}
     </div>
   );
 }
