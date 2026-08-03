@@ -312,7 +312,7 @@ async def get_templates():
     return [
         TemplateResponse(
             id=t_id,
-            name=t.name,
+            name=t.name_tr,
             category=t.category,
             vector=t.vector.tolist() if hasattr(t.vector, "tolist") else t.vector,
             bias=t.bias,
