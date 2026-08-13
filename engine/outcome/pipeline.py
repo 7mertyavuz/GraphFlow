@@ -105,14 +105,12 @@ def load_shadow_pools(
     return pools
 
 
-def run_template(
-    engine: SearchEngine,
-    template_id: str,
-    query: np.ndarray,
+def run_events(
+    events: np.ndarray,
     store: BarStore,
     pools: dict[int, ShadowPool],
+    template_id: str = "query",
     timeframe: str = "1d",
-    limit: int = 5_000,
     p: int = SHADOW_SAMPLES_PER_MATCH,
     rng: np.random.Generator | None = None,
     direction: str = "long",
@@ -120,18 +118,18 @@ def run_template(
     return_matched_shadow: bool = False,
     return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
 ) -> TemplateOutcome:
-    """Tek bir şablon için uçtan uca outcome (long veya short).
+    """Hazır olay dizisinden outcome — arama adımı olmadan.
 
-    ``return_matched_shadow=True`` ise F4.6 ön-getiri eşleştirmeli gölge
-    kullanılır — vekil testi için zorunlu.
+    F5 API bu girişi kullanır: kullanıcının ekranda gördüğü eşleşmelerin
+    **birebir aynısı** istatistiğe girer. Aramayı içeride yeniden çalıştırmak,
+    farklı tolerans/genlik parametreleriyle başka bir olay kümesi üretip
+    "gördüğün grafiklerin istatistiği" diye sunmak olurdu.
     """
     from engine.config import CONFIDENCE_LEVEL
 
     confidence = CONFIDENCE_LEVEL if confidence is None else confidence
     rng = rng if rng is not None else np.random.default_rng(20260731)
 
-    result = engine.search(query, timeframe=timeframe, tolerance=OUTCOME_TOLERANCE, limit=limit)
-    events = events_from_matches(result.results)
     n_matches = int(events.size)
 
     if events.size:
@@ -181,6 +179,43 @@ def run_template(
         )
 
     return outcome
+
+
+def run_template(
+    engine: SearchEngine,
+    template_id: str,
+    query: np.ndarray,
+    store: BarStore,
+    pools: dict[int, ShadowPool],
+    timeframe: str = "1d",
+    limit: int = 5_000,
+    p: int = SHADOW_SAMPLES_PER_MATCH,
+    rng: np.random.Generator | None = None,
+    direction: str = "long",
+    confidence: float | None = None,
+    return_matched_shadow: bool = False,
+    return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
+) -> TemplateOutcome:
+    """Tek bir şablon için uçtan uca outcome (long veya short).
+
+    Tolerans ``OUTCOME_TOLERANCE`` ile sabittir — p-hacking kilidi.
+    ``return_matched_shadow=True`` ise F4.6 ön-getiri eşleştirmeli gölge
+    kullanılır (vekil testi için zorunlu).
+    """
+    result = engine.search(query, timeframe=timeframe, tolerance=OUTCOME_TOLERANCE, limit=limit)
+    return run_events(
+        events_from_matches(result.results),
+        store,
+        pools,
+        template_id=template_id,
+        timeframe=timeframe,
+        p=p,
+        rng=rng,
+        direction=direction,
+        confidence=confidence,
+        return_matched_shadow=return_matched_shadow,
+        return_band_sigma=return_band_sigma,
+    )
 
 
 def run_all_templates(
