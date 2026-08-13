@@ -18,13 +18,22 @@ class CacheBackend(abc.ABC):
     @abc.abstractmethod
     async def delete(self, key: str) -> None: ...
     @abc.abstractmethod
-    async def incr(self, key: str) -> int: ...
+    async def incr(self, key: str, ttl_seconds: int) -> int: ...
+    @abc.abstractmethod
+    async def count(self, key: str) -> int:
+        """Sayacı artırmadan okur; yoksa 0."""
 
 
 class InMemoryCache(CacheBackend):
+    """Tek süreçlik geliştirme önbelleği.
+
+    Sayaçlar da **süreli**dir: süresiz bir sayaç hız limitini kalıcı kilide,
+    oturum sayacını da hiç sıfırlanmayan bir Bonferroni cezasına çevirir.
+    """
+
     def __init__(self) -> None:
         self._data: dict[str, tuple[bytes, float]] = {}
-        self._counters: dict[str, int] = {}
+        self._counters: dict[str, tuple[int, float]] = {}
 
     async def get(self, key: str) -> bytes | None:
         if key in self._data:
@@ -42,9 +51,18 @@ class InMemoryCache(CacheBackend):
         self._data.pop(key, None)
         self._counters.pop(key, None)
 
-    async def incr(self, key: str) -> int:
-        self._counters[key] = self._counters.get(key, 0) + 1
-        return self._counters[key]
+    async def incr(self, key: str, ttl_seconds: int) -> int:
+        now = time.time()
+        count, expire = self._counters.get(key, (0, 0.0))
+        if now > expire:
+            count, expire = 0, now + ttl_seconds
+        count += 1
+        self._counters[key] = (count, expire)
+        return count
+
+    async def count(self, key: str) -> int:
+        count, expire = self._counters.get(key, (0, 0.0))
+        return count if time.time() <= expire else 0
 
 
 class RedisCache(CacheBackend):
@@ -61,8 +79,15 @@ class RedisCache(CacheBackend):
     async def delete(self, key: str) -> None:
         await self._redis.delete(key)
 
-    async def incr(self, key: str) -> int:
-        return await self._redis.incr(key)
+    async def incr(self, key: str, ttl_seconds: int) -> int:
+        count = int(await self._redis.incr(key))
+        if count == 1:  # yalnızca ilk artışta pencere başlatılır
+            await self._redis.expire(key, ttl_seconds)
+        return count
+
+    async def count(self, key: str) -> int:
+        raw = await self._redis.get(key)
+        return int(raw) if raw is not None else 0
 
 
 _cache_instance: CacheBackend | None = None

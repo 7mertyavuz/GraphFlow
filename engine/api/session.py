@@ -1,14 +1,28 @@
+"""Oturum sayacı — çoklu karşılaştırma muhasebesi (CLAUDE.md, K-12).
+
+Kullanıcı arka arkaya 20 şekil denerse %95 güvenle ~1 tanesinin şans eseri
+"anlamlı" çıkması beklenir. Sayaç bunu görünür kılar: α, denenen şekil
+sayısına bölünerek (Bonferroni) raporlanır.
+
+**Yalnızca yeni arama sayılır.** Sayfalama ve istatistik çağrıları sayacı
+artırmaz; "Daha fazla" tuşuna basmak yeni bir hipotez testi değildir.
+"""
+
 from __future__ import annotations
 
 import uuid
 from typing import Final
 
-from fastapi import Header, Request
+from fastapi import Header
+
 from engine.api.cache import get_cache
 from engine.api.schemas import SessionInfo
 
 SESSION_TTL: Final[int] = 3600
 BASE_ALPHA: Final[float] = 0.05
+
+#: Bu sayıdan itibaren çoklu karşılaştırma uyarısı gösterilir.
+WARN_AFTER_QUERIES: Final[int] = 2
 
 
 async def get_session_id(x_session_id: str | None = Header(default=None)) -> str:
@@ -17,23 +31,39 @@ async def get_session_id(x_session_id: str | None = Header(default=None)) -> str
     return str(uuid.uuid4())
 
 
-async def track_session(session_id: str) -> SessionInfo:
-    cache = get_cache()
-    key = f"session:{session_id}:queries"
-    
-    # incr will initialize to 1 if it doesn't exist
-    queries = await cache.incr(key)
-    
-    adjusted_alpha = BASE_ALPHA / max(1, queries)
-    warning = queries > 1
-    
+def _key(session_id: str) -> str:
+    return f"session:{session_id}:queries"
+
+
+def _envelope(queries: int) -> SessionInfo:
+    queries = max(1, queries)
     return SessionInfo(
         session_queries=queries,
-        multiple_comparison_warning=warning,
-        adjusted_alpha=adjusted_alpha
+        multiple_comparison_warning=queries >= WARN_AFTER_QUERIES,
+        adjusted_alpha=BASE_ALPHA / queries,
+        warning_text=get_warning_text(queries),
     )
 
+
+async def track_session(session_id: str) -> SessionInfo:
+    """Yeni bir sorguyu sayar ve güncel zarfı döner."""
+    cache = get_cache()
+    # incr ilk çağrıda 1 döner ve TTL penceresini başlatır
+    queries = await cache.incr(_key(session_id), SESSION_TTL)
+    return _envelope(queries)
+
+
+async def read_session(session_id: str) -> SessionInfo:
+    """Sayacı **artırmadan** okur (sayfalama, istatistik)."""
+    cache = get_cache()
+    return _envelope(await cache.count(_key(session_id)))
+
+
 def get_warning_text(queries: int) -> str | None:
-    if queries <= 1:
+    if queries < WARN_AFTER_QUERIES:
         return None
-    return f"Bu oturumda {queries} farklı şekil denediniz; şans eseri 'anlamlı' sonuç görme olasılığınız arttı."
+    return (
+        f"Bu oturumda {queries} farklı şekil denendi. Bonferroni düzeltilmiş "
+        f"anlamlılık eşiği α = {BASE_ALPHA / queries:.4f}; bu eşiği geçmeyen "
+        "bulgular şans eseri ortaya çıkmış olabilir."
+    )
