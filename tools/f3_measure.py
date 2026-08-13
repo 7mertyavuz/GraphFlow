@@ -25,6 +25,9 @@ from engine.config import (
 )
 from engine.ingest.store import read_klines
 from engine.normalize.pipeline import normalize_drawing, resample_to, zscore
+#: Göz testi karosunun iki katmanı motorda tutulur: arayüz (F6) ile notebook
+#: aynı geometriyi göstersin diye.
+from engine.search.blueprint import blueprint_layers
 from engine.search.engine import SearchEngine
 from engine.templates import load_all
 
@@ -238,33 +241,6 @@ FREEHAND_QUERIES: dict[str, list[float]] = {
 def freehand_vector(name: str) -> np.ndarray:
     """Serbest çizimi motor sorgusuna çevirir (y ters, log yok)."""
     return normalize_drawing(np.asarray(FREEHAND_QUERIES[name], dtype=float))
-
-
-def blueprint_layers(query: np.ndarray, candidate: np.ndarray):
-    """Göz testi karosu için iki katman (F3.5, Adım 6).
-
-    * **A** — kanonik şablonun kendisi: *"aradığın şey"*
-    * **B** — DTW hizalama yoluyla **bükülmüş** şablon: *"motor bunu buna hizaladı"*
-
-    A ile B'nin ayrıştığı karolar, eşleşmenin ağır bükülmeyle kurulduğunu
-    görsel olarak ele verir. Bükülme miktarı da ölçülüp etikete yazılır —
-    şimdilik yalnızca ölçülür, filtreye çevrilmez.
-    """
-    from engine.search.ddtw import warp_amount, warping_path
-
-    path = warping_path(query, candidate)
-    # Türev uzayında hizalandığı için indeksler 1 kayıktır (D[i] ↔ x[i+1]).
-    warped = np.full(query.size, np.nan)
-    for qi, cj in path:
-        warped[cj + 1] = query[qi + 1]
-    warped[0], warped[-1] = query[0], query[-1]
-
-    missing = np.isnan(warped)
-    if missing.any():  # bükülme bazı noktaları atlarsa doğrusal doldur
-        idx = np.arange(query.size)
-        warped[missing] = np.interp(idx[missing], idx[~missing], warped[~missing])
-
-    return query, warped, warp_amount(path)
 
 
 def render_top12(
