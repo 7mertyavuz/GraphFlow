@@ -6,6 +6,7 @@ gelir. Bir değeri değiştirmeden önce ilgili K-xx bölümünü oku.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Final, Literal
 
@@ -14,7 +15,11 @@ from typing import Final, Literal
 # ---------------------------------------------------------------------------
 
 ROOT: Final[Path] = Path(__file__).resolve().parent.parent
-DATA_DIR: Final[Path] = ROOT / "data"
+
+#: Veri kökü. Depo dışına (harici disk, worktree, dağıtım hedefi) taşınabilsin
+#: diye ``GRAPHFLOW_DATA_DIR`` ile geçersiz kılınabilir. 517 MB'lık klines +
+#: matris deposu asla commit edilmediği için tek çalışan kopya paylaşılır.
+DATA_DIR: Final[Path] = Path(os.environ.get("GRAPHFLOW_DATA_DIR") or (ROOT / "data"))
 KLINES_DIR: Final[Path] = DATA_DIR / "klines"
 MATRIX_DIR: Final[Path] = DATA_DIR / "matrix"
 TEMPLATE_DIR: Final[Path] = Path(__file__).resolve().parent / "templates"
@@ -445,6 +450,31 @@ MIN_REGIME_N: Final[int] = 30
 # ---------------------------------------------------------------------------
 
 PAGE_SIZE: Final[int] = 12
+
+
+# ---------------------------------------------------------------------------
+# F5 — API katmanı
+# ---------------------------------------------------------------------------
+
+#: Bir aramada önbelleğe alınan eşleşme sayısı. Sayfalama bu havuzdan beslenir;
+#: "Daha fazla" tüm matrisi yeniden skorlamaz (K-08).
+SEARCH_CACHE_MATCHES: Final[int] = 600
+
+#: DTW hizalama yolu yalnızca ilk N eşleşme için hesaplanır — yol çıkarımı
+#: aday başına O(32²) Python döngüsüdür, sıcak yolda değildir.
+WARP_PATH_TOP_N: Final[int] = 60
+
+#: Eşleşme karosunda pencerenin iki yanına eklenen bağlam barı, pencere
+#: uzunluğunun oranı olarak. Bağlamsız bir karo "formasyon nereden geldi,
+#: sonra ne oldu" sorusunu cevaplayamaz.
+CHART_CONTEXT_RATIO: Final[float] = 0.4
+
+#: Oturum başına dakikalık arama limiti. Her arama tam matris taramasıdır.
+SEARCH_RATE_LIMIT: Final[int] = 30
+
+#: Tazelik raporu bu kadar saniye önbellekte tutulur (her sembolün parquet
+#: ayak izini okumak arama başına yapılacak iş değildir).
+FRESHNESS_TTL_SECONDS: Final[int] = 60
 
 
 # ---------------------------------------------------------------------------
