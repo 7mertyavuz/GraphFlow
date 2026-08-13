@@ -157,24 +157,12 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
-  if (isLoading) {
-    return <Skeleton className="h-[248px] w-full" />;
-  }
-
-  if (isError || !data) {
-    return (
-      <div className="flex h-[248px] items-center justify-center rounded-xl border border-dashed border-border text-xs text-muted-foreground">
-        {match.symbol} grafiği yüklenemedi
-      </div>
-    );
-  }
-
   return (
     <figure className="panel group flex flex-col overflow-hidden transition-colors hover:border-brand/30">
       <figcaption className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold">{match.symbol}</span>
-          <Badge tone="brand" className="tabular">
+          <Badge tone="brand" className="tabular" title="Sorgunun null dağılımındaki yüzdelik dilim">
             {formatPercentile(match.percentile)}
           </Badge>
         </div>
@@ -183,8 +171,22 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
         </span>
       </figcaption>
 
+      {/* Kap her zaman DOM'da: grafik kütüphanesi mount anında ölçülecek bir
+          elemana ihtiyaç duyar. Yükleme durumunu erken return ile göstermek,
+          container'ı hiç oluşturmadığı için grafiğin sessizce boş kalmasına
+          yol açıyordu. */}
       <div className="relative h-[160px] w-full">
         <div ref={containerRef} className="absolute inset-0" />
+        {isLoading && (
+          <div className="absolute inset-2">
+            <Skeleton className="size-full" />
+          </div>
+        )}
+        {isError && (
+          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground">
+            Grafik yüklenemedi
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-[10px] text-muted-foreground">
@@ -195,7 +197,7 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
           <span title="Pencere içi toplam hareket">{formatAmplitude(match.amplitude)}</span>
           <span className="text-border">|</span>
           <span title="Pearson korelasyonu (Aşama 1 skoru)">r {formatDecimal(match.score, 2)}</span>
-          {data.warp_amount !== null && data.warp_amount > 2 && (
+          {typeof data?.warp_amount === "number" && data.warp_amount > 2 && (
             <span
               className="text-warp"
               title="Yüksek bükülme: eşleşme ağır zaman esnetmesiyle kuruldu"

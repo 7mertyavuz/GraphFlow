@@ -53,11 +53,23 @@ def _price_mapper(closes: np.ndarray):
 
 
 def _overlay(values: np.ndarray, times: np.ndarray) -> list[OverlayPoint]:
-    """32 noktalık eğriyi pencere barlarının zaman eksenine oturtur."""
-    n = int(values.size)
-    if n < 2 or times.size == 0:
+    """32 noktalık eğriyi pencere barlarının zaman eksenine oturtur.
+
+    Pencere 32 bardan kısaysa (ör. 24 barlık pencere) eğri **bar sayısına
+    indirgenir**: aksi hâlde iki nokta aynı bara düşer ve grafik kütüphanesi
+    "zamanlar artan olmalı" diyerek seriyi tümden reddeder — katman sessizce
+    kaybolur.
+    """
+    values = np.asarray(values, dtype=np.float64)
+    if values.size < 2 or times.size == 0:
         return []
-    positions = np.linspace(0, times.size - 1, n)
+
+    if times.size < values.size:
+        src = np.linspace(0.0, 1.0, values.size)
+        dst = np.linspace(0.0, 1.0, int(times.size))
+        values = np.interp(dst, src, values)
+
+    positions = np.linspace(0, times.size - 1, values.size)
     return [
         OverlayPoint(time=int(times[int(round(p))] // 1000), value=float(v))
         for p, v in zip(positions, values)

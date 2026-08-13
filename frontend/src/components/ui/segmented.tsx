@@ -50,6 +50,8 @@ export function Segmented<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            // Erişilebilir ad görünen etiket olmalı; ipucu yalnızca açıklama.
+            aria-label={option.label}
             title={option.hint}
             onClick={() => onChange(option.value)}
             className={cn(

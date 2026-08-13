@@ -406,6 +406,21 @@ def test_warped_overlay_needs_a_path():
     assert with_path.warp_amount == pytest.approx(0.0)
 
 
+def test_overlay_times_are_strictly_increasing_on_short_windows():
+    """24 barlık pencerede 32 nokta aynı bara düşerse grafik seriyi reddeder."""
+    store = _two_symbol_store()
+    query = np.linspace(-1.5, 1.5, N_POINTS)
+    path = [[i, i] for i in range(N_POINTS)]
+    chart = build_chart(
+        store, "S1", 1, "4h", start_idx=40, end_idx=63, query=query, warp_path=path
+    )
+
+    for overlay in (chart.blueprint_overlay, chart.warped_overlay):
+        times = [p.time for p in overlay]
+        assert len(times) == 24  # bar sayısına indirgendi
+        assert times == sorted(set(times))
+
+
 def test_chart_clamps_out_of_range_window():
     store = _two_symbol_store()
     chart = build_chart(store, "S1", 1, "4h", start_idx=190, end_idx=400)
