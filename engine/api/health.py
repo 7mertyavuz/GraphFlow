@@ -1,42 +1,38 @@
+"""``/api/health`` — deponun ve matrislerin durumu.
+
+Tazelik burada **veriden** okunur, bir durum dosyasının "başarıyla bitti"
+kaydından değil: F3'te indirme başarıyla bitip dosyalar yazılırken 19 aylık
+veri sessizce yok olmuştu. Ölçüt her zaman depodaki en yeni bardır.
+"""
+
 from __future__ import annotations
 
-import json
-import os
-import time
-from typing import Any
-
 from fastapi import APIRouter
-from engine.config import INGEST_STATE_FILE, MATRIX_DIR
+
+from engine.api import freshness
+from engine.api.schemas import HealthResponse
+from engine.config import MATRIX_DIR, WINDOW_LENGTHS
 
 router = APIRouter()
 
-def _get_staleness() -> dict[str, Any]:
-    try:
-        if INGEST_STATE_FILE.exists():
-            with open(INGEST_STATE_FILE, "r") as f:
-                state = json.load(f)
-            
-            return {
-                "freshness": state.get("last_update", 0),
-                "stale_warning": False, # Would be calculated based on MAX_STALENESS_BARS
-            }
-    except Exception:
-        pass
-    
-    return {
-        "freshness": 0,
-        "stale_warning": True
-    }
+
+def _matrix_ready() -> bool:
+    """En az bir (timeframe, length) matrisi diskte mi?"""
+    if not MATRIX_DIR.exists():
+        return False
+    return any((MATRIX_DIR / f"{tf}_{length}").exists() for tf in ("4h", "1d") for length in WINDOW_LENGTHS)
 
 
-@router.get("/health")
-async def health_check() -> dict[str, Any]:
-    staleness = _get_staleness()
-    
-    return {
-        "status": "ok",
-        "data_freshness": staleness["freshness"],
-        "matrix_version": "v1", # Adjust as needed
-        "last_cron_time": 0,
-        "stale_warning": staleness["stale_warning"]
-    }
+@router.get("/health", response_model=HealthResponse)
+async def health_check() -> HealthResponse:
+    timeframes = freshness.snapshot()
+    newest = [tf["newest_open_time"] for tf in timeframes.values() if tf["newest_open_time"]]
+    stale = any(not tf["ok"] for tf in timeframes.values()) or not timeframes
+
+    return HealthResponse(
+        status="ok",
+        timeframes=timeframes,
+        stale_warning=stale,
+        data_as_of=max(newest) if newest else 0,
+        matrix_ready=_matrix_ready(),
+    )
