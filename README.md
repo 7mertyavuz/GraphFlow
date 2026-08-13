@@ -58,11 +58,33 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 
 ---
 
+## Çalıştırma
+
+Veri deposu (`data/`) commit edilmez; yolu `GRAPHFLOW_DATA_DIR` ile taşıyabilirsiniz.
+
+```bash
+python -m engine.ingest.download          # F0: Binance klines
+python -m engine.matrix.build             # F1: vektör matrisleri
+uvicorn engine.api.main:app --reload      # F5: API  → :8000
+cd frontend && npm install && npm run dev # F6/F7: arayüz → :3000
+pytest -q                                 # testler
+```
+
+Matrisler eski bir sürümle üretildiyse sembol haritası eksik olabilir
+(eşleşmeler `#897` gibi görünür). Matrisleri yeniden inşa etmeden onarır ve
+yazmadan önce Parquet verisine karşı doğrular:
+
+```bash
+python -m tools.repair_symbol_map
+```
+
+---
+
 ## Teknoloji yığını
 
-**Motor:** Python 3.11 · NumPy · `dtaidistance` · FastAPI
-**Veri:** Binance REST (klines) · Parquet · PostgreSQL · Redis
-**Frontend:** Next.js · TailwindCSS · TradingView Lightweight Charts · düz HTML5 Canvas
+**Motor:** Python 3.11 · NumPy · SciPy · FastAPI
+**Veri:** Binance REST (klines) · Parquet · `.npy` memmap matrisler · Redis (opsiyonel, varsayılan süreç içi önbellek)
+**Frontend:** Next.js 16 · Tailwind v4 · TanStack Query · TradingView Lightweight Charts · düz HTML5 Canvas
 
 **Bilinçli olarak yok:** Kafka, Rust/Go, TimescaleDB, WebSocket, Fabric.js.
 
@@ -82,7 +104,7 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 | [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Bitti** |
 | [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
-| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti (MVP)** |
+| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti** |
 
 ---
 

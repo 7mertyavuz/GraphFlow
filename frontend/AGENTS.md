@@ -5,44 +5,71 @@ Next.js 16 + TypeScript + Tailwind CSS v4 + App Router + `src/` dizini.
 ## Teknoloji
 
 - **Framework:** Next.js 16 (App Router, Turbopack dev)
-- **Stil:** Tailwind CSS v4
+- **Stil:** Tailwind CSS v4 — tasarım belirteçleri `src/app/globals.css`
 - **UI kit:** shadcn/ui, Base UI (Radix değil) primitive'leri üzerine
-- **State / Cache:** TanStack React Query v5
+- **State / Cache:** TanStack React Query v5 (`useInfiniteQuery` ile sayfalama)
 - **Grafik:** TradingView Lightweight Charts v5
-- **API:** `openapi-typescript` ile backend FastAPI şemalarından üretilen `src/types/api.ts`
-- **İkonlar:** lucide-react
-- **HTTP:** axios
+- **API:** `openapi-typescript` ile FastAPI şemalarından üretilen `src/types/api.ts`
+- **İkonlar:** lucide-react · **HTTP:** axios
 
-## Kod konvansiyonları
+## Dizin düzeni
 
-- Bileşenler `src/components/` altında alan bazlı klasörlenir: `canvas/`, `charts/`, `outcome/`, `layout/`, `ui/`.
-- İş mantığı `src/hooks/` ve `src/services/`'te.
-- `src/types/api.ts` elle dokunulmaz; backend değişince yeniden üret:
-  ```bash
-  python -c "import json, engine.api.main; open('frontend/openapi.json','w',encoding='utf-8').write(json.dumps(engine.api.main.app.openapi(), indent=2, ensure_ascii=False))"
-  cd frontend && npx openapi-typescript openapi.json -o src/types/api.ts
-  ```
-- Canvas ve grafik bileşenleri `'use client'` olmalı.
-- Sayfalar (`src/app/**/page.tsx`) istemci state'i kullanıyorsa `'use client'` olmalı.
+```
+src/app/           sayfalar: / · /radar · /backtest · /bulgular
+src/components/
+  layout/          Header (canlı veri tazeliği rozeti), Footer
+  query/           DrawPad, TemplatePicker, ShapeThumb, QueryPanel
+  results/         MatchCard (grafik karosu), MatchGrid, ResultsHeader
+  outcome/         StatCard, RegimeTable, OutcomePanel, SessionNotice
+  workspace/       SearchWorkspace — Radar ve Backtest'in ortak gövdesi
+  ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
+src/hooks/         useDraw, useGraphFlowApi, useSessionId
+src/services/      apiClient (oturum başlığı), endpoints
+src/utils/         formatters, shape (yalnızca görselleştirme)
+```
+
+## Kritik kurallar
+
+- **Çıplak sayı yasak.** Backend `StatEnvelope` döner; `formatStat`/`formatCI`
+  zarfın `unit` alanına bakar. Başarı oranını `formatR`'den geçirmek "+0,55R"
+  yazdırır — bu bir hatadır, biçim hatası değil anlam hatası.
+- **Beklenti (R) başrol metriktir.** Kazanma oranı yanında, teorik null ile
+  birlikte gösterilir; tek başına asla.
+- **Baseline'sız oran gösterilmez.** Gölge dağılım yoksa edge kartı yerine
+  neden gösterilemediği yazılır.
+- **Normalizasyonu istemci yapmaz.** Çizim ham nokta olarak gönderilir; 32
+  noktaya indirgeme ve z-score sunucudadır (K-02/K-04). `utils/shape.ts`
+  yalnızca ekranda eğri çizer.
+- **Grafik geometrisi sunucudan gelir.** Blueprint ve bükülmüş blueprint
+  `/api/chart` yanıtındadır; `highlight_start/end` dönen bar dizisine
+  **görelidir**. İstemcide koordinat hesaplamayın (bkz. `engine/api/chart.py`).
+- **Uyarılar veriyle gelir.** Ayırt edicilik (S-1), veri tazeliği ve çoklu
+  karşılaştırma uyarıları yanıtın içindedir; arayüz bunları uydurmaz ve
+  gizlemez.
+- **Sayfalama önbellekten.** "Daha fazla" sunucudaki arama havuzundan sonraki
+  dilimi ister; matris yeniden skorlanmaz (K-08).
+
+## Tip üretimi
+
+`src/types/api.ts` elle düzenlenmez. Backend sözleşmesi değişince:
+
+```bash
+python -c "import json, engine.api.main; open('frontend/openapi.json','w',encoding='utf-8').write(json.dumps(engine.api.main.app.openapi(), indent=2, ensure_ascii=False))"
+cd frontend && npx openapi-typescript openapi.json -o src/types/api.ts
+```
 
 ## Komutlar
 
 ```bash
 cd frontend
 npm install
-npm run dev        # http://localhost:3000
-npm run build      # production build
-npx tsc --noEmit   # type check
+npm run dev              # http://localhost:3000
+npm run build            # production build
+npx tsc --noEmit         # tip kontrolü
+npx eslint src           # lint
 ```
 
 ## Bağlı servisler
 
 - Backend: `http://localhost:8000/api` (FastAPI).
-- Ortam değişkeni: `NEXT_PUBLIC_API_BASE_URL` (varsayılan `http://localhost:8000/api`).
-
-## Kritik kurallar
-
-- Backend `StatEnvelope` zarfı kullanıyor; frontend **çıplak sayı göstermemeli**.
-- Beklenti (R) başrol metriği; kazanma oranı yanında gösterilir.
-- Tüm sayılarda `formatR`, `formatPercent`, `formatDecimal` kullan.
-- Sayfalama "Daha Fazla (+12)" ile cache'ten devam eder; tüm matris yeniden skorlanmaz.
+- `NEXT_PUBLIC_API_BASE_URL` ile değiştirilir (bkz. `.env.example`).

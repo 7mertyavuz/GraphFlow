@@ -93,13 +93,37 @@ geri getirme:
 ✅ engine/search/                  F2  (stage1_cosine, nms, ddtw, engine)
 ✅ engine/outcome/                 F4 + F4.5 (short yönü, ay-bloklu bootstrap)
 ✅ engine/templates/               F2  (14 kanonik JSON + loader)
-✅ engine/api/                     F5  (FastAPI, StatEnvelope, oturum sayacı, cache)
-✅ tools/                          shapes, variants, gen_synthetic, ab_stage2, f3_measure
-✅ tests/                          196 test (ingest, arşiv, normalize, matrix, search, outcome, api)
+✅ engine/api/                     F5  (FastAPI, StatEnvelope, chart, freshness, oturum)
+✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
+                                  f3_measure, repair_symbol_map
+✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
+                                  outcome, api, grafik karosu)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
-✅ frontend/                       F6 + F7  (Next.js 16, Radar/Backtest UI, MVP)
+✅ frontend/                       F6 + F7  (Next.js 16, Radar/Backtest/Bulgular)
 ```
+
+Veri kökü `GRAPHFLOW_DATA_DIR` ile depo dışına taşınabilir.
+
+### Arayüz sözleşmesi (F6/F7)
+
+Arayüz motorun ölçtüğünü gösterir; kendi geometrisini ya da kendi
+normalizasyonunu kurmaz:
+
+- **Normalizasyon sunucuda.** İstemci ham çizim noktası gönderir; 32 noktaya
+  indirgeme ve z-score `normalize_drawing`'dedir. İki normalizasyon = iki
+  farklı sonuç listesi (K-02, K-04).
+- **Grafik geometrisi sunucuda.** Blueprint `exp(mu + sigma·z)` ile fiyat
+  eksenine taşınır (log uzayının tersi); `highlight_*` indeksleri **dönen bar
+  dizisine görelidir**, mutlak bar indeksi değildir.
+- **`symbol_id` uzayı zaman dilimi başınadır.** 4h ve 1d evrenleri farklıdır,
+  harita `symbols_{tf}.json`'dan okunur. Karıştırmak yalnızca yanlış etiket
+  değil, **yanlış sembolün fiyatlarını okumak** demektir.
+- **İstatistik ekrandaki eşleşmelerden hesaplanır.** `/stats` ikinci bir arama
+  çalıştırmaz (K-09). Radar (live) sonuçları için istatistik üretilmez: son
+  bardaki pencerenin ileri penceresi yoktur.
+- **Uyarılar yanıtın içindedir.** Ayırt edicilik (S-1), veri tazeliği ve çoklu
+  karşılaştırma uyarılarını arayüz uydurmaz ve gizleyemez.
 
 Sabitler `engine/config.py`'de merkezîdir. **Kod içine sihirli sayı yazma** —
 oradan import et. Yeni bir sabit gerekirse oraya, `K-xx` referansıyla ekle.
