@@ -1,42 +1,68 @@
+"""F5 — HTTP katmanı (docs/01-mimari.md §12).
+
+Katmanın tek işi motoru dürüstçe sunmaktır:
+
+* **Tek motor.** Radar ve Backtest aynı ``SearchEngine.search`` çağrısıdır,
+  yalnızca ``mode`` değişir (K-15).
+* **Aynı olaylar.** İstatistik, kullanıcının gördüğü eşleşmelerden hesaplanır;
+  ``/stats`` içeride ikinci bir arama çalıştırmaz (K-09).
+* **Uyarılar yanıtın içinde.** Ayırt edicilik, tazelik ve çoklu karşılaştırma
+  arayüzün hatırlamasına bırakılmaz.
+"""
+
 from __future__ import annotations
 
 import json
 import logging
 import uuid
-import time
-from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Depends
+import numpy as np
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
-from engine.api.cache import get_cache, SEARCH_TTL, OUTCOME_TTL
-from engine.api.session import get_session_id, track_session, get_warning_text
+from engine.api import freshness, health
+from engine.api.cache import OUTCOME_TTL, SEARCH_TTL, get_cache
+from engine.api.chart import build_chart
 from engine.api.schemas import (
-    SearchRequest,
-    SearchResponse,
+    ChartResponse,
+    FindingsResponse,
+    FindingStage,
     MatchResponse,
-    StatEnvelope,
     OutcomeConfigResponse,
     OutcomeResponse,
-    ChartResponse,
+    RegimeRow,
+    SearchRequest,
+    SearchResponse,
+    StatEnvelope,
     TemplateResponse,
-    FindingsResponse,
-    SessionInfo
 )
-from engine.api import health
-from engine.search.engine import SearchEngine
+from engine.api.session import get_session_id, read_session, track_session
+from engine.config import (
+    DATA_DIR,
+    N_POINTS,
+    SEARCH_CACHE_MATCHES,
+    SEARCH_RATE_LIMIT,
+    TIMEFRAME_MS,
+    WARP_PATH_TOP_N,
+    WINDOW_LENGTHS,
+)
+from engine.normalize.pipeline import normalize_drawing
 from engine.outcome.bars import BarStore
-from engine.config import DATA_DIR, MATRIX_DIR, WINDOW_LENGTHS
-from engine.templates.loader import load_all as load_all_templates
-from engine.outcome.pipeline import load_shadow_pools, run_template
-from engine.outcome.shadow import ShadowPool
 from engine.outcome.metrics import OutcomeStats
+from engine.outcome.pipeline import TemplateOutcome, load_shadow_pools, run_events
+from engine.outcome.shadow import ShadowPool
+from engine.outcome.triple_barrier import EVENT_DTYPE
+from engine.search.engine import SearchEngine
+from engine.templates.loader import load_all as load_all_templates
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="GraphFlow F5 API", version="1.0.0")
+app = FastAPI(
+    title="GraphFlow API",
+    version="1.0.0",
+    description="Görsel formasyon arama motoru — ölçülmüş geçmiş dağılım, sinyal değil.",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,10 +74,19 @@ app.add_middleware(
 
 app.include_router(health.router, prefix="/api")
 
-# Lazy globals
+DISCLAIMER = (
+    "Geçmiş dağılım gelecek getirinin garantisi değildir. Burada gösterilen "
+    "her sayı ölçülmüş bir geçmiş istatistiktir; işlem tavsiyesi değildir."
+)
+
+# ---------------------------------------------------------------------------
+# Tembel yüklenen ağır nesneler (matrisler memmap, bar deposu ~yüz MB)
+# ---------------------------------------------------------------------------
+
 _engine: SearchEngine | None = None
 _stores: dict[str, BarStore] = {}
 _pools_by_tf: dict[str, dict[int, ShadowPool]] = {}
+
 
 def get_engine() -> SearchEngine:
     global _engine
@@ -59,24 +94,32 @@ def get_engine() -> SearchEngine:
         _engine = SearchEngine()
     return _engine
 
+
 def get_store(timeframe: str = "4h") -> BarStore:
     if timeframe not in _stores:
         engine = get_engine()
         _stores[timeframe] = BarStore.from_klines(
             symbols=list(engine.symbols.values()),
             timeframe=timeframe,
-            ids={v: k for k, v in engine.symbols.items()}
+            ids={v: k for k, v in engine.symbols.items()},
         )
     return _stores[timeframe]
+
 
 def get_pools(timeframe: str = "4h") -> dict[int, ShadowPool]:
     if timeframe not in _pools_by_tf:
         _pools_by_tf[timeframe] = load_shadow_pools(timeframe)
     return _pools_by_tf[timeframe]
 
+
+# ---------------------------------------------------------------------------
+# Zarf yardımcıları
+# ---------------------------------------------------------------------------
+
+
 def wrap_stat(
     val: float | None,
-    ci: tuple[float, float],
+    ci: tuple[float, float] | None,
     ci_method: str,
     null_val: float | None = None,
     shadow_val: float | None = None,
@@ -84,7 +127,8 @@ def wrap_stat(
     n_months: int = 0,
     significant: bool = False,
     verdict: str = "",
-    design_effect: float | None = None
+    design_effect: float | None = None,
+    unit: str = "R",
 ) -> StatEnvelope:
     return StatEnvelope(
         value=val if val is not None else float("nan"),
@@ -96,132 +140,198 @@ def wrap_stat(
         n_months=n_months,
         significant=significant,
         verdict=verdict,
-        design_effect=design_effect
+        design_effect=design_effect,
+        unit=unit,  # type: ignore[arg-type]
     )
+
 
 def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
     expectancy = wrap_stat(
         val=stats.expectancy_r,
         ci=stats.expectancy_ci,
         ci_method="bootstrap",
-        null_val=0.0,
+        null_val=0.0,  # rastgele giriş, maliyet öncesi, 0R beklenir
         n_events=stats.n,
         n_months=stats.n_months,
-        significant=stats.expectancy_ci[0] > 0 if stats.expectancy_ci else False,
-        verdict=""
+        significant=bool(stats.expectancy_ci and stats.expectancy_ci[0] > 0),
+        verdict="",
+        unit="R",
     )
-    
+
     win_rate = wrap_stat(
         val=stats.win_rate,
         ci=stats.win_rate_ci,
         ci_method="wilson",
         null_val=stats.theoretical_null,
+        shadow_val=stats.shadow_win_rate,
         n_events=stats.n,
         n_months=stats.n_months,
-        significant=stats.win_rate_ci[0] > stats.theoretical_null if stats.win_rate_ci else False,
-        verdict=""
+        significant=bool(stats.win_rate_ci and stats.win_rate_ci[0] > stats.theoretical_null),
+        verdict="",
+        unit="ratio",
     )
-    
+
     edge = None
     if stats.shadow_n > 0:
         edge = wrap_stat(
             val=stats.edge_r,
-            ci=stats.edge_ci if stats.edge_ci else (float("nan"), float("nan")),
+            ci=stats.edge_ci,
+            # Ay-bloklu bootstrap zorunludur; iid aynı aydan çekilen gölgeleri
+            # bağımsız sayar ve belirsizliği ~%29 eksik ölçer (K-12).
             ci_method="block_bootstrap" if stats.design_effect else "bootstrap",
             shadow_val=stats.shadow_expectancy_r,
             n_events=stats.n,
             n_months=stats.n_months,
             significant=stats.edge_is_significant,
             verdict=stats.verdict,
-            design_effect=stats.design_effect
+            design_effect=stats.design_effect,
+            unit="R",
         )
-        
+
     return OutcomeConfigResponse(
         config=stats.config,
+        k_tp=stats.k_tp,
+        k_sl=stats.k_sl,
         expectancy=expectancy,
         win_rate=win_rate,
         edge=edge,
         outcomes=stats.outcomes,
         truncated=stats.truncated,
-        by_regime=stats.by_regime
+        by_regime=[RegimeRow(**row) for row in stats.by_regime],
     )
 
 
-@app.post("/api/search", response_model=SearchResponse)
-async def create_search(
-    request: SearchRequest,
-    session_id: str = Depends(get_session_id)
-):
-    import numpy as np
-    
-    engine = get_engine()
-    cache = get_cache()
-    session_info = await track_session(session_id)
-    
-    # Check rate limit (simple implementation)
-    rl_key = f"rl:search:{session_id}"
-    rl_count = await cache.incr(rl_key)
-    if rl_count == 1:
-        await cache.set(rl_key, b"1", 60)
-    elif rl_count > 10:
-        raise HTTPException(status_code=429, detail="Too many searches per minute")
-        
-    query_vector = None
+def to_outcome_response(outcome: TemplateOutcome) -> OutcomeResponse:
+    return OutcomeResponse(
+        configs={name: to_outcome_config(s) for name, s in outcome.stats.items()},
+        matches=outcome.matches,
+        n_events=outcome.events,
+        dropped_forward_overlap=outcome.dropped_separation,
+        dropped_filters=outcome.dropped_filters,
+        direction=outcome.direction,
+        shadow=outcome.shadow_report,
+        disclaimer=DISCLAIMER,
+    )
+
+
+def resolve_query(request: SearchRequest) -> np.ndarray:
+    """İstek → (32,) z-score'lu sorgu vektörü.
+
+    Normalizasyonun tek otoritesi motordur: istemci ham çizim noktalarını
+    gönderir, sunucu ``normalize_drawing`` ile 32 noktaya indirger ve
+    z-score'lar. Şablon seçmek ile aynı şekli çizmek bu yüzden birebir aynı
+    yoldur (K-04); iki farklı normalizasyon iki farklı sonuç listesi üretemez.
+    """
     if request.template_id:
         templates = load_all_templates()
-        if request.template_id not in templates:
-            raise HTTPException(status_code=400, detail="Invalid template_id")
-        query_vector = np.array(templates[request.template_id].vector)
-    elif request.points:
-        query_vector = np.array(request.points)
-    else:
-        raise HTTPException(status_code=400, detail="Must provide template_id or points")
-        
-    search_id = str(uuid.uuid4())
-    
+        template = templates.get(request.template_id)
+        if template is None:
+            raise HTTPException(status_code=400, detail="Geçersiz template_id")
+        return np.asarray(template.vector, dtype=np.float64)
+
+    if request.points:
+        points = np.asarray(request.points, dtype=np.float64)
+        if points.size < 2 or not np.all(np.isfinite(points)):
+            raise HTTPException(status_code=400, detail="Çizim en az 2 geçerli nokta içermeli")
+        # invert_y=False: istemci y eksenini zaten yukarı-pozitif gönderir.
+        vector = normalize_drawing(points, invert_y=False)
+        if vector is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Düz çizim: şekil taşımayan bir sorgu aranamaz (σ ≈ 0)",
+            )
+        return vector
+
+    raise HTTPException(status_code=400, detail="template_id veya points zorunlu")
+
+
+def match_payload(match, timeframe: str, warp_path: list[list[int]] | None) -> dict[str, Any]:
+    step = TIMEFRAME_MS.get(timeframe, TIMEFRAME_MS["4h"])
+    data = match.as_dict()
+    data["warp_path"] = warp_path
+    # Pencerenin başlangıç zamanı: kart üzerinde tarih göstermek için.
+    data["start_time"] = int(match.end_time - (match.window_length - 1) * step)
+    return data
+
+
+async def load_search(search_id: str) -> dict[str, Any]:
+    data = await get_cache().get(f"search:{search_id}")
+    if not data:
+        raise HTTPException(status_code=404, detail="Arama bulunamadı veya süresi doldu")
+    return json.loads(data)
+
+
+# ---------------------------------------------------------------------------
+# Uçlar
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/search", response_model=SearchResponse)
+async def create_search(request: SearchRequest, session_id: str = Depends(get_session_id)):
+    engine = get_engine()
+    cache = get_cache()
+
+    # Hız limiti: her arama tam matris taramasıdır (§15 performans bütçesi).
+    rl_count = await cache.incr(f"rl:search:{session_id}", 60)
+    if rl_count > SEARCH_RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Dakikalık arama limiti aşıldı")
+
+    session_info = await track_session(session_id)
+    query_vector = resolve_query(request)
+
+    window_lengths = [int(w) for w in (request.window_lengths or WINDOW_LENGTHS)]
+    unknown = [w for w in window_lengths if w not in WINDOW_LENGTHS]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Kalibre edilmemiş pencere: {unknown}")
+
     result = engine.search(
         query_vector,
         mode=request.mode,
         timeframe=request.timeframe,
-        window_lengths=request.window_lengths,
+        window_lengths=window_lengths,
         tolerance=request.tolerance,
         min_amplitude=request.min_amplitude,
-        limit=1000 # get a bunch to cache
+        limit=SEARCH_CACHE_MATCHES,  # sayfalama havuzu; istemciye limit kadarı gider
     )
-    
-    matches = [MatchResponse(**m.as_dict()) for m in result.results]
-    
-    # Generate warp paths for top 50 matches (DTW path caching)
-    top_n = min(len(result.results), 50)
-    warp_paths = engine.compute_warp_paths(result.results[:top_n], query_vector)
 
-    matches_data = []
-    for idx, m in enumerate(result.results):
-        m_dict = m.as_dict()
-        if idx < len(warp_paths):
-            m_dict["warp_path"] = warp_paths[idx]
-        matches_data.append(m_dict)
+    # Hizalama yolu yalnızca ilk sayfalar için: aday başına O(32²) Python.
+    warp_paths = engine.compute_warp_paths(result.results[:WARP_PATH_TOP_N], query_vector)
+    matches = [
+        match_payload(m, request.timeframe, warp_paths[i] if i < len(warp_paths) else None)
+        for i, m in enumerate(result.results)
+    ]
 
-    matches = [MatchResponse(**m) for m in matches_data]
-
-    cached_data = {
-        "total": result.total,
-        "elapsed_ms": result.elapsed_ms,
-        "mode": request.mode,
-        "timeframe": request.timeframe,
-        "query_vector": query_vector.tolist() if hasattr(query_vector, "tolist") else list(query_vector),
-        "matches": [m.model_dump() for m in matches],
-    }
-
-    await cache.set(f"search:{search_id}", json.dumps(cached_data).encode("utf-8"), SEARCH_TTL)
+    search_id = str(uuid.uuid4())
+    await cache.set(
+        f"search:{search_id}",
+        json.dumps(
+            {
+                "total": result.total,
+                "elapsed_ms": result.elapsed_ms,
+                "mode": request.mode,
+                "timeframe": request.timeframe,
+                "tolerance": request.tolerance,
+                "discriminative": result.discriminative,
+                "warning": result.warning,
+                "query_vector": [float(v) for v in query_vector],
+                "matches": matches,
+            }
+        ).encode("utf-8"),
+        SEARCH_TTL,
+    )
 
     return SearchResponse(
         search_id=search_id,
         total=result.total,
         elapsed_ms=result.elapsed_ms,
-        data_as_of=int(time.time()),
-        stale_warning=False,
-        results=matches[: request.limit],
+        mode=request.mode,
+        timeframe=request.timeframe,
+        tolerance=request.tolerance,
+        data_as_of=freshness.data_as_of(request.timeframe),
+        stale_warning=freshness.is_stale(request.timeframe),
+        discriminative=result.discriminative,
+        warning=result.warning,
+        results=[MatchResponse(**m) for m in matches[: request.limit]],
         session=session_info,
     )
 
@@ -229,27 +339,28 @@ async def create_search(
 @app.get("/api/search/{search_id}", response_model=SearchResponse)
 async def get_search(
     search_id: str,
-    offset: int = 0,
-    limit: int = 12,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=12, ge=1, le=48),
     session_id: str = Depends(get_session_id),
 ):
-    cache = get_cache()
-    session_info = await track_session(session_id)
+    parsed = await load_search(search_id)
+    # Sayfalama yeni bir hipotez testi değildir: oturum sayacı artmaz.
+    session_info = await read_session(session_id)
+    timeframe = parsed.get("timeframe", "4h")
 
-    data = await cache.get(f"search:{search_id}")
-    if not data:
-        raise HTTPException(status_code=404, detail="Search not found or expired")
-
-    parsed = json.loads(data)
-    matches = [MatchResponse(**m) for m in parsed["matches"][offset : offset + limit]]
-
+    page = parsed["matches"][offset : offset + limit]
     return SearchResponse(
         search_id=search_id,
         total=parsed["total"],
         elapsed_ms=parsed["elapsed_ms"],
-        data_as_of=int(time.time()),
-        stale_warning=False,
-        results=matches,
+        mode=parsed.get("mode", "historical"),
+        timeframe=timeframe,
+        tolerance=parsed.get("tolerance", "medium"),
+        data_as_of=freshness.data_as_of(timeframe),
+        stale_warning=freshness.is_stale(timeframe),
+        discriminative=parsed.get("discriminative", True),
+        warning=parsed.get("warning"),
+        results=[MatchResponse(**m) for m in page],
         session=session_info,
     )
 
@@ -257,147 +368,166 @@ async def get_search(
 @app.get("/api/search/{search_id}/stats", response_model=OutcomeResponse)
 async def get_search_stats(
     search_id: str,
+    direction: str = Query(default="long", pattern="^(long|short)$"),
     session_id: str = Depends(get_session_id),
 ):
-    import numpy as np
     cache = get_cache()
-    await track_session(session_id)
+    await read_session(session_id)
 
-    cached_stats = await cache.get(f"search:{search_id}:stats")
-    if cached_stats:
-        return OutcomeResponse(**json.loads(cached_stats))
+    cached = await cache.get(f"search:{search_id}:stats:{direction}")
+    if cached:
+        return OutcomeResponse(**json.loads(cached))
 
-    data = await cache.get(f"search:{search_id}")
-    if not data:
-        raise HTTPException(status_code=404, detail="Search not found or expired")
-
-    parsed = json.loads(data)
+    parsed = await load_search(search_id)
     timeframe = parsed.get("timeframe", "4h")
-    query_vector = np.array(parsed.get("query_vector", []))
-    if query_vector.size == 0:
-        raise HTTPException(status_code=400, detail="Cached query vector missing")
 
-    engine = get_engine()
-    store = get_store(timeframe)
-    pools = get_pools(timeframe)
+    if parsed.get("mode") == "live":
+        # Radar eşleşmeleri son bardadır; ileri pencereleri henüz yoktur.
+        raise HTTPException(
+            status_code=400,
+            detail="Canlı radar sonuçlarının ileri penceresi yok; istatistik için tarihsel mod kullanın",
+        )
 
-    direction = "long"
-    outcome = run_template(
-        engine,
-        "search_query",
-        query_vector,
-        store,
-        pools,
+    matches = parsed["matches"]
+    events = np.empty(len(matches), dtype=EVENT_DTYPE)
+    for i, m in enumerate(matches):
+        events[i] = (m["symbol_id"], m["end_idx"], m["window_length"], m["atr"], m["end_time"])
+
+    outcome = run_events(
+        events,
+        get_store(timeframe),
+        get_pools(timeframe),
+        template_id="search_query",
         timeframe=timeframe,
         direction=direction,
-        limit=1000,
     )
 
-    configs_resp = {}
-    for cfg_name, stats in outcome.stats.items():
-        configs_resp[cfg_name] = to_outcome_config(stats)
-
-    res = OutcomeResponse(
-        configs=configs_resp,
-        disclaimer="Geçmiş performans gelecekteki sonuçların garantisi değildir. İstatistiksel bulgular yalnızca bilgilendirme amaçlıdır.",
-        direction=direction,
+    response = to_outcome_response(outcome)
+    await cache.set(
+        f"search:{search_id}:stats:{direction}",
+        json.dumps(response.model_dump()).encode("utf-8"),
+        OUTCOME_TTL,
     )
-    await cache.set(f"search:{search_id}:stats", json.dumps(res.model_dump()).encode("utf-8"), OUTCOME_TTL)
-    return res
+    return response
 
 
 @app.get("/api/templates", response_model=list[TemplateResponse])
 async def get_templates():
-    templates = load_all_templates()
     return [
         TemplateResponse(
             id=t_id,
             name=t.name_tr,
+            name_en=t.name_en,
             category=t.category,
-            vector=t.vector.tolist() if hasattr(t.vector, "tolist") else t.vector,
             bias=t.bias,
+            description=t.description_tr,
+            vector=[float(v) for v in t.vector],
         )
-        for t_id, t in templates.items()
+        for t_id, t in load_all_templates().items()
     ]
 
 
 @app.get("/api/chart/{symbol}", response_model=ChartResponse)
-async def get_chart(symbol: str, start: int = 0, end: int = 0, timeframe: str = "4h"):
+async def get_chart(
+    symbol: str,
+    start: int = Query(default=0, ge=0),
+    end: int = Query(default=0, ge=0),
+    timeframe: str = Query(default="4h", pattern="^(4h|1d)$"),
+    search_id: str | None = None,
+):
+    """Tek eşleşmenin mumları + blueprint katmanları.
+
+    ``search_id`` verilirse sorgu vektörü ve hizalama yolu önbellekten
+    alınır; karo "aradığın şey" ile "motorun hizaladığı şey"i birlikte gösterir.
+    """
+    engine = get_engine()
     store = get_store(timeframe)
-    sid = None
-    for sym_id, name in get_engine().symbols.items():
-        if name.upper() == symbol.upper():
-            sid = sym_id
-            break
 
-    if sid is None or sid not in store.offset:
-        return ChartResponse(
-            ohlcv=[],
-            highlight_start=start,
-            highlight_end=end,
-            blueprint_overlay=[],
-            warp_amount=None,
+    symbol_id = next(
+        (sid for sid, name in engine.symbols.items() if name.upper() == symbol.upper()), None
+    )
+    if symbol_id is None:
+        raise HTTPException(status_code=404, detail=f"Bilinmeyen sembol: {symbol}")
+
+    query: np.ndarray | None = None
+    warp_path = None
+    if search_id:
+        parsed = await load_search(search_id)
+        vector = parsed.get("query_vector") or []
+        if len(vector) == N_POINTS:
+            query = np.asarray(vector, dtype=np.float64)
+        match = next(
+            (
+                m
+                for m in parsed["matches"]
+                if m["symbol_id"] == symbol_id and m["start_idx"] == start and m["end_idx"] == end
+            ),
+            None,
         )
+        if match is not None:
+            warp_path = match.get("warp_path")
 
-    s_idx = max(0, start)
-    e_idx = min(store.close.size - 1, end) if end > 0 else min(store.close.size - 1, start + 100)
-
-    ohlcv = []
-    for i in range(s_idx, e_idx + 1):
-        ohlcv.append(
-            {
-                "time": int(store.time[i]) if hasattr(store, "time") else i * 86400000,
-                "open": float(store.open[i]),
-                "high": float(store.high[i]),
-                "low": float(store.low[i]),
-                "close": float(store.close[i]),
-                "volume": 0.0,
-            }
-        )
-
-    return ChartResponse(
-        ohlcv=ohlcv,
-        highlight_start=start,
-        highlight_end=end,
-        blueprint_overlay=[],
-        warp_amount=None,
+    return build_chart(
+        store,
+        symbol=engine.symbol_name(symbol_id),
+        symbol_id=symbol_id,
+        timeframe=timeframe,
+        start_idx=start,
+        end_idx=end,
+        query=query,
+        warp_path=warp_path,
     )
 
 
 @app.get("/api/findings", response_model=FindingsResponse)
 async def get_findings():
+    """F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
+
+    Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
+    cümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.
+    """
     stages = [
-        {"stage": "F4 (Ham Triple-Barrier)", "significant": 13, "total": 26, "desc": "Zaman aşımı ve fiyat bariyerleri"},
-        {
-            "stage": "F4.5 (Aylık Blok Bootstrap)",
-            "significant": 8,
-            "total": 26,
-            "desc": "Korelasyonlu bar çakışmalarının düzeltilmesi",
-        },
-        {
-            "stage": "F4.5 (Bonferroni Çoğul Test)",
-            "significant": 14,
-            "total": 52,
-            "desc": "Long ve short yönde aile bazlı düzeltme",
-        },
-        {
-            "stage": "F4.6 (Ön-Getiri Eşleştirmeli Gölge)",
-            "significant": 2,
-            "total": 52,
-            "desc": "Momentum tersine dönüşü vekillerinin elenmesi",
-        },
+        FindingStage(
+            stage="F4 — ham triple-barrier",
+            significant=13,
+            total=26,
+            desc="ATR bariyerleri, iid bootstrap, tüm-geçmiş baseline",
+        ),
+        FindingStage(
+            stage="F4.5 — ay-bloklu bootstrap",
+            significant=8,
+            total=26,
+            desc="Kesitsel korelasyon düzeltmesi; iid belirsizliği ~%29 eksik ölçüyordu",
+        ),
+        FindingStage(
+            stage="F4.5 — Bonferroni (long + short)",
+            significant=14,
+            total=52,
+            desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
+        ),
+        FindingStage(
+            stage="F4.6 — ön-getiri eşleştirmeli gölge",
+            significant=2,
+            total=52,
+            desc="Momentum vekilleri elendi: formasyona atfedilen fark çoğunlukla ön-getiriydi",
+        ),
     ]
-    full_table = []
+
+    full_table: list[dict] = []
+    f46_file = DATA_DIR / "f3" / "f46_raw.json"
     try:
-        f46_file = DATA_DIR / "f3" / "f46_raw.json"
         if f46_file.exists():
-            with open(f46_file, "r", encoding="utf-8") as f:
-                full_table = json.load(f)
-    except Exception:
-        pass
+            full_table = json.loads(f46_file.read_text(encoding="utf-8"))
+    except Exception:  # pragma: no cover - rapor dosyası opsiyonel
+        log.warning("f46_raw.json okunamadı", exc_info=True)
 
     return FindingsResponse(
         stages=stages,
         full_table=full_table,
-        methodology="F4.5/F4.6 — Aylık kesitsel likidite filtresi, blok bootstrap (takvim ayı), Bonferroni çoğul test düzeltmesi (m=52) ve F4.6 ön-getiri eşleştirmeli gölge dağılımı (±0.25σ).",
+        methodology=(
+            "Aylık kesitsel likidite filtresi (üst %40), takvim ayı bloklu bootstrap, "
+            "Bonferroni çoğul test düzeltmesi (m=52) ve ön-getiri eşleştirmeli gölge "
+            "dağılım (±0.25σ). Bariyerler ATR tabanlıdır; aynı barda TP ve SL "
+            "çarpıldığında SL varsayılır."
+        ),
     )
