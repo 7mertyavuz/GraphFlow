@@ -1,22 +1,103 @@
+"""F5 API testleri.
+
+Kapsam, katmanın dürüstlük iddialarına birebir karşılık gelir:
+
+* çıplak sayı dönmüyor (``StatEnvelope`` zarfı),
+* oturum sayacı yalnızca **yeni arama** sayıyor (sayfalama hipotez testi değil),
+* istatistik ekrandaki eşleşmelerden hesaplanıyor (ikinci arama yok),
+* grafik karosu doğru sembolün barlarını çiziyor (yerel ↔ global indeks),
+* normalizasyonun tek otoritesi motor (istemci ham nokta gönderir).
+"""
+
 from __future__ import annotations
 
-import json
-from unittest.mock import patch, MagicMock
+import asyncio
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from engine.api.main import app, wrap_stat
-from engine.api.schemas import StatEnvelope, OutcomeConfigResponse
+import engine.api.cache as cache_module
+from engine.api.chart import build_chart
+from engine.api.main import app, resolve_query, wrap_stat
 from engine.api.cache import InMemoryCache
+from engine.api.schemas import SearchRequest
+from engine.config import N_POINTS
+from engine.outcome.bars import BarStore
 
 client = TestClient(app)
 
+
 @pytest.fixture(autouse=True)
-def mock_cache():
-    cache = InMemoryCache()
-    with patch("engine.api.cache.get_cache", return_value=cache):
-        yield cache
+def fresh_cache():
+    """Her test kendi önbelleğiyle başlar.
+
+    ``get_cache`` modül global'ini okur; singleton'ı değiştirmek onu içe
+    aktarmış tüm modüller için geçerlidir (main, session).
+    """
+    previous = cache_module._cache_instance
+    cache_module._cache_instance = InMemoryCache()
+    yield cache_module._cache_instance
+    cache_module._cache_instance = previous
+
+
+@pytest.fixture(autouse=True)
+def stub_freshness():
+    """Tazelik gerçek parquet deposunu tarar; testte sabitlenir."""
+    snapshot = {"4h": {"symbols": 1, "newest_open_time": 1_700_000_000_000, "stale_bars": 0.5, "limit_bars": 3, "ok": True}}
+    with patch("engine.api.freshness.snapshot", return_value=snapshot), patch(
+        "engine.api.freshness.data_as_of", return_value=1_700_000_000_000
+    ), patch("engine.api.freshness.is_stale", return_value=False):
+        yield
+
+
+def _match_dict(i: int, **over) -> dict:
+    data = {
+        "symbol": f"SYM{i}",
+        "symbol_id": i,
+        "timeframe": "4h",
+        "window_length": 24,
+        "start_idx": 100,
+        "end_idx": 123,
+        "end_time": 1_600_000_000_000,
+        "score": 0.9,
+        "distance": 0.1,
+        "amplitude": 10.0,
+        "atr": 1.0,
+        "percentile": 0.01,
+        "warp_path": None,
+    }
+    data.update(over)
+    return data
+
+
+def _mock_result(n: int):
+    result = MagicMock()
+    matches = []
+    for i in range(n):
+        m = MagicMock()
+        m.as_dict.return_value = _match_dict(i)
+        m.end_time = 1_600_000_000_000
+        m.window_length = 24
+        matches.append(m)
+    result.results = matches
+    result.total = n
+    result.elapsed_ms = 5.0
+    result.discriminative = True
+    result.warning = None
+    return result
+
+
+def _query_points() -> list[float]:
+    """Belirgin bir çanak — düz olmayan geçerli çizim."""
+    return list(np.linspace(-1, 1, 40) ** 2 * -1)
+
+
+# ---------------------------------------------------------------------------
+# Zarf
+# ---------------------------------------------------------------------------
+
 
 def test_stat_envelope_completeness():
     envelope = wrap_stat(
@@ -27,8 +108,8 @@ def test_stat_envelope_completeness():
         n_events=100,
         n_months=12,
         significant=True,
-        verdict="significant difference",
-        design_effect=1.2
+        verdict="anlamlı fark",
+        design_effect=1.2,
     )
     assert envelope.value == 1.5
     assert envelope.ci95 == [1.0, 2.0]
@@ -37,91 +118,325 @@ def test_stat_envelope_completeness():
     assert envelope.n_events == 100
     assert envelope.n_months == 12
     assert envelope.significant is True
-    assert envelope.verdict == "significant difference"
     assert envelope.design_effect == 1.2
     assert envelope.shadow is None
+    assert envelope.unit == "R"
 
-def test_stale_data_health():
-    with patch("engine.api.health._get_staleness", return_value={"freshness": 100, "stale_warning": True}):
-        response = client.get("/api/health")
-        assert response.status_code == 200
-        assert response.json()["stale_warning"] is True
-        assert response.json()["data_freshness"] == 100
-
-def test_session_counter():
-    headers = {"X-Session-ID": "test-session-123"}
-    
-    # Needs a real engine mock to return SearchResult
-    mock_result = MagicMock()
-    mock_result.results = []
-    mock_result.total = 0
-    mock_result.elapsed_ms = 10.0
-    
-    with patch("engine.api.main.get_engine") as mock_engine:
-        mock_engine.return_value.search.return_value = mock_result
-        
-        # Call 1
-        resp1 = client.post("/api/search", json={"points": [1.0, 2.0]}, headers=headers)
-        assert resp1.status_code == 200
-        sess1 = resp1.json()["session"]
-        assert sess1["session_queries"] == 1
-        assert sess1["multiple_comparison_warning"] is False
-        assert sess1["adjusted_alpha"] == 0.05
-        
-        # Call 2
-        resp2 = client.post("/api/search", json={"points": [1.0, 2.0]}, headers=headers)
-        assert resp2.status_code == 200
-        sess2 = resp2.json()["session"]
-        assert sess2["session_queries"] == 2
-        assert sess2["multiple_comparison_warning"] is True
-        assert sess2["adjusted_alpha"] == 0.025
-
-def test_pagination_cache():
-    headers = {"X-Session-ID": "test-session-pagi"}
-    mock_result = MagicMock()
-    # Create 20 mock matches
-    mock_matches = []
-    for i in range(20):
-        m = MagicMock()
-        m.as_dict.return_value = {
-            "symbol": f"SYM{i}", "symbol_id": i, "timeframe": "4h",
-            "window_length": 24, "start_idx": 0, "end_idx": 10,
-            "end_time": 1000, "score": 0.9, "distance": 0.1,
-            "amplitude": 10.0, "atr": 1.0, "percentile": 0.01,
-            "warp_path": None
-        }
-        mock_matches.append(m)
-        
-    mock_result.results = mock_matches
-    mock_result.total = 20
-    mock_result.elapsed_ms = 5.0
-    
-    with patch("engine.api.main.get_engine") as mock_engine:
-        mock_engine.return_value.search.return_value = mock_result
-        
-        # First request (creates search)
-        resp1 = client.post("/api/search", json={"points": [1.0, 2.0]}, headers=headers)
-        assert resp1.status_code == 200
-        search_id = resp1.json()["search_id"]
-        assert len(resp1.json()["results"]) == 12  # default limit
-        
-        # Second request (gets page 2)
-        mock_engine.return_value.search.assert_called_once() # Reset call count checking
-        mock_engine.return_value.search.reset_mock()
-        
-        resp2 = client.get(f"/api/search/{search_id}?offset=12&limit=12", headers=headers)
-        assert resp2.status_code == 200
-        assert len(resp2.json()["results"]) == 8
-        assert resp2.json()["results"][0]["symbol"] == "SYM12"
-        
-        # Engine should NOT have been called again
-        mock_engine.return_value.search.assert_not_called()
 
 def test_significant_verdict():
-    # CI contains zero
-    env1 = wrap_stat(0.01, (-0.05, 0.07), "bootstrap", significant=False)
-    assert env1.significant is False
-    
-    # CI strictly positive
-    env2 = wrap_stat(0.05, (0.01, 0.09), "bootstrap", significant=True)
-    assert env2.significant is True
+    assert wrap_stat(0.01, (-0.05, 0.07), "bootstrap", significant=False).significant is False
+    assert wrap_stat(0.05, (0.01, 0.09), "bootstrap", significant=True).significant is True
+
+
+# ---------------------------------------------------------------------------
+# Sağlık
+# ---------------------------------------------------------------------------
+
+
+def test_health_reports_staleness_from_store():
+    stale = {"1d": {"symbols": 3, "newest_open_time": 100, "stale_bars": 500.0, "limit_bars": 3, "ok": False}}
+    with patch("engine.api.freshness.snapshot", return_value=stale):
+        response = client.get("/api/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["stale_warning"] is True
+    assert body["data_as_of"] == 100
+    assert body["timeframes"]["1d"]["stale_bars"] == 500.0
+
+
+# ---------------------------------------------------------------------------
+# Sorgu çözümleme — normalizasyonun tek otoritesi motor
+# ---------------------------------------------------------------------------
+
+
+def test_raw_drawing_is_normalized_server_side():
+    """İstemci ham nokta gönderir; sunucu 32 noktaya indirger ve z-score'lar."""
+    vector = resolve_query(SearchRequest(points=_query_points()))
+    assert vector.shape == (N_POINTS,)
+    assert vector.mean() == pytest.approx(0.0, abs=1e-9)
+    assert vector.std() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_already_normalized_vector_is_idempotent():
+    once = resolve_query(SearchRequest(points=_query_points()))
+    twice = resolve_query(SearchRequest(points=[float(v) for v in once]))
+    assert np.allclose(once, twice, atol=1e-9)
+
+
+def test_flat_drawing_is_rejected():
+    """σ = 0 → şekil taşımayan sorgu. Motora hiç ulaşmamalı."""
+    response = client.post("/api/search", json={"points": [1.0] * 32})
+    assert response.status_code == 400
+
+
+def test_search_requires_a_query():
+    assert client.post("/api/search", json={}).status_code == 400
+
+
+def test_unknown_template_is_rejected():
+    response = client.post("/api/search", json={"template_id": "yok_boyle_bir_sey"})
+    assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Oturum sayacı
+# ---------------------------------------------------------------------------
+
+
+def test_session_counter_counts_new_searches():
+    headers = {"X-Session-ID": "oturum-1"}
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(0)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+
+        first = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+        assert first.json()["session"]["session_queries"] == 1
+        assert first.json()["session"]["multiple_comparison_warning"] is False
+
+        second = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+        session = second.json()["session"]
+        assert session["session_queries"] == 2
+        assert session["multiple_comparison_warning"] is True
+        assert session["adjusted_alpha"] == 0.025
+        assert session["warning_text"]
+
+
+def test_pagination_does_not_inflate_session_counter():
+    """"Daha fazla" yeni bir hipotez testi değildir — Bonferroni cezası yok."""
+    headers = {"X-Session-ID": "oturum-2"}
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(20)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+        created = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+
+    search_id = created.json()["search_id"]
+    for _ in range(3):
+        page = client.get(f"/api/search/{search_id}?offset=12&limit=12", headers=headers)
+        assert page.status_code == 200
+    assert page.json()["session"]["session_queries"] == 1
+
+
+def test_counter_window_expires():
+    """Süresiz sayaç hız limitini kalıcı kilide, oturumu sonsuz cezaya çevirirdi."""
+    cache = InMemoryCache()
+    clock = {"t": 1_000.0}
+    with patch("engine.api.cache.time.time", lambda: clock["t"]):
+        assert asyncio.run(cache.incr("k", 60)) == 1
+        assert asyncio.run(cache.incr("k", 60)) == 2
+        assert asyncio.run(cache.count("k")) == 2
+
+        clock["t"] += 61
+        assert asyncio.run(cache.count("k")) == 0
+        assert asyncio.run(cache.incr("k", 60)) == 1
+
+
+def test_count_does_not_create_a_counter():
+    cache = InMemoryCache()
+    assert asyncio.run(cache.count("hic-yok")) == 0
+
+
+# ---------------------------------------------------------------------------
+# Sayfalama
+# ---------------------------------------------------------------------------
+
+
+def test_pagination_serves_from_cache():
+    headers = {"X-Session-ID": "oturum-3"}
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(20)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+
+        created = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+        assert created.status_code == 200
+        assert len(created.json()["results"]) == 12  # varsayılan limit
+        search_id = created.json()["search_id"]
+
+        mock_engine.return_value.search.reset_mock()
+        page = client.get(f"/api/search/{search_id}?offset=12&limit=12", headers=headers)
+
+        assert len(page.json()["results"]) == 8
+        assert page.json()["results"][0]["symbol"] == "SYM12"
+        # Tüm matris yeniden skorlanmaz (K-08)
+        mock_engine.return_value.search.assert_not_called()
+
+
+def test_match_carries_window_start_time():
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(1)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+        response = client.post("/api/search", json={"points": _query_points()})
+
+    match = response.json()["results"][0]
+    step = 4 * 3_600_000
+    assert match["start_time"] == match["end_time"] - 23 * step
+
+
+def test_missing_search_is_404():
+    assert client.get("/api/search/yok-boyle-bir-id").status_code == 404
+
+
+def test_live_mode_has_no_outcome_stats():
+    """Radar eşleşmesinin ileri penceresi yoktur; istatistik uydurulmaz."""
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(3)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+        created = client.post(
+            "/api/search", json={"points": _query_points(), "mode": "live"}
+        )
+
+    search_id = created.json()["search_id"]
+    assert client.get(f"/api/search/{search_id}/stats").status_code == 400
+
+
+def test_stats_use_the_matches_the_user_sees():
+    """``/stats`` ikinci bir arama çalıştırmaz; ekrandaki olaylar girdidir."""
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.search.return_value = _mock_result(4)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+        created = client.post("/api/search", json={"points": _query_points()})
+        search_id = created.json()["search_id"]
+
+        outcome = MagicMock()
+        outcome.stats = {}
+        outcome.matches = 4
+        outcome.events = 4
+        outcome.dropped_separation = 0
+        outcome.dropped_filters = 0
+        outcome.direction = "long"
+        outcome.shadow_report = {}
+
+        mock_engine.return_value.search.reset_mock()
+        with patch("engine.api.main.get_store"), patch("engine.api.main.get_pools"), patch(
+            "engine.api.main.run_events", return_value=outcome
+        ) as run:
+            response = client.get(f"/api/search/{search_id}/stats")
+
+        assert response.status_code == 200
+        assert response.json()["n_events"] == 4
+        assert response.json()["disclaimer"]
+        mock_engine.return_value.search.assert_not_called()
+
+        events = run.call_args[0][0]
+        assert events.size == 4
+        assert list(events["t0"]) == [123] * 4  # eşleşmelerin bitiş barı
+
+
+# ---------------------------------------------------------------------------
+# Grafik karosu
+# ---------------------------------------------------------------------------
+
+
+def _two_symbol_store() -> BarStore:
+    """İki sembol: ilki 200 bar (fiyat ~100), ikincisi 200 bar (fiyat ~5000)."""
+    rng = np.random.default_rng(7)
+    arrays = {}
+    for sid, base in ((1, 100.0), (2, 5000.0)):
+        close = base * (1 + 0.01 * np.cumsum(rng.normal(size=200)))
+        close = np.abs(close) + base * 0.1
+        arrays[sid] = {
+            "open": close,
+            "high": close * 1.01,
+            "low": close * 0.99,
+            "close": close,
+            "open_time": (1_600_000_000_000 + np.arange(200) * 14_400_000),
+            "symbol": f"S{sid}",
+        }
+    return BarStore.from_arrays(arrays)
+
+
+def test_chart_uses_symbol_local_indices():
+    """``start_idx`` sembol-yereldir; ofset unutulursa başka sembol çizilir."""
+    store = _two_symbol_store()
+    chart = build_chart(store, "S2", 2, "4h", start_idx=50, end_idx=73)
+
+    prices = [c.close for c in chart.ohlcv]
+    assert min(prices) > 1000  # ikinci sembolün fiyat bandı
+    expected = store.close[store.offset[2] + 50]
+    assert chart.ohlcv[chart.highlight_start].close == pytest.approx(expected)
+
+
+def test_chart_highlight_is_relative_to_returned_bars():
+    store = _two_symbol_store()
+    chart = build_chart(store, "S1", 1, "4h", start_idx=80, end_idx=103)
+
+    assert 0 <= chart.highlight_start < chart.highlight_end < len(chart.ohlcv)
+    assert chart.highlight_end - chart.highlight_start == 23
+    # Bağlam barları: formasyon nereden geldi, sonra ne oldu
+    assert chart.highlight_start > 0
+    assert chart.highlight_end < len(chart.ohlcv) - 1
+
+
+def test_chart_times_are_real_seconds():
+    store = _two_symbol_store()
+    chart = build_chart(store, "S1", 1, "4h", start_idx=10, end_idx=33)
+    assert chart.ohlcv[0].time == 1_600_000_000_000 // 1000 + 0  # ms → s
+    assert chart.ohlcv[1].time - chart.ohlcv[0].time == 14_400
+
+
+def test_blueprint_overlay_sits_on_the_price_scale():
+    """Blueprint, normalizasyonun tersi: z-score → log fiyat → fiyat."""
+    store = _two_symbol_store()
+    query = np.linspace(-1.5, 1.5, N_POINTS)
+    chart = build_chart(store, "S2", 2, "4h", start_idx=40, end_idx=103, query=query)
+
+    assert len(chart.blueprint_overlay) == N_POINTS
+    window = store.close[store.offset[2] + 40 : store.offset[2] + 104]
+    values = [p.value for p in chart.blueprint_overlay]
+    assert min(values) > window.min() * 0.3
+    assert max(values) < window.max() * 3.0
+    # Zaman ekseni pencerenin içinde kalmalı
+    times = [p.time for p in chart.blueprint_overlay]
+    assert times == sorted(times)
+    assert chart.ohlcv[chart.highlight_start].time <= times[0]
+    assert times[-1] <= chart.ohlcv[chart.highlight_end].time
+
+
+def test_warped_overlay_needs_a_path():
+    store = _two_symbol_store()
+    query = np.linspace(-1.5, 1.5, N_POINTS)
+    without = build_chart(store, "S1", 1, "4h", start_idx=40, end_idx=71, query=query)
+    assert without.warped_overlay == []
+    assert without.warp_amount is None
+
+    path = [[i, i] for i in range(N_POINTS)]  # köşegen: bükülme yok
+    with_path = build_chart(
+        store, "S1", 1, "4h", start_idx=40, end_idx=71, query=query, warp_path=path
+    )
+    assert len(with_path.warped_overlay) == N_POINTS
+    assert with_path.warp_amount == pytest.approx(0.0)
+
+
+def test_chart_clamps_out_of_range_window():
+    store = _two_symbol_store()
+    chart = build_chart(store, "S1", 1, "4h", start_idx=190, end_idx=400)
+    assert len(chart.ohlcv) > 0
+    assert chart.highlight_end < len(chart.ohlcv)
+
+
+def test_unknown_symbol_chart_is_404():
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.symbols = {1: "BTCUSDT"}
+        with patch("engine.api.main.get_store", return_value=_two_symbol_store()):
+            assert client.get("/api/chart/YOKUSDT?start=0&end=10").status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Şablonlar ve bulgular
+# ---------------------------------------------------------------------------
+
+
+def test_templates_expose_vectors_and_descriptions():
+    response = client.get("/api/templates")
+    assert response.status_code == 200
+    templates = response.json()
+    assert len(templates) == 14
+    for t in templates:
+        assert len(t["vector"]) == N_POINTS
+        assert t["name"] and t["category"]
+
+
+def test_findings_report_every_stage():
+    """Elenen bulgular da raporlanır — 'anlamlı 2' sayısı tek başına yanıltıcı."""
+    body = client.get("/api/findings").json()
+    assert [s["significant"] for s in body["stages"]] == [13, 8, 14, 2]
+    assert "Bonferroni" in body["methodology"]
