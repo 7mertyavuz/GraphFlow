@@ -1,40 +1,35 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { Providers } from "@/providers";
+
+import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { Providers } from "@/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+import "./globals.css";
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GraphFlow — Görsel Formasyon Arama Motoru",
+  title: "GraphFlow — görsel formasyon arama motoru",
   description:
-    "Grafik formasyonları için görsel arama motoru. Geçmişte ne olduğunu dürüstçe raporlar.",
+    "Bir formasyon çizin, gerçek piyasa verisinde benzerlerini bulun ve o formasyondan sonra geçmişte ne olduğunu baseline'lı olarak görün.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      <body className="app-backdrop flex min-h-dvh flex-col bg-background text-foreground antialiased">
         <Providers>
           <Header />
-          {children}
+          <div className="flex flex-1 flex-col">{children}</div>
+          <Footer />
         </Providers>
       </body>
     </html>
