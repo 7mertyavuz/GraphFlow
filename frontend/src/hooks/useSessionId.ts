@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+const KEY = "gf-session-id";
 
 function generateUUID(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -13,24 +13,14 @@ function generateUUID(): string {
   });
 }
 
-export function useSessionId(): string {
-  const [sessionId, setSessionId] = useState<string>("");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const key = "gf-session-id";
-    let id = window.localStorage.getItem(key);
-    if (!id) {
-      id = generateUUID();
-      window.localStorage.setItem(key, id);
-    }
-    setSessionId(id);
-  }, []);
-
-  return sessionId;
+/** Oturum kimliğini okur, yoksa üretir. Sunucuda boş döner. */
+export function getOrCreateSessionId(): string {
+  if (typeof window === "undefined") return "";
+  let id = window.localStorage.getItem(KEY);
+  if (!id) {
+    id = generateUUID();
+    window.localStorage.setItem(KEY, id);
+  }
+  return id;
 }
 
-export function getStoredSessionId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("gf-session-id");
-}

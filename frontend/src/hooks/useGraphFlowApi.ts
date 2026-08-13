@@ -1,117 +1,132 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import {
-  useQuery,
+  useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
 import {
   createSearch,
+  getChart,
+  getFindings,
+  getHealth,
   getSearch,
   getSearchStats,
   getTemplates,
+  type Direction,
+  type Match,
+  type SearchRequest,
+  type SearchResponse,
 } from "@/services/endpoints";
-import { type paths } from "@/types/api";
 
-export type SearchMode = "historical" | "live";
-export type Tolerance = "strict" | "medium" | "flexible";
-export type Timeframe = "4h" | "1d";
-
-export type SearchPayload =
-  paths["/api/search"]["post"]["requestBody"]["content"]["application/json"];
-
-export type SearchResponse =
-  paths["/api/search"]["post"]["responses"]["200"]["content"]["application/json"];
-
-export type OutcomeResponse =
-  paths["/api/search/{search_id}/stats"]["get"]["responses"]["200"]["content"]["application/json"];
-
-export type TemplateResponse =
-  paths["/api/templates"]["get"]["responses"]["200"]["content"]["application/json"];
+export const PAGE_SIZE = 12;
 
 export function useTemplates() {
   return useQuery({
     queryKey: ["templates"],
     queryFn: getTemplates,
+    staleTime: Infinity, // şablon kütüphanesi sürüm başına sabittir
   });
+}
+
+export function useHealth() {
+  return useQuery({
+    queryKey: ["health"],
+    queryFn: getHealth,
+    refetchInterval: 120_000,
+    retry: false,
+  });
+}
+
+export function useFindings() {
+  return useQuery({ queryKey: ["findings"], queryFn: getFindings, staleTime: Infinity });
 }
 
 export function useCreateSearch() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createSearch,
+    mutationFn: (payload: SearchRequest) => createSearch(payload),
     onSuccess: (data) => {
-      queryClient.setQueryData(["search", data.search_id], data);
-    },
-  });
-}
-
-export function useSearchResults(searchId: string | null, offset = 0, limit = 12) {
-  return useQuery({
-    queryKey: ["search", searchId, offset, limit],
-    queryFn: () => {
-      if (!searchId) throw new Error("searchId gerekli");
-      return getSearch({ search_id: searchId, offset, limit });
-    },
-    enabled: !!searchId,
-  });
-}
-
-export type Match = SearchResponse["results"][number];
-
-export function usePaginatedSearch(searchId: string | null, limit = 12) {
-  const [offset, setOffset] = useState(0);
-  const [results, setResults] = useState<Match[]>([]);
-  const [total, setTotal] = useState(0);
-
-  const { data, isLoading, isFetching } = useSearchResults(searchId, offset, limit);
-
-  useEffect(() => {
-    if (data) {
-      setTotal(data.total);
-      setResults((prev) => {
-        if (offset === 0) return data.results;
-        const existing = new Set(prev.map((r) => `${r.symbol}-${r.start_idx}-${r.window_length}`));
-        const next = [...prev];
-        data.results.forEach((r) => {
-          const key = `${r.symbol}-${r.start_idx}-${r.window_length}`;
-          if (!existing.has(key)) next.push(r);
-        });
-        return next;
+      // İlk sayfa zaten yanıtta: aynı veriyi ikinci kez çekmeyelim.
+      queryClient.setQueryData(["search", data.search_id, PAGE_SIZE], {
+        pages: [data],
+        pageParams: [0],
       });
-    }
-  }, [data, offset]);
+    },
+  });
+}
 
-  useEffect(() => {
-    setOffset(0);
-    setResults([]);
-    setTotal(0);
-  }, [searchId]);
+/**
+ * Sayfalama önbellekten beslenir: "Daha fazla" tüm matrisi yeniden
+ * skorlamaz, sunucudaki arama havuzundan sonraki dilimi ister (K-08).
+ */
+export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
+  const query = useInfiniteQuery({
+    queryKey: ["search", searchId, limit],
+    enabled: Boolean(searchId),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => getSearch(searchId as string, pageParam as number, limit),
+    getNextPageParam: (lastPage: SearchResponse, pages: SearchResponse[]) => {
+      const loaded = pages.reduce((sum, page) => sum + page.results.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
+  });
 
-  const loadMore = useCallback(() => {
-    if (!isFetching && results.length < total) {
-      setOffset(results.length);
-    }
-  }, [isFetching, results.length, total]);
+  const results: Match[] = useMemo(
+    () => query.data?.pages.flatMap((page) => page.results) ?? [],
+    [query.data]
+  );
+  const head = query.data?.pages[0];
 
   return {
     results,
-    total,
-    isLoading: isLoading && offset === 0,
-    isFetching,
-    loadMore,
-    hasMore: results.length < total,
+    total: head?.total ?? 0,
+    warning: head?.warning ?? null,
+    discriminative: head?.discriminative ?? true,
+    staleWarning: head?.stale_warning ?? false,
+    dataAsOf: head?.data_as_of ?? 0,
+    elapsedMs: head?.elapsed_ms ?? 0,
+    isLoading: query.isLoading,
+    isFetchingNextPage: query.isFetchingNextPage,
+    hasMore: Boolean(query.hasNextPage),
+    loadMore: useCallback(() => {
+      if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
+    }, [query]),
+    error: query.error,
   };
 }
 
-export function useSearchStats(searchId: string | null) {
+export function useSearchStats(searchId: string | null, direction: Direction = "long") {
   return useQuery({
-    queryKey: ["search", searchId, "stats"],
-    queryFn: () => {
-      if (!searchId) throw new Error("searchId gerekli");
-      return getSearchStats(searchId);
-    },
-    enabled: !!searchId,
+    queryKey: ["search", searchId, "stats", direction],
+    queryFn: () => getSearchStats(searchId as string, direction),
+    enabled: Boolean(searchId),
+    retry: false,
+  });
+}
+
+export function useChart(match: Match | null, searchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: [
+      "chart",
+      match?.symbol,
+      match?.start_idx,
+      match?.end_idx,
+      match?.timeframe,
+      searchId,
+    ],
+    enabled: Boolean(match) && enabled,
+    staleTime: 5 * 60_000,
+    queryFn: () =>
+      getChart({
+        symbol: (match as Match).symbol,
+        start: (match as Match).start_idx,
+        end: (match as Match).end_idx,
+        timeframe: (match as Match).timeframe,
+        searchId: searchId ?? undefined,
+      }),
   });
 }

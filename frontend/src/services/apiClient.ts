@@ -2,22 +2,37 @@
 
 import axios from "axios";
 
+import { getOrCreateSessionId } from "@/hooks/useSessionId";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
+  timeout: 60_000,
 });
 
+/**
+ * Oturum kimliği her istekte gider: sunucu denenen şekil sayısını sayar ve
+ * Bonferroni düzeltilmiş α'yı yanıtla birlikte döner (çoklu karşılaştırma).
+ */
 apiClient.interceptors.request.use((config) => {
-  if (typeof window !== "undefined") {
-    const sessionId = window.localStorage.getItem("gf-session-id");
-    if (sessionId) {
-      config.headers["X-Session-Id"] = sessionId;
-    }
+  const sessionId = getOrCreateSessionId();
+  if (sessionId) {
+    config.headers.set?.("X-Session-Id", sessionId);
   }
   return config;
 });
+
+/** Sunucunun Türkçe `detail` mesajını yüzeye çıkarır. */
+export function errorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (error.code === "ERR_NETWORK") {
+      return "API'ye ulaşılamıyor. Sunucu çalışıyor mu? (uvicorn engine.api.main:app)";
+    }
+  }
+  return fallback;
+}

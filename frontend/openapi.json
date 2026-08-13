@@ -1,0 +1,1208 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GraphFlow API",
+    "description": "Görsel formasyon arama motoru — ölçülmüş geçmiş dağılım, sinyal değil.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "post": {
+        "summary": "Create Search",
+        "operationId": "create_search_api_search_post",
+        "parameters": [
+          {
+            "name": "x-session-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Session-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/{search_id}": {
+      "get": {
+        "summary": "Get Search",
+        "operationId": "get_search_api_search__search_id__get",
+        "parameters": [
+          {
+            "name": "search_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Search Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 48,
+              "minimum": 1,
+              "default": 12,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "x-session-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Session-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/{search_id}/stats": {
+      "get": {
+        "summary": "Get Search Stats",
+        "operationId": "get_search_stats_api_search__search_id__stats_get",
+        "parameters": [
+          {
+            "name": "search_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Search Id"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(long|short)$",
+              "default": "long",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "x-session-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Session-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutcomeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "summary": "Get Templates",
+        "operationId": "get_templates_api_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Templates Api Templates Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chart/{symbol}": {
+      "get": {
+        "summary": "Get Chart",
+        "description": "Tek eşleşmenin mumları + blueprint katmanları.\n\n``search_id`` verilirse sorgu vektörü ve hizalama yolu önbellekten\nalınır; karo \"aradığın şey\" ile \"motorun hizaladığı şey\"i birlikte gösterir.",
+        "operationId": "get_chart_api_chart__symbol__get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Symbol"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "End"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(4h|1d)$",
+              "default": "4h",
+              "title": "Timeframe"
+            }
+          },
+          {
+            "name": "search_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/findings": {
+      "get": {
+        "summary": "Get Findings",
+        "description": "F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.\n\nÜrün ilkesi gereği elenen bulgular da raporlanır; \"anlamlı 2 sonuç\"\ncümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.",
+        "operationId": "get_findings_api_findings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Candle": {
+        "properties": {
+          "time": {
+            "type": "integer",
+            "title": "Time"
+          },
+          "open": {
+            "type": "number",
+            "title": "Open"
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "close": {
+            "type": "number",
+            "title": "Close"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "open",
+          "high",
+          "low",
+          "close"
+        ],
+        "title": "Candle"
+      },
+      "ChartResponse": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "timeframe": {
+            "type": "string",
+            "title": "Timeframe"
+          },
+          "ohlcv": {
+            "items": {
+              "$ref": "#/components/schemas/Candle"
+            },
+            "type": "array",
+            "title": "Ohlcv"
+          },
+          "highlight_start": {
+            "type": "integer",
+            "title": "Highlight Start"
+          },
+          "highlight_end": {
+            "type": "integer",
+            "title": "Highlight End"
+          },
+          "blueprint_overlay": {
+            "items": {
+              "$ref": "#/components/schemas/OverlayPoint"
+            },
+            "type": "array",
+            "title": "Blueprint Overlay"
+          },
+          "warped_overlay": {
+            "items": {
+              "$ref": "#/components/schemas/OverlayPoint"
+            },
+            "type": "array",
+            "title": "Warped Overlay"
+          },
+          "warp_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warp Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "timeframe",
+          "ohlcv",
+          "highlight_start",
+          "highlight_end",
+          "blueprint_overlay",
+          "warped_overlay",
+          "warp_amount"
+        ],
+        "title": "ChartResponse"
+      },
+      "FindingStage": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "significant": {
+            "type": "integer",
+            "title": "Significant"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "desc": {
+            "type": "string",
+            "title": "Desc"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "significant",
+          "total",
+          "desc"
+        ],
+        "title": "FindingStage"
+      },
+      "FindingsResponse": {
+        "properties": {
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/FindingStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "full_table": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Full Table"
+          },
+          "methodology": {
+            "type": "string",
+            "title": "Methodology"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stages",
+          "full_table",
+          "methodology"
+        ],
+        "title": "FindingsResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timeframes": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Timeframes"
+          },
+          "stale_warning": {
+            "type": "boolean",
+            "title": "Stale Warning"
+          },
+          "data_as_of": {
+            "type": "integer",
+            "title": "Data As Of"
+          },
+          "matrix_ready": {
+            "type": "boolean",
+            "title": "Matrix Ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timeframes",
+          "stale_warning",
+          "data_as_of",
+          "matrix_ready"
+        ],
+        "title": "HealthResponse"
+      },
+      "MatchResponse": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "symbol_id": {
+            "type": "integer",
+            "title": "Symbol Id"
+          },
+          "timeframe": {
+            "type": "string",
+            "title": "Timeframe"
+          },
+          "window_length": {
+            "type": "integer",
+            "title": "Window Length"
+          },
+          "start_idx": {
+            "type": "integer",
+            "title": "Start Idx"
+          },
+          "end_idx": {
+            "type": "integer",
+            "title": "End Idx"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "integer",
+            "title": "End Time"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "distance": {
+            "type": "number",
+            "title": "Distance"
+          },
+          "percentile": {
+            "type": "number",
+            "title": "Percentile"
+          },
+          "amplitude": {
+            "type": "number",
+            "title": "Amplitude"
+          },
+          "atr": {
+            "type": "number",
+            "title": "Atr"
+          },
+          "warp_path": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warp Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "symbol_id",
+          "timeframe",
+          "window_length",
+          "start_idx",
+          "end_idx",
+          "start_time",
+          "end_time",
+          "score",
+          "distance",
+          "percentile",
+          "amplitude",
+          "atr"
+        ],
+        "title": "MatchResponse"
+      },
+      "OutcomeConfigResponse": {
+        "properties": {
+          "config": {
+            "type": "string",
+            "title": "Config"
+          },
+          "k_tp": {
+            "type": "number",
+            "title": "K Tp"
+          },
+          "k_sl": {
+            "type": "number",
+            "title": "K Sl"
+          },
+          "expectancy": {
+            "$ref": "#/components/schemas/StatEnvelope"
+          },
+          "win_rate": {
+            "$ref": "#/components/schemas/StatEnvelope"
+          },
+          "edge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StatEnvelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Outcomes"
+          },
+          "truncated": {
+            "type": "integer",
+            "title": "Truncated"
+          },
+          "by_regime": {
+            "items": {
+              "$ref": "#/components/schemas/RegimeRow"
+            },
+            "type": "array",
+            "title": "By Regime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "config",
+          "k_tp",
+          "k_sl",
+          "expectancy",
+          "win_rate",
+          "edge",
+          "outcomes",
+          "truncated",
+          "by_regime"
+        ],
+        "title": "OutcomeConfigResponse"
+      },
+      "OutcomeResponse": {
+        "properties": {
+          "configs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OutcomeConfigResponse"
+            },
+            "type": "object",
+            "title": "Configs"
+          },
+          "matches": {
+            "type": "integer",
+            "title": "Matches"
+          },
+          "n_events": {
+            "type": "integer",
+            "title": "N Events"
+          },
+          "dropped_forward_overlap": {
+            "type": "integer",
+            "title": "Dropped Forward Overlap"
+          },
+          "dropped_filters": {
+            "type": "integer",
+            "title": "Dropped Filters"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "shadow": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Shadow"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configs",
+          "matches",
+          "n_events",
+          "dropped_forward_overlap",
+          "dropped_filters",
+          "direction",
+          "disclaimer"
+        ],
+        "title": "OutcomeResponse"
+      },
+      "OverlayPoint": {
+        "properties": {
+          "time": {
+            "type": "integer",
+            "title": "Time"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "OverlayPoint"
+      },
+      "RegimeRow": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "win_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Rate"
+          },
+          "expectancy_r": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectancy R"
+          },
+          "insufficient": {
+            "type": "boolean",
+            "title": "Insufficient",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "n",
+          "win_rate",
+          "expectancy_r"
+        ],
+        "title": "RegimeRow"
+      },
+      "SearchRequest": {
+        "properties": {
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "historical",
+              "live"
+            ],
+            "title": "Mode",
+            "default": "historical"
+          },
+          "timeframe": {
+            "type": "string",
+            "enum": [
+              "4h",
+              "1d"
+            ],
+            "title": "Timeframe",
+            "default": "4h"
+          },
+          "window_lengths": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Window Lengths"
+          },
+          "tolerance": {
+            "type": "string",
+            "enum": [
+              "strict",
+              "medium",
+              "flexible"
+            ],
+            "title": "Tolerance",
+            "default": "medium"
+          },
+          "min_amplitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Amplitude"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 48.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 12
+          }
+        },
+        "type": "object",
+        "title": "SearchRequest"
+      },
+      "SearchResponse": {
+        "properties": {
+          "search_id": {
+            "type": "string",
+            "title": "Search Id"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "elapsed_ms": {
+            "type": "number",
+            "title": "Elapsed Ms"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "timeframe": {
+            "type": "string",
+            "title": "Timeframe"
+          },
+          "tolerance": {
+            "type": "string",
+            "title": "Tolerance"
+          },
+          "data_as_of": {
+            "type": "integer",
+            "title": "Data As Of"
+          },
+          "stale_warning": {
+            "type": "boolean",
+            "title": "Stale Warning"
+          },
+          "discriminative": {
+            "type": "boolean",
+            "title": "Discriminative",
+            "default": true
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/MatchResponse"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "session": {
+            "$ref": "#/components/schemas/SessionInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "search_id",
+          "total",
+          "elapsed_ms",
+          "mode",
+          "timeframe",
+          "tolerance",
+          "data_as_of",
+          "stale_warning",
+          "results",
+          "session"
+        ],
+        "title": "SearchResponse"
+      },
+      "SessionInfo": {
+        "properties": {
+          "session_queries": {
+            "type": "integer",
+            "title": "Session Queries"
+          },
+          "multiple_comparison_warning": {
+            "type": "boolean",
+            "title": "Multiple Comparison Warning"
+          },
+          "adjusted_alpha": {
+            "type": "number",
+            "title": "Adjusted Alpha"
+          },
+          "warning_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_queries",
+          "multiple_comparison_warning",
+          "adjusted_alpha"
+        ],
+        "title": "SessionInfo"
+      },
+      "StatEnvelope": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "ci95": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ci95"
+          },
+          "ci_method": {
+            "type": "string",
+            "title": "Ci Method"
+          },
+          "null": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Null"
+          },
+          "shadow": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shadow"
+          },
+          "n_events": {
+            "type": "integer",
+            "title": "N Events"
+          },
+          "n_months": {
+            "type": "integer",
+            "title": "N Months"
+          },
+          "significant": {
+            "type": "boolean",
+            "title": "Significant"
+          },
+          "verdict": {
+            "type": "string",
+            "title": "Verdict"
+          },
+          "design_effect": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design Effect"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "R",
+              "ratio"
+            ],
+            "title": "Unit",
+            "default": "R"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "ci95",
+          "ci_method",
+          "null",
+          "shadow",
+          "n_events",
+          "n_months",
+          "significant",
+          "verdict",
+          "design_effect"
+        ],
+        "title": "StatEnvelope",
+        "description": "Her sayısal istatistik bu zarfla dönülür, yalın float yasaktır."
+      },
+      "TemplateResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "bias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bias"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "vector": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Vector"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "name_en",
+          "category",
+          "bias",
+          "description",
+          "vector"
+        ],
+        "title": "TemplateResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

@@ -1,66 +1,79 @@
 import { apiClient } from "./apiClient";
-import { type paths } from "@/types/api";
+import { type components } from "@/types/api";
 
-type SearchRequest =
-  paths["/api/search"]["post"]["requestBody"]["content"]["application/json"];
-type SearchResponse =
-  paths["/api/search"]["post"]["responses"]["200"]["content"]["application/json"];
+export type SearchRequest = components["schemas"]["SearchRequest"];
+export type SearchResponse = components["schemas"]["SearchResponse"];
+export type Match = components["schemas"]["MatchResponse"];
+export type OutcomeResponse = components["schemas"]["OutcomeResponse"];
+export type OutcomeConfig = components["schemas"]["OutcomeConfigResponse"];
+export type StatEnvelope = components["schemas"]["StatEnvelope"];
+export type RegimeRow = components["schemas"]["RegimeRow"];
+export type Template = components["schemas"]["TemplateResponse"];
+export type ChartResponse = components["schemas"]["ChartResponse"];
+export type FindingsResponse = components["schemas"]["FindingsResponse"];
+export type HealthResponse = components["schemas"]["HealthResponse"];
+export type SessionInfo = components["schemas"]["SessionInfo"];
 
-type GetSearchParams = {
-  search_id: string;
-  offset?: number;
-  limit?: number;
-};
-
-type PaginatedSearchResponse =
-  paths["/api/search/{search_id}"]["get"]["responses"]["200"]["content"]["application/json"];
-
-type OutcomeResponse =
-  paths["/api/search/{search_id}/stats"]["get"]["responses"]["200"]["content"]["application/json"];
-
-type TemplateResponse =
-  paths["/api/templates"]["get"]["responses"]["200"]["content"]["application/json"];
-
-type ChartResponse =
-  paths["/api/chart/{symbol}"]["get"]["responses"]["200"]["content"]["application/json"];
+export type Mode = SearchRequest["mode"];
+export type Timeframe = SearchRequest["timeframe"];
+export type Tolerance = SearchRequest["tolerance"];
+export type Direction = "long" | "short";
 
 export async function createSearch(payload: SearchRequest): Promise<SearchResponse> {
-  const res = await apiClient.post<SearchResponse>("/search", payload);
-  return res.data;
+  const { data } = await apiClient.post<SearchResponse>("/search", payload);
+  return data;
 }
 
-export async function getSearch({
-  search_id,
+export async function getSearch(
+  searchId: string,
   offset = 0,
-  limit = 12,
-}: GetSearchParams): Promise<PaginatedSearchResponse> {
-  const res = await apiClient.get<PaginatedSearchResponse>(
-    `/search/${search_id}`,
-    { params: { offset, limit } }
-  );
-  return res.data;
-}
-
-export async function getSearchStats(search_id: string): Promise<OutcomeResponse> {
-  const res = await apiClient.get<OutcomeResponse>(`/search/${search_id}/stats`);
-  return res.data;
-}
-
-export async function getTemplates(): Promise<TemplateResponse> {
-  const res = await apiClient.get<TemplateResponse>("/templates");
-  return res.data;
-}
-
-export async function getChart(
-  symbol: string,
-  params: {
-    start: number;
-    end: number;
-    timeframe?: string;
-  }
-): Promise<ChartResponse> {
-  const res = await apiClient.get<ChartResponse>(`/chart/${symbol}`, {
-    params,
+  limit = 12
+): Promise<SearchResponse> {
+  const { data } = await apiClient.get<SearchResponse>(`/search/${searchId}`, {
+    params: { offset, limit },
   });
-  return res.data;
+  return data;
+}
+
+export async function getSearchStats(
+  searchId: string,
+  direction: Direction = "long"
+): Promise<OutcomeResponse> {
+  const { data } = await apiClient.get<OutcomeResponse>(`/search/${searchId}/stats`, {
+    params: { direction },
+  });
+  return data;
+}
+
+export async function getTemplates(): Promise<Template[]> {
+  const { data } = await apiClient.get<Template[]>("/templates");
+  return data;
+}
+
+export async function getChart(params: {
+  symbol: string;
+  start: number;
+  end: number;
+  timeframe: string;
+  searchId?: string;
+}): Promise<ChartResponse> {
+  const { data } = await apiClient.get<ChartResponse>(`/chart/${params.symbol}`, {
+    params: {
+      start: params.start,
+      end: params.end,
+      timeframe: params.timeframe,
+      search_id: params.searchId,
+    },
+  });
+  return data;
+}
+
+export async function getFindings(): Promise<FindingsResponse> {
+  const { data } = await apiClient.get<FindingsResponse>("/findings");
+  return data;
+}
+
+export async function getHealth(): Promise<HealthResponse> {
+  const { data } = await apiClient.get<HealthResponse>("/health");
+  return data;
 }

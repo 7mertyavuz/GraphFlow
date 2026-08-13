@@ -96,7 +96,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Chart */
+        /**
+         * Get Chart
+         * @description Tek eşleşmenin mumları + blueprint katmanları.
+         *
+         *     ``search_id`` verilirse sorgu vektörü ve hizalama yolu önbellekten
+         *     alınır; karo "aradığın şey" ile "motorun hizaladığı şey"i birlikte gösterir.
+         */
         get: operations["get_chart_api_chart__symbol__get"];
         put?: never;
         post?: never;
@@ -113,7 +119,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Findings */
+        /**
+         * Get Findings
+         * @description F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
+         *
+         *     Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
+         *     cümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.
+         */
         get: operations["get_findings_api_findings_get"];
         put?: never;
         post?: never;
@@ -127,29 +139,53 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Candle */
+        Candle: {
+            /** Time */
+            time: number;
+            /** Open */
+            open: number;
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+            /** Close */
+            close: number;
+        };
         /** ChartResponse */
         ChartResponse: {
+            /** Symbol */
+            symbol: string;
+            /** Timeframe */
+            timeframe: string;
             /** Ohlcv */
-            ohlcv: {
-                [key: string]: unknown;
-            }[];
+            ohlcv: components["schemas"]["Candle"][];
             /** Highlight Start */
             highlight_start: number;
             /** Highlight End */
             highlight_end: number;
             /** Blueprint Overlay */
-            blueprint_overlay: {
-                [key: string]: unknown;
-            }[];
+            blueprint_overlay: components["schemas"]["OverlayPoint"][];
+            /** Warped Overlay */
+            warped_overlay: components["schemas"]["OverlayPoint"][];
             /** Warp Amount */
             warp_amount: number | null;
+        };
+        /** FindingStage */
+        FindingStage: {
+            /** Stage */
+            stage: string;
+            /** Significant */
+            significant: number;
+            /** Total */
+            total: number;
+            /** Desc */
+            desc: string;
         };
         /** FindingsResponse */
         FindingsResponse: {
             /** Stages */
-            stages: {
-                [key: string]: unknown;
-            }[];
+            stages: components["schemas"]["FindingStage"][];
             /** Full Table */
             full_table: {
                 [key: string]: unknown;
@@ -161,6 +197,23 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthResponse */
+        HealthResponse: {
+            /** Status */
+            status: string;
+            /** Timeframes */
+            timeframes: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** Stale Warning */
+            stale_warning: boolean;
+            /** Data As Of */
+            data_as_of: number;
+            /** Matrix Ready */
+            matrix_ready: boolean;
         };
         /** MatchResponse */
         MatchResponse: {
@@ -176,18 +229,20 @@ export interface components {
             start_idx: number;
             /** End Idx */
             end_idx: number;
+            /** Start Time */
+            start_time: number;
             /** End Time */
             end_time: number;
             /** Score */
             score: number;
             /** Distance */
             distance: number;
+            /** Percentile */
+            percentile: number;
             /** Amplitude */
             amplitude: number;
             /** Atr */
             atr: number;
-            /** Percentile */
-            percentile: number;
             /** Warp Path */
             warp_path?: number[][] | null;
         };
@@ -195,6 +250,10 @@ export interface components {
         OutcomeConfigResponse: {
             /** Config */
             config: string;
+            /** K Tp */
+            k_tp: number;
+            /** K Sl */
+            k_sl: number;
             expectancy: components["schemas"]["StatEnvelope"];
             win_rate: components["schemas"]["StatEnvelope"];
             edge: components["schemas"]["StatEnvelope"] | null;
@@ -205,9 +264,7 @@ export interface components {
             /** Truncated */
             truncated: number;
             /** By Regime */
-            by_regime: {
-                [key: string]: unknown;
-            }[];
+            by_regime: components["schemas"]["RegimeRow"][];
         };
         /** OutcomeResponse */
         OutcomeResponse: {
@@ -215,10 +272,45 @@ export interface components {
             configs: {
                 [key: string]: components["schemas"]["OutcomeConfigResponse"];
             };
-            /** Disclaimer */
-            disclaimer: string;
+            /** Matches */
+            matches: number;
+            /** N Events */
+            n_events: number;
+            /** Dropped Forward Overlap */
+            dropped_forward_overlap: number;
+            /** Dropped Filters */
+            dropped_filters: number;
             /** Direction */
             direction: string;
+            /** Shadow */
+            shadow?: {
+                [key: string]: unknown;
+            };
+            /** Disclaimer */
+            disclaimer: string;
+        };
+        /** OverlayPoint */
+        OverlayPoint: {
+            /** Time */
+            time: number;
+            /** Value */
+            value: number;
+        };
+        /** RegimeRow */
+        RegimeRow: {
+            /** Period */
+            period: string;
+            /** N */
+            n: number;
+            /** Win Rate */
+            win_rate: number | null;
+            /** Expectancy R */
+            expectancy_r: number | null;
+            /**
+             * Insufficient
+             * @default false
+             */
+            insufficient: boolean;
         };
         /** SearchRequest */
         SearchRequest: {
@@ -262,10 +354,23 @@ export interface components {
             total: number;
             /** Elapsed Ms */
             elapsed_ms: number;
+            /** Mode */
+            mode: string;
+            /** Timeframe */
+            timeframe: string;
+            /** Tolerance */
+            tolerance: string;
             /** Data As Of */
             data_as_of: number;
             /** Stale Warning */
             stale_warning: boolean;
+            /**
+             * Discriminative
+             * @default true
+             */
+            discriminative: boolean;
+            /** Warning */
+            warning?: string | null;
             /** Results */
             results: components["schemas"]["MatchResponse"][];
             session: components["schemas"]["SessionInfo"];
@@ -278,6 +383,8 @@ export interface components {
             multiple_comparison_warning: boolean;
             /** Adjusted Alpha */
             adjusted_alpha: number;
+            /** Warning Text */
+            warning_text?: string | null;
         };
         /**
          * StatEnvelope
@@ -304,6 +411,12 @@ export interface components {
             verdict: string;
             /** Design Effect */
             design_effect: number | null;
+            /**
+             * Unit
+             * @default R
+             * @enum {string}
+             */
+            unit: "R" | "ratio";
         };
         /** TemplateResponse */
         TemplateResponse: {
@@ -311,12 +424,16 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+            /** Name En */
+            name_en: string;
             /** Category */
             category: string;
-            /** Vector */
-            vector: number[];
             /** Bias */
             bias: string | null;
+            /** Description */
+            description: string;
+            /** Vector */
+            vector: number[];
         };
         /** ValidationError */
         ValidationError: {
@@ -351,9 +468,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };
@@ -431,7 +546,9 @@ export interface operations {
     };
     get_search_stats_api_search__search_id__stats_get: {
         parameters: {
-            query?: never;
+            query?: {
+                direction?: string;
+            };
             header?: {
                 "x-session-id"?: string | null;
             };
@@ -488,6 +605,7 @@ export interface operations {
                 start?: number;
                 end?: number;
                 timeframe?: string;
+                search_id?: string | null;
             };
             header?: never;
             path: {
