@@ -97,11 +97,13 @@ def get_engine() -> SearchEngine:
 
 def get_store(timeframe: str = "4h") -> BarStore:
     if timeframe not in _stores:
-        engine = get_engine()
+        # symbol_id uzayı zaman dilimi başınadır; haritayı karıştırmak bar
+        # deposunda başka sembolün fiyatlarını okumak demektir.
+        symbols = get_engine().symbols_for(timeframe)
         _stores[timeframe] = BarStore.from_klines(
-            symbols=list(engine.symbols.values()),
+            symbols=list(symbols.values()),
             timeframe=timeframe,
-            ids={v: k for k, v in engine.symbols.items()},
+            ids={name: sid for sid, name in symbols.items()},
         )
     return _stores[timeframe]
 
@@ -443,9 +445,7 @@ async def get_chart(
     engine = get_engine()
     store = get_store(timeframe)
 
-    symbol_id = next(
-        (sid for sid, name in engine.symbols.items() if name.upper() == symbol.upper()), None
-    )
+    symbol_id = engine.symbol_id_of(symbol, timeframe)
     if symbol_id is None:
         raise HTTPException(status_code=404, detail=f"Bilinmeyen sembol: {symbol}")
 
@@ -469,7 +469,7 @@ async def get_chart(
 
     return build_chart(
         store,
-        symbol=engine.symbol_name(symbol_id),
+        symbol=engine.symbol_name(symbol_id, timeframe),
         symbol_id=symbol_id,
         timeframe=timeframe,
         start_idx=start,

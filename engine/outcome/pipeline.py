@@ -236,7 +236,8 @@ def run_all_templates(
     from engine.templates import load_all
 
     engine = SearchEngine(matrix_root)
-    symbols_dict = engine.symbols
+    # symbol_id uzayı zaman dilimi başınadır (4h ve 1d evrenleri farklı).
+    symbols_dict = engine.symbols_for(timeframe)
     symbols = list(symbols_dict.values())
     ids = {name: sid for sid, name in symbols_dict.items()}
     store = BarStore.from_klines(symbols, timeframe, ids, klines_root)

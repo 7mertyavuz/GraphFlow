@@ -90,7 +90,8 @@ def run_proxy_test(
     all_templates = load_all()
 
     engine = SearchEngine()
-    symbols_dict = engine.symbols
+    # symbol_id uzayı zaman dilimi başınadır (4h ve 1d evrenleri farklı).
+    symbols_dict = engine.symbols_for(timeframe)
     symbols = list(symbols_dict.values())
     ids = {name: sid for sid, name in symbols_dict.items()}
     store = BarStore.from_klines(symbols, timeframe, ids)

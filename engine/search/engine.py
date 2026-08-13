@@ -57,7 +57,13 @@ from engine.config import (
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
-from engine.matrix.build import META_FILE, VECTORS_FILE, matrix_dir
+from engine.matrix.build import (
+    LEGACY_SYMBOLS_FILE,
+    META_FILE,
+    VECTORS_FILE,
+    matrix_dir,
+    symbols_file,
+)
 from engine.matrix.npy_store import load_matrix
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
@@ -256,31 +262,59 @@ class SearchEngine:
     ) -> None:
         self.matrix_root = Path(matrix_root or MATRIX_DIR)
         self._handles: dict[tuple[str, int], MatrixHandle] = {}
-        self.symbols = self._resolve_symbols(symbols)
+        self._override = self._as_map(symbols)
+        self._symbol_maps: dict[str, dict[int, str]] = {}
         # Null dağılımı (sorgu, uzunluk, metrik, maske) başına sabittir; Radar
         # cron'u aynı şablonları 5 dakikada bir çalıştırdığı için önbelleğe
         # alınması ilk çağrı dışındaki tüm maliyeti kaldırır (§6).
         self._null_cache: dict[tuple, np.ndarray] = {}
 
     # -- semboller --------------------------------------------------------
+    #
+    # ``symbol_id`` uzayı **zaman dilimi başınadır**: 4h evreni likit alt
+    # kümedir, 1d evreni tüm geçmişi kapsar; aynı id iki dilimde iki farklı
+    # sembole düşer. Tek bir global harita tutmak, 1d eşleşmelerinin sembol
+    # adı yerine "#897" görünmesine yol açmıştı.
 
-    def _resolve_symbols(self, symbols) -> dict[int, str]:
+    @staticmethod
+    def _as_map(symbols) -> dict[int, str] | None:
         if isinstance(symbols, dict):
             return {int(k): str(v) for k, v in symbols.items()}
         if symbols is not None:
             return {i: s for i, s in enumerate(symbols)}
+        return None
 
-        path = self.matrix_root / "symbols.json"
-        if path.exists():
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return {int(v): str(k) for k, v in data.items()}
+    def symbols_for(self, timeframe: str) -> dict[int, str]:
+        """``symbol_id → sembol`` haritası (zaman dilimi başına, önbellekli)."""
+        if self._override is not None:
+            return self._override
+        cached = self._symbol_maps.get(timeframe)
+        if cached is not None:
+            return cached
+
+        for name in (symbols_file(timeframe), LEGACY_SYMBOLS_FILE):
+            path = self.matrix_root / name
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                mapping = {int(v): str(k) for k, v in data.items()}
+                self._symbol_maps[timeframe] = mapping
+                return mapping
 
         from engine.ingest.symbol_universe import load_universe
 
-        return {int(r["symbol_id"]): r["symbol"] for r in load_universe()}
+        mapping = {int(r["symbol_id"]): r["symbol"] for r in load_universe()}
+        self._symbol_maps[timeframe] = mapping
+        return mapping
 
-    def symbol_name(self, symbol_id: int) -> str:
-        return self.symbols.get(int(symbol_id), f"#{int(symbol_id)}")
+    def symbol_name(self, symbol_id: int, timeframe: str) -> str:
+        return self.symbols_for(timeframe).get(int(symbol_id), f"#{int(symbol_id)}")
+
+    def symbol_id_of(self, symbol: str, timeframe: str) -> int | None:
+        target = symbol.upper()
+        for sid, name in self.symbols_for(timeframe).items():
+            if name.upper() == target:
+                return sid
+        return None
 
     # -- matris erişimi ---------------------------------------------------
 
@@ -522,7 +556,7 @@ class SearchEngine:
 
     def _to_match(self, c: np.void, timeframe: str) -> Match:
         return Match(
-            symbol=self.symbol_name(int(c["symbol_id"])),
+            symbol=self.symbol_name(int(c["symbol_id"]), timeframe),
             symbol_id=int(c["symbol_id"]),
             timeframe=timeframe,
             window_length=int(c["length"]),

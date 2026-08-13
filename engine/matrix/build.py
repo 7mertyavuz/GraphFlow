@@ -53,9 +53,17 @@ log = logging.getLogger(__name__)
 VECTORS_FILE = "vectors.npy"
 META_FILE = "meta.npy"
 
+#: Eski, zaman diliminden bağımsız harita. Yalnızca geriye dönük okuma için.
+LEGACY_SYMBOLS_FILE = "symbols.json"
+
 
 def matrix_dir(timeframe: str, length: int, root: Path | None = None) -> Path:
     return Path(root or MATRIX_DIR) / f"{timeframe}_{length}"
+
+
+def symbols_file(timeframe: str) -> str:
+    """``symbol_id → sembol`` haritasının dosya adı (zaman dilimi başına)."""
+    return f"symbols_{timeframe}.json"
 
 
 @dataclass
@@ -241,6 +249,9 @@ def build_all(
                 log.info("%s: sabitlenmiş %d parite atlandı (%s...)", timeframe, len(pegged), ", ".join(pegged[:3]))
 
         # symbol_id evrende yoksa (ör. sadece test verisi) sıralı id ata.
+        # Not: id uzayı zaman dilimi başınadır — 4h ve 1d evrenleri farklı
+        # (4h yalnızca likit alt küme), aynı id iki dilimde iki farklı sembole
+        # düşer. Harita bu yüzden zaman dilimi başına yazılır.
         for s in tf_symbols:
             ids.setdefault(s, len(ids))
 
@@ -252,9 +263,13 @@ def build_all(
             log.info("%s likidite: %d (sembol, ay) çifti likit", timeframe, len(mask))
 
         # SearchEngine'in symbol_id → sembol adı çözebilmesi için (matris
-        # meta'sındaki id'ler bu haritaya referans verir).
+        # meta'sındaki id'ler bu haritaya referans verir). Tek bir global
+        # symbols.json yazmak, son işlenen zaman diliminin haritasının
+        # diğerini ezmesi demekti: 1d eşleşmeleri sembol adı yerine "#897"
+        # olarak görünüyordu.
         write_json_atomic(
-            {s: int(ids[s]) for s in tf_symbols}, Path(out_root or MATRIX_DIR) / "symbols.json"
+            {s: int(ids[s]) for s in tf_symbols},
+            Path(out_root or MATRIX_DIR) / symbols_file(timeframe),
         )
 
         for length in lengths:

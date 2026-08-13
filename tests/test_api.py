@@ -415,9 +415,30 @@ def test_chart_clamps_out_of_range_window():
 
 def test_unknown_symbol_chart_is_404():
     with patch("engine.api.main.get_engine") as mock_engine:
-        mock_engine.return_value.symbols = {1: "BTCUSDT"}
+        mock_engine.return_value.symbol_id_of.return_value = None
         with patch("engine.api.main.get_store", return_value=_two_symbol_store()):
             assert client.get("/api/chart/YOKUSDT?start=0&end=10").status_code == 404
+
+
+def test_symbol_id_space_is_per_timeframe(tmp_path):
+    """Aynı id iki zaman diliminde iki farklı sembole düşer.
+
+    Tek global harita tutmak, 1d eşleşmelerinin 4h sembol adıyla
+    etiketlenmesi demekti — sessiz ve tehlikeli bir hata.
+    """
+    from engine.matrix.build import symbols_file
+    from engine.search.engine import SearchEngine
+
+    (tmp_path / symbols_file("4h")).write_text('{"AAVEUSDT": 0}', encoding="utf-8")
+    (tmp_path / symbols_file("1d")).write_text('{"ZRXUSDT": 0}', encoding="utf-8")
+
+    engine = SearchEngine(matrix_root=tmp_path)
+    assert engine.symbol_name(0, "4h") == "AAVEUSDT"
+    assert engine.symbol_name(0, "1d") == "ZRXUSDT"
+    assert engine.symbol_id_of("zrxusdt", "1d") == 0
+    assert engine.symbol_id_of("ZRXUSDT", "4h") is None
+    # Haritası olmayan id gizlenmez, "#id" olarak görünür
+    assert engine.symbol_name(99, "1d") == "#99"
 
 
 # ---------------------------------------------------------------------------
