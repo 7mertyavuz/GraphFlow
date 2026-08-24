@@ -1,6 +1,6 @@
 "use client";
 
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 
 import { getOrCreateSessionId } from "@/hooks/useSessionId";
 
@@ -21,12 +21,15 @@ apiClient.interceptors.request.use((config) => {
   const sessionId = getOrCreateSessionId();
   if (!sessionId) return config;
 
-  // `set` yoksa sessizce atlamak, oturum sayacını hiç artmayan bir sayaca
-  // yani hiç görünmeyen bir Bonferroni uyarısına çevirirdi.
-  if (typeof config.headers?.set === "function") {
+  // Başlığı sessizce düşürmek, oturum sayacını hiç artmayan bir sayaca —
+  // yani hiç görünmeyen bir Bonferroni uyarısına — çevirirdi.
+  if (config.headers instanceof AxiosHeaders) {
     config.headers.set("X-Session-Id", sessionId);
   } else {
-    config.headers = { ...config.headers, "X-Session-Id": sessionId } as typeof config.headers;
+    config.headers = AxiosHeaders.from({
+      ...(config.headers as Record<string, string> | undefined),
+      "X-Session-Id": sessionId,
+    });
   }
   return config;
 });

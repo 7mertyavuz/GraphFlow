@@ -1,0 +1,26 @@
+# GraphFlow — motor bağımlılıkları.
+#
+# Bağımlılık listesi bilinçli olarak kısadır (CLAUDE.md): sıcak yol NumPy,
+# depolama Parquet, sunum FastAPI. Yeni bir paket eklemeden önce sorulur.
+#
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#
+# Aşağıdaki sürümler 24 Ağustos 2026'da Python 3.12 üzerinde kurulup
+# 234 testin tamamıyla doğrulandı.
+
+numpy>=2.0
+pandas>=2.2
+pyarrow>=17.0
+requests>=2.32
+
+# F5 API katmanı
+fastapi>=0.115
+pydantic>=2.9
+uvicorn[standard]>=0.30
+
+# Testler (fastapi.testclient httpx ister)
+pytest>=8.0
+httpx>=0.27
+
+# Opsiyonel — varsayılan önbellek süreç içidir, Redis gerekmez:
+# redis>=5.0

@@ -2,9 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "graphflow-api",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": ["engine.api.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "port": 8000
+    },
+    {
       "name": "graphflow-frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "export PATH=\"$HOME/.local/opt/node/bin:$PATH\"; exec npm run dev -- --port 3000"
+      ],
       "cwd": "frontend",
       "port": 3000
     }
