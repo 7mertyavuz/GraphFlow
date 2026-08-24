@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import { cn } from "@/lib/utils";
 import { smoothPath } from "@/utils/shape";
 
@@ -24,10 +26,14 @@ export function ShapeThumb({
   filled = true,
   strokeClassName = "stroke-brand",
 }: ShapeThumbProps) {
+  // SVG id'leri belge genelindedir: içerikten türetilen id, aynı uzunlukta ve
+  // aynı değerle başlayan iki şablonda çakışıp ikinci karonun dolgusunu
+  // birincininkine bağlıyordu.
+  // (":" React'in ürettiği id'lerde var ve `url(#...)` içinde sorun çıkarır)
+  const areaId = `thumb${useId().replace(/:/g, "")}`;
   if (values.length < 2) return null;
   const pad = 4;
   const d = smoothPath(values, width, height, pad);
-  const areaId = `thumb-${values.length}-${Math.round(values[0] * 1000)}`;
 
   return (
     <svg

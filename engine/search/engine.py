@@ -343,7 +343,7 @@ class SearchEngine:
         null_sample: int = NULL_SAMPLE_SIZE,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
-        # ~4-8x büyüktür (K-11 yeniden açıldı).
+        # ~4-8x büyüktür (K-11, F3 kalibrasyonu).
         thresholds = TOLERANCE_THRESHOLDS_BY_METRIC.get(metric)
         if thresholds is None:
             raise ValueError(f"'{metric}' metriği için kalibre edilmiş eşik yok")

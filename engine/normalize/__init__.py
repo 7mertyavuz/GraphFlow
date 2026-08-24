@@ -3,6 +3,8 @@
 from engine.normalize.amplitude import amplitude, amplitude_batch
 from engine.normalize.atr import atr_at, true_range, wilder_atr
 from engine.normalize.pipeline import (
+    antialias,
+    monotone_xy,
     normalize_batch,
     normalize_drawing,
     normalize_window,
@@ -12,6 +14,8 @@ from engine.normalize.pipeline import (
 
 __all__ = [
     "amplitude",
+    "antialias",
+    "monotone_xy",
     "amplitude_batch",
     "atr_at",
     "true_range",

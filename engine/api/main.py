@@ -223,6 +223,11 @@ def resolve_query(request: SearchRequest) -> np.ndarray:
     gönderir, sunucu ``normalize_drawing`` ile 32 noktaya indirger ve
     z-score'lar. Şablon seçmek ile aynı şekli çizmek bu yüzden birebir aynı
     yoldur (K-04); iki farklı normalizasyon iki farklı sonuç listesi üretemez.
+
+    ``points`` hem ``[y, ...]`` hem ``[[x, y], ...]`` kabul eder. İkincisi
+    tercih edilir: kullanıcı çizerken hızlanıp yavaşlar, noktalar x ekseninde
+    düzgün dağılmaz. x'i istemcide düzgün ızgaraya oturtmak, sunucuya
+    "bu noktalar eşit aralıklı" yalanını söylemektir.
     """
     if request.template_id:
         templates = load_all_templates()
@@ -232,11 +237,22 @@ def resolve_query(request: SearchRequest) -> np.ndarray:
         return np.asarray(template.vector, dtype=np.float64)
 
     if request.points:
-        points = np.asarray(request.points, dtype=np.float64)
-        if points.size < 2 or not np.all(np.isfinite(points)):
+        try:
+            points = np.asarray(request.points, dtype=np.float64)
+        except ValueError:  # düzensiz (ragged) liste
+            raise HTTPException(status_code=400, detail="Çizim noktaları düzensiz") from None
+        if points.ndim == 2 and points.shape[1] != 2:
+            raise HTTPException(status_code=400, detail="Nokta çiftleri [x, y] olmalı")
+        if points.ndim not in (1, 2) or len(points) < 2 or not np.all(np.isfinite(points)):
             raise HTTPException(status_code=400, detail="Çizim en az 2 geçerli nokta içermeli")
         # invert_y=False: istemci y eksenini zaten yukarı-pozitif gönderir.
-        vector = normalize_drawing(points, invert_y=False)
+        #
+        # smooth=True yalnızca burada: serbest çizim, bar verisinin aksine
+        # alçak geçirenden geçmemiş ham bir el hareketidir; 32 noktaya
+        # indirgemeden önce filtrelenmezse titreme aliasing ile çizilmemiş
+        # yapıya dönüşür. Şablonlar bu bayrağı almaz — F3 eşikleri onların
+        # filtrelenmemiş vektörlerinden kalibre edildi.
+        vector = normalize_drawing(points, invert_y=False, smooth=True)
         if vector is None:
             raise HTTPException(
                 status_code=400,
@@ -479,6 +495,71 @@ async def get_chart(
     )
 
 
+def _load_findings_file(name: str) -> list[dict]:
+    """``data/f3`` altındaki ölçüm dosyası; yoksa boş liste."""
+    path = DATA_DIR / "f3" / name
+    try:
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, list) else []
+    except Exception:  # pragma: no cover - rapor dosyası opsiyonel
+        log.warning("%s okunamadı", name, exc_info=True)
+    return []
+
+
+def _finding_stages() -> list[FindingStage]:
+    """Eleme zinciri sayıları — **ölçüm dosyalarından**, elle değil.
+
+    Bu sayılar önceden sabit kodluydu ve veriyle çelişiyordu (ör. F4.5
+    Bonferroni "14/52" yazıyordu, ``f45_bonferroni.json`` ise 2 diyor —
+    üstelik Bonferroni bir sayıyı artıramaz). Dürüstlük sayfasının kendi
+    ölçümüne uymaması, sayfanın anlatmaya çalıştığı şeyin tam tersidir.
+    """
+    f4 = _load_findings_file("f4_bonferroni.json")
+    f45_raw = _load_findings_file("f45_raw.json")
+    f45_bonf = _load_findings_file("f45_bonferroni.json")
+    f46 = _load_findings_file("f46_raw.json")
+
+    def block_significant(row: dict) -> bool:
+        lo, hi = row.get("blok_alt"), row.get("blok_ust")
+        return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
+
+    measurable_45 = [r for r in f45_raw if r.get("olculebilir")]
+    bonf_measurable = [r for r in f45_bonf if r.get("olculebilir")]
+
+    return [
+        FindingStage(
+            stage="F4 — ham triple-barrier",
+            significant=sum(1 for r in f4 if r.get("anlamli95")),
+            total=len(f4),
+            desc="ATR bariyerleri, iid bootstrap, tüm-geçmiş baseline",
+        ),
+        FindingStage(
+            stage="F4.5 — ay-bloklu bootstrap",
+            significant=sum(1 for r in measurable_45 if block_significant(r)),
+            total=len(measurable_45),
+            desc="Kesitsel korelasyon düzeltmesi; iid belirsizliği ~%29 eksik ölçüyordu",
+        ),
+        FindingStage(
+            stage="F4.5 — Bonferroni (long + short)",
+            significant=sum(1 for r in bonf_measurable if r.get("bonf_anlamli")),
+            total=len(bonf_measurable),
+            desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
+        ),
+        FindingStage(
+            stage="F4.6 — ön-getiri eşleştirmeli gölge ⚠ yeniden koşulmalı",
+            significant=sum(1 for r in f46 if r.get("edge_is_significant")),
+            total=len(f46),
+            desc=(
+                "Bu tablo, zaman dilimi başına sembol haritası düzeltilmeden "
+                "önce üretildi: 1d koşumu 4h evreninin haritasını okudu, olay "
+                "sayısı N=252'den N=2–7'ye düştü. Sayılar yorumlanmamalıdır; "
+                "faz `python -m tools.f46_proxy_test` ile yeniden koşulmalı."
+            ),
+        ),
+    ]
+
+
 @app.get("/api/findings", response_model=FindingsResponse)
 async def get_findings():
     """F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
@@ -486,32 +567,7 @@ async def get_findings():
     Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
     cümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.
     """
-    stages = [
-        FindingStage(
-            stage="F4 — ham triple-barrier",
-            significant=13,
-            total=26,
-            desc="ATR bariyerleri, iid bootstrap, tüm-geçmiş baseline",
-        ),
-        FindingStage(
-            stage="F4.5 — ay-bloklu bootstrap",
-            significant=8,
-            total=26,
-            desc="Kesitsel korelasyon düzeltmesi; iid belirsizliği ~%29 eksik ölçüyordu",
-        ),
-        FindingStage(
-            stage="F4.5 — Bonferroni (long + short)",
-            significant=14,
-            total=52,
-            desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
-        ),
-        FindingStage(
-            stage="F4.6 — ön-getiri eşleştirmeli gölge",
-            significant=2,
-            total=52,
-            desc="Momentum vekilleri elendi: formasyona atfedilen fark çoğunlukla ön-getiriydi",
-        ),
-    ]
+    stages = _finding_stages()
 
     full_table: list[dict] = []
     f46_file = DATA_DIR / "f3" / "f46_raw.json"

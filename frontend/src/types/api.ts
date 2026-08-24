@@ -315,7 +315,7 @@ export interface components {
         /** SearchRequest */
         SearchRequest: {
             /** Points */
-            points?: number[] | null;
+            points?: number[] | number[][] | null;
             /** Template Id */
             template_id?: string | null;
             /**

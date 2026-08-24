@@ -8,12 +8,31 @@
 
 export type Point = { x: number; y: number };
 
-/** Eşit aralıklı n noktaya indirger (x artan varsayılır). */
+/**
+ * x ekseninde tek değerli hâle getirir — ``y = f(x)``.
+ *
+ * Sıralamak **değil**: sola dönen bir el, sıralamada y değerlerinin yeniden
+ * dizilmesine yani çizilmemiş bir şekle yol açar. Geri dönülen aralık
+ * yeniden çiziliyor demektir; sonra yazan kazanır. Sunucudaki
+ * ``engine/normalize/pipeline.py:monotone_xy`` ile aynı kuraldır — iki taraf
+ * ayrışırsa önizleme ile aranan şekil ayrışır.
+ */
+export function monotoneByX(points: Point[]): Point[] {
+  const out: Point[] = [];
+  for (const p of points) {
+    while (out.length > 0 && out[out.length - 1].x >= p.x) out.pop();
+    out.push(p);
+  }
+  return out;
+}
+
+/** Eşit aralıklı n noktaya indirger. */
 export function resample(points: Point[], n = 32): number[] {
   if (points.length === 0) return [];
   if (points.length === 1) return new Array(n).fill(points[0].y);
 
-  const sorted = [...points].sort((a, b) => a.x - b.x);
+  const sorted = monotoneByX(points);
+  if (sorted.length === 1) return new Array(n).fill(sorted[0].y);
   const minX = sorted[0].x;
   const maxX = sorted[sorted.length - 1].x;
   const span = Math.max(1e-9, maxX - minX);

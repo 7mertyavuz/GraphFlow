@@ -169,6 +169,59 @@ def test_flat_drawing_is_rejected():
     assert response.status_code == 400
 
 
+def test_xy_pairs_are_accepted():
+    """İstemci ham (x, y) gönderir: çizim hızı düzensizdir, x ızgarası bilgidir."""
+    ys = _query_points()
+    # Kullanıcı ortada yavaşlamış: noktalar x'te düzgün dağılmıyor.
+    xs = np.sqrt(np.linspace(0.0, 1.0, len(ys)))
+    vector = resolve_query(SearchRequest(points=[[float(x), float(y)] for x, y in zip(xs, ys)]))
+    assert vector.shape == (N_POINTS,)
+    assert vector.std() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_xy_pairs_use_the_x_grid():
+    """x sütunu yok sayılırsa düzensiz çizim yanlış şekle dönüşür."""
+    ys = _query_points()
+    uneven_x = np.sqrt(np.linspace(0.0, 1.0, len(ys)))
+
+    with_x = resolve_query(
+        SearchRequest(points=[[float(x), float(y)] for x, y in zip(uneven_x, ys)])
+    )
+    assume_even = resolve_query(SearchRequest(points=[float(y) for y in ys]))
+    assert not np.allclose(with_x, assume_even, atol=1e-3)
+
+
+def test_backtracking_drawing_is_not_reordered():
+    """Sola dönen el sorguyu bozmamalı (bkz. test_normalize:monotone_xy)."""
+    ys = _query_points()
+    xs = list(np.linspace(0.0, 1.0, len(ys)))
+
+    clean = resolve_query(SearchRequest(points=[[x, float(y)] for x, y in zip(xs, ys)]))
+    # Son çeyreği çizip geri dönerek yeniden çiz.
+    cut = int(len(ys) * 0.75)
+    messy_pts = [[x, float(y)] for x, y in zip(xs, ys)]
+    messy_pts = messy_pts[:] + [[xs[i], float(ys[i])] for i in range(cut, len(ys))]
+    messy = resolve_query(SearchRequest(points=messy_pts))
+    np.testing.assert_allclose(clean, messy, atol=1e-9)
+
+
+def test_single_xy_point_is_rejected():
+    """(1, 2) dizinin `size` değeri 2'dir ama tek noktadır."""
+    response = client.post("/api/search", json={"points": [[0.5, 0.5]]})
+    assert response.status_code in (400, 422)
+
+
+def test_malformed_point_pairs_are_rejected():
+    response = client.post("/api/search", json={"points": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]})
+    assert response.status_code in (400, 422)
+
+
+def test_oversized_drawing_is_rejected():
+    """Üst sınır: dev yük interpolasyonu şişirmesin."""
+    response = client.post("/api/search", json={"points": [0.0, 1.0] * 4_096})
+    assert response.status_code == 422
+
+
 def test_search_requires_a_query():
     assert client.post("/api/search", json={}).status_code == 400
 
@@ -474,5 +527,41 @@ def test_templates_expose_vectors_and_descriptions():
 def test_findings_report_every_stage():
     """Elenen bulgular da raporlanır — 'anlamlı 2' sayısı tek başına yanıltıcı."""
     body = client.get("/api/findings").json()
-    assert [s["significant"] for s in body["stages"]] == [13, 8, 14, 2]
+    assert len(body["stages"]) == 4
     assert "Bonferroni" in body["methodology"]
+    for stage in body["stages"]:
+        assert 0 <= stage["significant"] <= stage["total"]
+
+
+def test_findings_counts_come_from_the_measurement_files():
+    """Sayılar elle yazılamaz.
+
+    Sabit kodluyken veriyle çelişiyorlardı: F4.5 Bonferroni "14/52" yazıyordu,
+    ``f45_bonferroni.json`` ise 2 diyor. Dürüstlük sayfasının kendi ölçümüne
+    uymaması, sayfanın anlatmaya çalıştığı şeyin tam tersidir.
+    """
+    from engine.api.main import _load_findings_file
+
+    rows = _load_findings_file("f45_bonferroni.json")
+    if not rows:
+        pytest.skip("ölçüm dosyası yok (data/f3)")
+
+    measurable = [r for r in rows if r.get("olculebilir")]
+    expected = sum(1 for r in measurable if r.get("bonf_anlamli"))
+
+    body = client.get("/api/findings").json()
+    bonferroni = next(s for s in body["stages"] if "Bonferroni" in s["stage"])
+    assert bonferroni["significant"] == expected
+    assert bonferroni["total"] == len(measurable)
+
+
+def test_bonferroni_cannot_increase_the_significant_count():
+    """Düzeltme bir sayıyı artıramaz; artıyorsa aşamalar karışmıştır."""
+    body = client.get("/api/findings").json()
+    by_stage = {s["stage"]: s for s in body["stages"]}
+    block = next(s for name, s in by_stage.items() if "ay-bloklu" in name)
+    bonf = next(s for name, s in by_stage.items() if "Bonferroni" in name)
+    if block["total"] == 0 or bonf["total"] == 0:
+        pytest.skip("ölçüm dosyası yok (data/f3)")
+    assert bonf["total"] == block["total"], "aynı test ailesi olmalı"
+    assert bonf["significant"] <= block["significant"]

@@ -77,8 +77,9 @@ export function QueryPanel({
       min_amplitude: minAmplitude[0],
       limit: 12,
       window_lengths: [24, 40, 64, 100],
-      // Ham noktalar gider; 32'ye indirgeme ve z-score sunucuda (K-02).
-      points: usingTemplate ? null : draw.series,
+      // Ham (x, y) noktaları gider; 32'ye indirgeme, aliasing filtresi ve
+      // z-score sunucuda (K-02). İstemci kendi ızgarasını dayatmaz.
+      points: usingTemplate ? null : draw.queryPoints,
       template_id: usingTemplate ? template.id : null,
     });
   };

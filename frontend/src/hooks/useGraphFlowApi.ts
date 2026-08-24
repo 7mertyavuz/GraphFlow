@@ -70,6 +70,11 @@ export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
     initialPageParam: 0,
     queryFn: ({ pageParam }) => getSearch(searchId as string, pageParam as number, limit),
     getNextPageParam: (lastPage: SearchResponse, pages: SearchResponse[]) => {
+      // Eksik sayfa = havuz bitti. `total` motorun bulduğu eşleşme sayısıdır
+      // ama sunucu bunun yalnızca ilk SEARCH_CACHE_MATCHES tanesini
+      // önbelleğe alır (K-08). Yalnız `total`'a bakmak, havuz tükendikten
+      // sonra da "Daha fazla" tuşunu açık bırakıp boş sayfa döndürüyordu.
+      if (lastPage.results.length < limit) return undefined;
       const loaded = pages.reduce((sum, page) => sum + page.results.length, 0);
       return loaded < lastPage.total ? loaded : undefined;
     },

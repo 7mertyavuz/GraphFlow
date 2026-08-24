@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, Field
 
@@ -21,10 +21,27 @@ Tolerance = Literal["strict", "medium", "flexible"]
 Mode = Literal["historical", "live"]
 
 
+#: Tek istekte kabul edilen en fazla ham çizim noktası. Bir kalem darbesi
+#: pratikte birkaç yüz nokta üretir; üst sınır kazara/kötü niyetli dev
+#: yüklerin interpolasyonu şişirmesini engeller.
+MAX_DRAWING_POINTS: Final[int] = 4_096
+
+#: Kısıt union'ın kendisine değil **üyelerine** takılır: Pydantic v2, bir
+#: union şemasına doğrudan uygulanan uzunluk kısıtını reddeder.
+DrawingSeries = Annotated[list[float], Field(max_length=MAX_DRAWING_POINTS)]
+DrawingPairs = Annotated[list[list[float]], Field(max_length=MAX_DRAWING_POINTS)]
+
+
 class SearchRequest(BaseModel):
-    #: Serbest çizim. Herhangi bir uzunlukta olabilir; sunucu 32 noktaya
-    #: indirger ve z-score'lar (tek normalizasyon otoritesi motordadır).
-    points: list[float] | None = None
+    #: Serbest çizim. İki biçim kabul edilir:
+    #:
+    #: * ``[y0, y1, ...]``      — eşit aralıklı varsayılır (geriye dönük)
+    #: * ``[[x0, y0], ...]``    — **tercih edilen**: kullanıcının çizim hızı
+    #:   düzensizdir, x ızgarasını istemcinin uydurması bilgi kaybıdır
+    #:
+    #: Her iki durumda da 32 noktaya indirgeme ve z-score sunucudadır: tek
+    #: normalizasyon otoritesi motordur (K-02/K-04).
+    points: DrawingSeries | DrawingPairs | None = None
     template_id: str | None = None
     mode: Mode = "historical"
     timeframe: Timeframe = "4h"

@@ -839,7 +839,18 @@
                 "items": {
                   "type": "number"
                 },
-                "type": "array"
+                "type": "array",
+                "maxItems": 4096
+              },
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array",
+                "maxItems": 4096
               },
               {
                 "type": "null"

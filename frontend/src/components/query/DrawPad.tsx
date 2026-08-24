@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eraser, MousePointer2 } from "lucide-react";
 
 import { type Point } from "@/utils/shape";
@@ -20,6 +20,11 @@ interface DrawPadProps {
  *
  * Kütüphane yok: gereken şey bir yol çizmek ve noktaları toplamaktır;
  * Fabric/Konva bu iş için 100 satırlık işi 200 KB'a çevirirdi.
+ *
+ * **Ölçekleme ile boyama ayrı efektlerdedir.** Aynı efektte olduklarında her
+ * pointermove'da ``canvas.width`` yeniden atanıyordu; bu, bitmap'i yeniden
+ * tahsis eden pahalı bir işlemdir ve uzun darbelerde kare düşürerek nokta
+ * kaybettiriyordu — kullanıcının "çizimi tutmuyor" dediği şey buydu.
  */
 export function DrawPad({
   points,
@@ -31,23 +36,42 @@ export function DrawPad({
   height = 260,
 }: DrawPadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [width, setWidth] = useState(0);
 
+  // --- Ölçekleme: yalnız kap genişliği ya da DPR değişince --------------
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const parent = canvas?.parentElement;
+    if (!canvas || !parent) return;
 
-    const parent = canvas.parentElement;
-    const width = parent?.clientWidth ?? 320;
+    const apply = () => {
+      // clientWidth kenarlığı dışlar; işaretçi koordinatları da kanvasın
+      // kendi rect'inden okunur — iki ölçü aynı kutuyu göstermeli.
+      const next = canvas.getBoundingClientRect().width || parent.clientWidth;
+      if (next > 0) setWidth(next);
+    };
+
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, []);
+
+  // --- Boyama: noktalar ya da ölçü değişince ----------------------------
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || width <= 0) return;
+
     const ratio = window.devicePixelRatio || 1;
-
-    canvas.width = Math.floor(width * ratio);
-    canvas.height = Math.floor(height * ratio);
-    canvas.style.width = "100%";
-    canvas.style.height = `${height}px`;
+    const pixelWidth = Math.round(width * ratio);
+    const pixelHeight = Math.round(height * ratio);
+    // Yeniden tahsis yalnız ölçü gerçekten değiştiyse.
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.scale(ratio, ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
     // Izgara — göz, eğimi referanssız okuyamaz.
@@ -114,19 +138,25 @@ export function DrawPad({
     ctx.beginPath();
     ctx.arc(toX(last), toY(last), 3.5, 0, Math.PI * 2);
     ctx.fill();
-  }, [points, height]);
+  }, [points, width, height]);
 
   const empty = points.length < 2;
 
   return (
     <div className="space-y-2">
       <div className="relative overflow-hidden rounded-lg border border-border bg-[oklch(0.13_0.015_255)]">
+        {/*
+          pointerleave bağlanmaz: işaretçi yakalanmış durumdadır ve kanvasın
+          dışına taşmak darbeyi bitirmemeli. Tepesi panelden taşan bir baş
+          çizildiğinde formasyon tam orada kesiliyordu. Yakalanan işaretçinin
+          pointerup'ı dışarıda da gelir; iptali pointercancel taşır.
+        */}
         <canvas
           ref={canvasRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerCancel={onPointerUp}
           className="block w-full cursor-crosshair touch-none select-none"
           style={{ height }}
         />

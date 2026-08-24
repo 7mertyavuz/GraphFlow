@@ -19,8 +19,10 @@ her adım tüm adayları kapsayan bir NumPy vektör işlemidir.
 Bu bölme olmadan farklı uzunluktaki pencerelerden gelen mesafeler
 kıyaslanamaz ve 24 barlık pencereler 100 barlıkları sistematik olarak ezer.
 
-``dtw_scores`` (ham DTW) yalnızca doğrulama ve kıyas içindir; üretim yolu
-daima DDTW'dir.
+**Üretim yolu ``hybrid``'dir** (K-11, F3'te karara bağlandı): normalize DDTW
+ile normalize ham DTW mesafesinin ortalaması. Yukarıdaki singularity
+gerekçesi Sakoe-Chiba bandı ve z-score varken üretilemedi; türev ise gürültüyü
+yükseltti. ``ddtw_scores`` ve ``dtw_scores`` kıyas için durur.
 """
 
 from __future__ import annotations
@@ -215,7 +217,7 @@ def ddtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_C
 
 
 def dtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_CHIBA_RADIUS) -> np.ndarray:
-    """Ham DTW — kıyas metriği (K-11 yeniden açıldı; F3'te karara bağlanacak)."""
+    """Ham DTW — tek başına kıyas metriği; üretimde ``hybrid``'in yarısı (K-11)."""
     return normalized_scores(query, candidates, radius, use_derivative=False)
 
 
@@ -227,9 +229,13 @@ def stage2_scores(
 ) -> np.ndarray:
     """Aşama 2 metrik seçici — F3 kalibrasyonunun anahtarı (K-11).
 
-    Varsayılan ``"ddtw"``. ``"hybrid"`` bilinçli olarak uygulanmadı: hesaplama
-    maliyeti sıfıra yakın olsa da, harmanlama ancak ROC kanıtı geldikten sonra
-    eklenecek.
+    Varsayılan ``config.STAGE2_METRIC`` = ``"hybrid"``: F3 A/B'si karara
+    bağladı (AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733; hybrid 12/12
+    hücrede kazandı). Kaybeden metrikler silinmedi, kıyas için duruyor.
+
+    Eşikler **metrik başınadır** (``TOLERANCE_THRESHOLDS_BY_METRIC``): ham DTW
+    mesafeleri DDTW'ninkinden ~4x büyüktür, tek eşik setiyle metrik çevirmek
+    motoru sessizce susturur.
     """
     if metric == "ddtw":
         return ddtw_scores(query, candidates, radius)

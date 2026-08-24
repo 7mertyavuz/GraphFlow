@@ -9,6 +9,8 @@ from engine.config import ATR_PERIOD, FLAT_EPS, N_POINTS
 from engine.normalize.amplitude import amplitude, amplitude_batch
 from engine.normalize.atr import atr_at, true_range, wilder_atr
 from engine.normalize.pipeline import (
+    antialias,
+    monotone_xy,
     normalize_batch,
     normalize_drawing,
     normalize_window,
@@ -162,6 +164,109 @@ def test_drawing_handles_uneven_xy_points():
 
 def test_drawing_flat_line_returns_none():
     assert normalize_drawing(np.full(20, 5.0)) is None
+
+
+# ---------------------------------------------------------------------------
+# Çizim sözleşmesi: y = f(x)
+# ---------------------------------------------------------------------------
+
+
+def test_backtracking_stroke_is_not_reordered():
+    """Sola dönen el, şekli yeniden dizmemeli.
+
+    Eskiden ``argsort`` vardı: kullanıcı bir bölümü düzeltmek için sola
+    döndüğünde y değerleri x sırasına diziliyor ve **çizilmemiş** bir şekil
+    aranıyordu. Doğru davranış: geri dönülen aralık yeniden çiziliyordur.
+    """
+    # Sağa çizip 0,6'ya geri dön, oradan farklı bir y ile devam et.
+    xs = np.array([0.0, 0.3, 0.6, 0.9, 0.6, 0.75, 1.0])
+    ys = np.array([0.0, 0.5, 1.0, 0.2, 1.0, 0.9, 0.8])
+
+    kept_x, kept_y = monotone_xy(xs, ys)
+
+    assert np.all(np.diff(kept_x) > 0), "x kesin artan olmalı"
+    # 0,9'daki nokta düşmeli: kullanıcı ondan önceye dönüp yeniden çizdi.
+    assert 0.9 not in kept_x[:-1]
+    np.testing.assert_allclose(kept_x, [0.0, 0.3, 0.6, 0.75, 1.0])
+    np.testing.assert_allclose(kept_y, [0.0, 0.5, 1.0, 0.9, 0.8])
+
+
+def test_monotone_xy_keeps_last_value_on_duplicate_x():
+    """Aynı x'te dikey hareket: son y kazanır (tepe korunur)."""
+    xs = np.array([0.0, 0.5, 0.5, 0.5, 1.0])
+    ys = np.array([0.0, 0.2, 0.6, 0.9, 0.1])
+    kept_x, kept_y = monotone_xy(xs, ys)
+    np.testing.assert_allclose(kept_x, [0.0, 0.5, 1.0])
+    np.testing.assert_allclose(kept_y, [0.0, 0.9, 0.1])
+
+
+def test_backtracked_drawing_matches_clean_redraw():
+    """Geri dönüp düzeltilen çizim, temiz çizilmiş hâliyle aynı vektörü vermeli."""
+    shape = head_and_shoulders(24)
+    xs_clean = np.linspace(0.0, 1.0, 24)
+
+    # Aynı şekil, ortasında bir geri dönüşle: 12..17 arası çizilip silinerek
+    # yeniden çizildi.
+    xs_msgy = np.concatenate([xs_clean[:18], xs_clean[12:]])
+    ys_msgy = np.concatenate([shape[:18], shape[12:]])
+
+    clean = normalize_drawing(np.column_stack([xs_clean, shape]), invert_y=False)
+    messy = normalize_drawing(np.column_stack([xs_msgy, ys_msgy]), invert_y=False)
+    np.testing.assert_allclose(clean, messy, atol=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Aliasing — decimation öncesi alçak geçiren
+# ---------------------------------------------------------------------------
+
+
+def test_antialias_is_noop_below_decimation_threshold():
+    """k <= 2n: indirgeme yok denecek kadar az, filtre de yok."""
+    y = np.random.default_rng(0).normal(size=2 * N_POINTS)
+    np.testing.assert_array_equal(antialias(y, N_POINTS), y)
+
+
+def test_antialias_suppresses_subresolution_tremor():
+    """Çıktı çözünürlüğünün altındaki titreme sönmeli, taşıyıcı şekil kalmalı."""
+    rng = np.random.default_rng(7)
+    k = 16 * N_POINTS
+    base = head_and_shoulders(k)
+    tremor = 0.25 * rng.normal(size=k)
+
+    filtered = antialias(base + tremor, N_POINTS)
+
+    # Titreme sönüyor...
+    assert np.std(filtered - base) < np.std(tremor) / 2
+    # ...ama şekil yerinde duruyor.
+    assert np.corrcoef(filtered, base)[0, 1] > 0.99
+
+
+def test_smoothing_makes_shaky_hand_match_the_clean_shape():
+    """El titremesi olan çizim, filtreyle temiz şekle yaklaşmalı.
+
+    Bu, kullanıcının "çizdiğimi yanlış anlıyor" şikâyetinin ölçülebilir hâli:
+    32 noktaya indirgemeden önce filtrelenmeyen titreme, çizilmemiş bir yapı
+    olarak sorguya giriyordu.
+    """
+    rng = np.random.default_rng(11)
+    k = 12 * N_POINTS
+    clean_curve = head_and_shoulders(k)
+    shaky = clean_curve + 0.3 * rng.normal(size=k)
+
+    target = normalize_drawing(clean_curve, invert_y=False)
+    raw = normalize_drawing(shaky, invert_y=False, smooth=False)
+    smoothed = normalize_drawing(shaky, invert_y=False, smooth=True)
+
+    similarity = lambda v: float(np.dot(v, target) / N_POINTS)  # noqa: E731
+    assert similarity(smoothed) > similarity(raw)
+
+
+def test_templates_are_not_smoothed_by_default():
+    """Şablon vektörleri F3 eşiklerinin dayanağıdır: sessizce değişemezler."""
+    points = np.column_stack([np.linspace(0, 1, N_POINTS), head_and_shoulders(N_POINTS)])
+    default = normalize_drawing(points, invert_y=False)
+    explicit = normalize_drawing(points, invert_y=False, smooth=False)
+    np.testing.assert_array_equal(default, explicit)
 
 
 # ---------------------------------------------------------------------------

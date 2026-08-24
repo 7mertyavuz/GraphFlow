@@ -1,11 +1,23 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { resample, type Point } from "@/utils/shape";
 
-const SAMPLE_POINTS = 64; // sunucuya giden ham örnekleme (motor 32'ye indirger)
-const MIN_STEP = 0.004; // aynı piksele düşen noktaları toplamayalım
+/** Önizleme/düzlük kontrolü için indirgeme. Sorgu ham noktalarla gider. */
+const PREVIEW_POINTS = 64;
+
+/**
+ * Aynı x sayılacak yatay eşik (kanvas genişliğinin oranı).
+ *
+ * Bu eşiğin altındaki hareket **noktayı düşürmez**, son noktanın y'sini
+ * günceller: eşik altı hareketi atmak, dik çizilen bir tepeyi/dibi
+ * (formasyonların tam da tanımlayıcı yerini) düzleştiriyordu.
+ */
+const MIN_STEP = 0.002;
+
+/** Tek darbede tutulacak azami nokta — sunucu sınırının (4096) altında. */
+const MAX_POINTS = 2_000;
 
 /**
  * Serbest çizim durumu.
@@ -13,33 +25,92 @@ const MIN_STEP = 0.004; // aynı piksele düşen noktaları toplamayalım
  * Kanvas koordinatları 0–1 aralığında ve **y yukarı pozitif** tutulur; ekran
  * uzayı burada bir kez terk edilir, aşağıdaki katmanların hiçbiri "yukarı
  * hangi yön" sorusunu tekrar sormaz.
+ *
+ * Çizim, x ekseni boyunca **tek değerli bir fonksiyondur** (``y = f(x)``).
+ * Ham pointer dizisi bunu garanti etmez — el titrer, kullanıcı bir bölümü
+ * düzeltmek için sola döner. Sözleşme burada, girişte kurulur; aşağısı
+ * (``resample``, sunucudaki ``normalize_drawing``) monoton x varsayabilir.
+ * Eskiden bu iş sıralamayla yapılıyordu ve sessizce yanlıştı: sola dönen bir
+ * el, y değerlerinin x sırasına dizilmesine yani kullanıcının çizmediği bir
+ * şeklin aranmasına yol açıyordu.
  */
 export function useDraw() {
-  const [strokes, setStrokes] = useState<Point[][]>([]);
+  const [points, setPoints] = useState<Point[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
-  const active = useRef<Point[]>([]);
 
-  const points = useMemo(() => strokes.flat(), [strokes]);
+  const buffer = useRef<Point[]>([]);
+  const pointerId = useRef<number | null>(null);
+  const frame = useRef<number | null>(null);
 
-  /** Sunucuya gidecek ham seri. Boşsa çizim geçersizdir. */
-  const series = useMemo(
-    () => (points.length > 1 ? resample(points, SAMPLE_POINTS) : []),
-    [points]
-  );
+  /** Boyama en fazla kare başına bir kez: pointermove'da state güncellemek
+   *  uzun darbelerde kareyi düşürüyor, düşen kare de nokta kaybettiriyordu. */
+  const flush = useCallback(() => {
+    if (frame.current !== null) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null;
+      setPoints(buffer.current.slice());
+    });
+  }, []);
 
-  const toLocal = useCallback((event: React.PointerEvent<HTMLElement>): Point => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / Math.max(1, rect.width);
-    const y = 1 - (event.clientY - rect.top) / Math.max(1, rect.height);
-    return { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) };
+  const cancelFrame = useCallback(() => {
+    if (frame.current !== null) {
+      cancelAnimationFrame(frame.current);
+      frame.current = null;
+    }
+  }, []);
+
+  useEffect(() => cancelFrame, [cancelFrame]);
+
+  /** ``y = f(x)`` sözleşmesini koruyarak nokta ekler. */
+  const push = useCallback((p: Point) => {
+    const pts = buffer.current;
+    const last = pts[pts.length - 1];
+
+    if (!last) {
+      pts.push(p);
+      return;
+    }
+
+    if (p.x > last.x + MIN_STEP) {
+      if (pts.length < MAX_POINTS) pts.push(p);
+      else pts[pts.length - 1] = p;
+      return;
+    }
+
+    if (p.x < last.x - MIN_STEP) {
+      // Geri çizim: kullanıcı o bölgeyi yeniden çiziyor → sonra yazan kazanır.
+      while (pts.length > 1 && pts[pts.length - 1].x >= p.x) pts.pop();
+      if (pts.length === 1 && pts[0].x >= p.x) pts[0] = p;
+      else pts.push(p);
+      return;
+    }
+
+    // Aynı x: dikey hareket. Nokta düşmez, y güncellenir — sivri tepe korunur.
+    pts[pts.length - 1] = { x: last.x, y: p.y };
+  }, []);
+
+  const toLocal = useCallback((clientX: number, clientY: number, rect: DOMRect): Point => {
+    const x = (clientX - rect.left) / Math.max(1, rect.width);
+    const y = 1 - (clientY - rect.top) / Math.max(1, rect.height);
+    return {
+      x: Math.min(1, Math.max(0, x)),
+      y: Math.min(1, Math.max(0, y)),
+    };
   }, []);
 
   const start = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
-      const point = toLocal(event);
-      active.current = [point];
+      // Yalnız birincil işaretçi: ikinci parmak ya da sağ tık, sürmekte olan
+      // darbeyi silmemeli.
+      if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
+
+      // Devralma bilinçli: pointerup kaybolmuş bir darbe (sistem hareketi,
+      // sekme değişimi) yüzünden panel kalıcı olarak kilitlenmemeli.
+      const rect = event.currentTarget.getBoundingClientRect();
+      pointerId.current = event.pointerId;
       // Yeni bir çizim eskisini siler: iki ayrı formasyon tek sorgu olamaz.
-      setStrokes([[point]]);
+      buffer.current = [toLocal(event.clientX, event.clientY, rect)];
+      setPoints(buffer.current.slice());
       setIsDrawing(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
@@ -48,46 +119,82 @@ export function useDraw() {
 
   const move = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
-      if (!isDrawing) return;
-      const point = toLocal(event);
-      const last = active.current[active.current.length - 1];
-      if (last && Math.abs(point.x - last.x) < MIN_STEP) return;
-      active.current = [...active.current, point];
-      setStrokes([active.current]);
+      if (pointerId.current !== event.pointerId) return;
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      // Tarayıcı hızlı darbelerde pointermove'ları birleştirir; birleşenleri
+      // açmadan çizilen keskin köşeler kesilir.
+      const native = event.nativeEvent;
+      const coalesced =
+        typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
+      const samples = coalesced.length > 0 ? coalesced : [native];
+
+      for (const sample of samples) {
+        push(toLocal(sample.clientX, sample.clientY, rect));
+      }
+      flush();
     },
-    [isDrawing, toLocal]
+    [flush, push, toLocal]
   );
 
   const end = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
-      if (!isDrawing) return;
+      if (pointerId.current !== event.pointerId) return;
+      pointerId.current = null;
       setIsDrawing(false);
+      cancelFrame();
+      setPoints(buffer.current.slice());
       try {
         event.currentTarget.releasePointerCapture?.(event.pointerId);
       } catch {
         // pointer zaten bırakılmış
       }
     },
-    [isDrawing]
+    [cancelFrame]
   );
 
   const reset = useCallback(() => {
-    active.current = [];
-    setStrokes([]);
-  }, []);
+    cancelFrame();
+    pointerId.current = null;
+    buffer.current = [];
+    setPoints([]);
+    setIsDrawing(false);
+  }, [cancelFrame]);
 
-  const setSeries = useCallback((values: number[]) => {
-    if (values.length < 2) return reset();
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = Math.max(1e-9, max - min);
-    const mapped = values.map((v, i) => ({
-      x: i / (values.length - 1),
-      y: (v - min) / range,
-    }));
-    active.current = mapped;
-    setStrokes([mapped]);
-  }, [reset]);
+  const setSeries = useCallback(
+    (values: number[]) => {
+      if (values.length < 2) return reset();
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const range = Math.max(1e-9, max - min);
+      const mapped = values.map((v, i) => ({
+        x: i / (values.length - 1),
+        y: (v - min) / range,
+      }));
+      cancelFrame();
+      buffer.current = mapped;
+      setPoints(mapped);
+    },
+    [cancelFrame, reset]
+  );
 
-  return { points, series, isDrawing, start, move, end, reset, setSeries };
+  /** Önizleme ve düzlük kontrolü için eşit aralıklı seri. */
+  const series = useMemo(
+    () => (points.length > 1 ? resample(points, PREVIEW_POINTS) : []),
+    [points]
+  );
+
+  /**
+   * Sunucuya gidecek yük: **ham (x, y) çiftleri**.
+   *
+   * x'i istemcide düzgün ızgaraya oturtup yalnız y göndermek, sunucuya
+   * "bu noktalar eşit aralıklı" demektir — oysa kullanıcı çizerken hızlanıp
+   * yavaşlar. 32'ye indirgemenin ve z-score'un tek otoritesi motordur (K-02).
+   */
+  const queryPoints = useMemo(
+    () => points.map((p) => [p.x, p.y] as [number, number]),
+    [points]
+  );
+
+  return { points, series, queryPoints, isDrawing, start, move, end, reset, setSeries };
 }

@@ -19,8 +19,14 @@ export const apiClient = axios.create({
  */
 apiClient.interceptors.request.use((config) => {
   const sessionId = getOrCreateSessionId();
-  if (sessionId) {
-    config.headers.set?.("X-Session-Id", sessionId);
+  if (!sessionId) return config;
+
+  // `set` yoksa sessizce atlamak, oturum sayacını hiç artmayan bir sayaca
+  // yani hiç görünmeyen bir Bonferroni uyarısına çevirirdi.
+  if (typeof config.headers?.set === "function") {
+    config.headers.set("X-Session-Id", sessionId);
+  } else {
+    config.headers = { ...config.headers, "X-Session-Id": sessionId } as typeof config.headers;
   }
   return config;
 });

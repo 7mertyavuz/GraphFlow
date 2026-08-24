@@ -17,6 +17,10 @@ Sonuç vektörlerinin normu sabittir: ``‖z‖ = √32``. Aşama 1'deki
 Kullanıcı çizimi için ``normalize_drawing()``: y ekseni ters çevrilir
 (kanvasta y aşağı doğru artar), **log adımı uygulanmaz** — çizim zaten
 lineer/görsel uzaydadır ve z-score sonrası fark ortadan kalkar.
+
+Serbest çizimin fiyat penceresinden iki farkı vardır ve ikisi de burada
+karşılanır: ham nokta dizisi x'te monoton olmayabilir (``monotone_xy``) ve
+bar verisinin aksine alçak geçirenden geçmemiştir (``antialias``).
 """
 
 from __future__ import annotations
@@ -120,30 +124,103 @@ def normalize_batch(
     return out, valid
 
 
-def normalize_drawing(points, n: int = N_POINTS, invert_y: bool = True) -> np.ndarray | None:
+def monotone_xy(xs: np.ndarray, ys: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Geri çizimi ``y = f(x)`` sözleşmesini bozmadan çözer.
+
+    Bir çizim, x ekseni boyunca **tek değerli bir fonksiyondur**: her x için
+    tek bir y. El titrer ya da kullanıcı bir bölümü düzeltmek için sola döner;
+    ham nokta dizisi bu yüzden x'te monoton olmayabilir.
+
+    Eski davranış ``argsort``'tu ve **sessizce yanlıştı**: sola dönen bir el,
+    y değerlerinin x sırasına göre yeniden dizilmesine yol açıyordu — kullanıcı
+    çizmediği bir şeklin arandığını görüyordu. Doğru çözüm sıralamak değil,
+    **sonra yazılanın kazanması**dır: kullanıcı bir x'e geri döndüyse orayı
+    yeniden çiziyor demektir, eski noktalar düşer.
+    """
+    keep_x: list[float] = []
+    keep_y: list[float] = []
+    for x, y in zip(xs.tolist(), ys.tolist()):
+        while keep_x and keep_x[-1] >= x:
+            keep_x.pop()
+            keep_y.pop()
+        keep_x.append(x)
+        keep_y.append(y)
+    return np.asarray(keep_x, dtype=np.float64), np.asarray(keep_y, dtype=np.float64)
+
+
+def antialias(y: np.ndarray, n_out: int = N_POINTS) -> np.ndarray:
+    """Decimation öncesi alçak geçiren filtre.
+
+    ``k`` ham noktayı ``n_out``'a indirmek bir **decimation**'dır ve her
+    decimation gibi önce alçak geçiren filtre ister. Filtresiz indirgemede
+    ``n_out`` çözünürlüğünün altındaki dalgalanma yok olmaz — **kırılarak
+    (aliasing) alçak frekansa katlanır** ve sorguda çizilmemiş bir yapıya
+    dönüşür. El titremesi tam olarak bu bandadır.
+
+    Zararı ayrıca ölçülmüştür: Aşama 2 metriğinin DDTW bileşeni türev alır,
+    türev ise yüksek geçiren filtredir — titreme orada bir daha yükseltilir
+    (K-11, docs/03-f3-dogrulama-raporu.md).
+
+    Pencere ``k / n_out``: çıktıda tek örnekten kısa süren hiçbir yapı hayatta
+    kalmaz, daha uzun olan hiçbiri bozulmaz. ``k <= 2 * n_out`` iken decimation
+    yok denecek kadar azdır, filtre de uygulanmaz.
+
+    Pencere **örnek** cinsindendir, x cinsinden değil: çizim hızı değiştiğinde
+    filtre x ekseninde hafifçe düzgün olmayan davranır. Titreme örnekleme
+    hızına bağlı olduğu için doğru eksen zaten örnektir.
+    """
+    y = np.asarray(y, dtype=np.float64)
+    k = y.size
+    if n_out <= 0 or k <= 2 * n_out:
+        return y
+
+    window = int(k // n_out) | 1  # tek uzunluk: faz kayması olmasın
+    if window < 3:
+        return y
+
+    pad = window // 2
+    padded = np.pad(y, pad, mode="edge")  # uçları içeri çekmemek için 'edge'
+    return np.convolve(padded, np.ones(window) / window, mode="valid")
+
+
+def normalize_drawing(
+    points,
+    n: int = N_POINTS,
+    invert_y: bool = True,
+    smooth: bool = False,
+) -> np.ndarray | None:
     """Kanvas noktaları → (n,) normalize vektör.
 
     * ``points`` (k, 2) ise x sütunu örnekleme ızgarası olarak kullanılır
       (kullanıcı hızlı/yavaş çizdiğinde noktalar düzgün dağılmaz).
     * ``points`` (k,) ise noktalar eşit aralıklı varsayılır.
     * ``invert_y``: kanvasta y aşağı doğru arttığı için ters çevrilir.
+    * ``smooth``: decimation öncesi alçak geçiren filtre (bkz. ``antialias``).
+      **Varsayılan kapalı**: şablon vektörleri de bu fonksiyondan geçer
+      (``engine/templates/loader.py``) ve onlar F3'te kalibre edilen eşiklerin
+      dayanağıdır — sessizce değişmeleri tüm eşik setini geçersiz kılar.
+      Serbest çizimde açılır (``engine/api/main.py:resolve_query``).
     * **Log adımı uygulanmaz** (docs/01-mimari.md §3) — çizim lineer uzayda.
     """
     arr = np.asarray(points, dtype=np.float64)
 
     if arr.ndim == 2 and arr.shape[1] == 2:
-        xs, ys = arr[:, 0], arr[:, 1]
-        order = np.argsort(xs, kind="stable")
-        xs, ys = xs[order], ys[order]
+        xs, ys = monotone_xy(arr[:, 0], arr[:, 1])
+        if xs.size < 2:
+            return None
         if invert_y:
             ys = -ys
         span = xs[-1] - xs[0]
         if span <= 0:
             return None
+        if smooth:
+            ys = antialias(ys, n)
         dst = np.linspace(xs[0], xs[-1], n)
         y32 = np.interp(dst, xs, ys)
     elif arr.ndim == 1:
         ys = -arr if invert_y else arr
+        if smooth:
+            ys = antialias(ys, n)
         y32 = resample_to(ys, n)
     else:
         raise ValueError("normalize_drawing (k,) veya (k, 2) bekler")
