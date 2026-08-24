@@ -1,0 +1,23 @@
+# Depo LF ile saklanır.
+#
+# Bu dosya olmadan, çalışma kopyası Windows'tan Linux'a taşındığında 98
+# dosya "değişmiş" görünüyordu: 20.098 ekleme, 20.098 silme, sıfır gerçek
+# içerik farkı. Bir daha olmasın diye çevrim depo tarafında sabitlendi;
+# çalışma kopyasında hangi işletim sistemi olursa olsun index LF görür.
+* text=auto eol=lf
+
+# İkili dosyalar hiçbir çevrime girmez.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# Veri dosyaları (zaten .gitignore'da, kazara eklenirse bozulmasın).
+*.parquet binary
+*.npy binary
+*.npz binary
