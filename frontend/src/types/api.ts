@@ -315,28 +315,26 @@ export interface components {
         };
         /**
          * ReturnDistribution
-         * @description Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).
+         * @description Medyan R ve artıda kapanma oranı — ortalamanın gizlediği şey.
          *
-         *     **StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA
-         *     "ortalamayı ne kadar bilmiyoruz"u, bant "olaylar ne kadar saçılıyor"u
-         *     ölçer; ikisini aynı kutuda göstermek "±" işaretinin anlamını bulanıklaştırır.
-         *     Bant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik
-         *     iki formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
-         *     diğeri tam tersi olabilir.
+         *     Üçlü bariyerde beklenti (ortalama) dağılımın şeklini tamamen gizler:
+         *     OBO 2:1'de beklenti +0,015R iken medyan **−1,000R**'dir, yani olayların
+         *     yarısından fazlası tam stop yer.
+         *
+         *     **StatEnvelope'a sarılmaz, çünkü güven aralığı DEĞİLDİR** — betimleme,
+         *     iddia değil. Yüzdelik bant (p10–p90) da bilerek yok: ölçüldü, 12/12
+         *     hücrede tam bariyerlere oturuyor, yani veriden değil konfigürasyondan
+         *     geliyor. Gölgenin aynı iki sayısı yanında durur.
          */
         ReturnDistribution: {
             /** Median */
             median: number;
-            /** P10 */
-            p10: number;
-            /** P90 */
-            p90: number;
+            /** Share Positive */
+            share_positive: number;
             /** Shadow Median */
             shadow_median?: number | null;
-            /** Shadow P10 */
-            shadow_p10?: number | null;
-            /** Shadow P90 */
-            shadow_p90?: number | null;
+            /** Shadow Share Positive */
+            shadow_share_positive?: number | null;
         };
         /** SearchRequest */
         SearchRequest: {

@@ -205,20 +205,29 @@ class OutcomeStats:
     theoretical_null: float
     outcomes: dict[str, int]
     truncated: int
-    #: Ampirik getiri dağılımı: medyan ve %80 bandı (p10–p90).
+    #: Medyan R ve olayların kaçının artıda kapandığı.
     #:
-    #: Beklenti bir **ortalamadır** ve dağılımın şeklini gizler: +0,1R'lik iki
-    #: formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
-    #: diğeri "çoğu zaman küçük kazanç, ara sıra felaket" olabilir. Pozisyon
-    #: boyutlandıran biri için bu fark ortalamadan daha belirleyicidir.
-    #: Gölgenin aynı bandı yanında durur — bant tek başına baseline değildir.
+    #: Beklenti bir **ortalamadır** ve üçlü bariyerde ortalama, dağılımın
+    #: şeklini tamamen gizler: OBO 2:1'de beklenti +0,015R iken medyan
+    #: **−1,000R**'dir — olayların yarısından fazlası tam stop yer. Ortalamaya
+    #: bakan biri bu deneyimi göremez.
+    #:
+    #: Yüzdelik BANT (p10–p90) bilerek raporlanmıyor: ölçüldü, 12/12 hücrede
+    #: tam olarak bariyerlere oturuyor (−k_sl, +k_tp). Üçlü bariyer sonucu üç
+    #: noktada toplanır; bant veriden değil bariyer ayarından gelir, yani
+    #: sıfır bilgi taşır. Bilgi taşıyan iki sayı medyan ve artıda kapanma
+    #: oranıdır — ikisi de hücreden hücreye değişiyor.
+    #:
+    #: ``share_positive`` kazanma oranından farklıdır: kazanma oranı yalnız
+    #: TP'ye çarpanları sayar, bu ise zaman bariyerinden artıda çıkanları da
+    #: sayar — "sonunda yeşil miydim" sorusunun cevabı.
     r_median: float = float("nan")
-    r_band: tuple[float, float] = (float("nan"), float("nan"))
+    share_positive: float = float("nan")
 
     shadow_expectancy_r: float | None = None
     shadow_win_rate: float | None = None
     shadow_r_median: float | None = None
-    shadow_r_band: tuple[float, float] | None = None
+    shadow_share_positive: float | None = None
     shadow_n: int = 0
     edge_r: float | None = None
     edge_ci: tuple[float, float] | None = None
@@ -252,9 +261,11 @@ class OutcomeStats:
             "expectancy_ci": [round(x, 4) for x in self.expectancy_ci],
             "expectancy_net_r": round(self.expectancy_net_r, 4),
             "r_median": round(self.r_median, 4),
-            "r_band": [round(x, 4) for x in self.r_band],
+            "share_positive": round(self.share_positive, 4),
             "shadow_r_median": None if self.shadow_r_median is None else round(self.shadow_r_median, 4),
-            "shadow_r_band": None if self.shadow_r_band is None else [round(x, 4) for x in self.shadow_r_band],
+            "shadow_share_positive": (
+                None if self.shadow_share_positive is None else round(self.shadow_share_positive, 4)
+            ),
             "win_rate": round(self.win_rate, 4),
             "win_rate_ci": [round(x, 4) for x in self.win_rate_ci],
             "theoretical_null": round(self.theoretical_null, 4),
@@ -276,21 +287,19 @@ class OutcomeStats:
         }
 
 
-#: Ampirik bandın kapsadığı olasılık kütlesi (p10–p90).
-BAND_LOW, BAND_HIGH = 0.10, 0.90
+def distribution(r: np.ndarray) -> tuple[float, float]:
+    """``(medyan, artıda kapanma oranı)`` — ortalamanın gizlediği şey.
 
+    Bunlar bir **iddia** değil, gözlenen olayların betimlemesidir; belirsizlik
+    iddiası taşıyan sayılar (beklenti, edge) güven aralıklarıyla döner.
 
-def distribution(r: np.ndarray) -> tuple[float, tuple[float, float]]:
-    """``(medyan, (p10, p90))`` — dağılımın şekli, ortalamanın gizlediği şey.
-
-    Yüzdelikler bootstrap'lanmaz: bunlar bir **iddia** değil, gözlenen
-    olayların betimlemesidir. Belirsizlik iddiası taşıyan sayılar (beklenti,
-    edge) güven aralıklarıyla döner; bu bant onlardan ayrı okunmalıdır.
+    Yüzdelik bant (p10–p90) bilerek dönülmüyor — ölçüldü, 12/12 hücrede tam
+    bariyerlere oturuyor. Üçlü bariyer sonucu üç noktada toplandığı için bant
+    veriden değil konfigürasyondan gelir.
     """
     if r.size == 0:
-        return float("nan"), (float("nan"), float("nan"))
-    lo, hi = np.quantile(r, [BAND_LOW, BAND_HIGH])
-    return float(np.median(r)), (float(lo), float(hi))
+        return float("nan"), float("nan")
+    return float(np.median(r)), float((r > 0.0).mean())
 
 
 def _counts(results: np.ndarray) -> dict[str, int]:
@@ -371,14 +380,14 @@ def summarize(
 
     stats.direction = direction
     stats.n_months = int(np.unique(month_of(results["end_time"])).size) if n else 0
-    stats.r_median, stats.r_band = distribution(r)
+    stats.r_median, stats.share_positive = distribution(r)
 
     if shadow is not None and shadow.size and n:
         s = shadow["r_gross"].astype(np.float64)
         s_wins = int((shadow["outcome"] == OUTCOME_TP).sum())
         stats.shadow_expectancy_r = float(s.mean())
         stats.shadow_win_rate = s_wins / shadow.size
-        stats.shadow_r_median, stats.shadow_r_band = distribution(s)
+        stats.shadow_r_median, stats.shadow_share_positive = distribution(s)
         stats.shadow_n = int(shadow.size)
         stats.edge_r = float(r.mean() - s.mean())
         stats.edge_ci_iid = bootstrap_diff_ci(r, s, confidence=confidence, rng=rng)

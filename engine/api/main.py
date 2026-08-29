@@ -194,15 +194,11 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
             unit="R",
         )
 
-    band = stats.r_band if stats.r_band else (float("nan"), float("nan"))
-    shadow_band = stats.shadow_r_band
     distribution = ReturnDistribution(
         median=stats.r_median,
-        p10=band[0],
-        p90=band[1],
+        share_positive=stats.share_positive,
         shadow_median=stats.shadow_r_median,
-        shadow_p10=None if shadow_band is None else shadow_band[0],
-        shadow_p90=None if shadow_band is None else shadow_band[1],
+        shadow_share_positive=stats.shadow_share_positive,
     )
 
     return OutcomeConfigResponse(

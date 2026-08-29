@@ -127,23 +127,24 @@ class RegimeRow(BaseModel):
 
 
 class ReturnDistribution(BaseModel):
-    """Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).
+    """Medyan R ve artıda kapanma oranı — ortalamanın gizlediği şey.
 
-    **StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA
-    "ortalamayı ne kadar bilmiyoruz"u, bant "olaylar ne kadar saçılıyor"u
-    ölçer; ikisini aynı kutuda göstermek "±" işaretinin anlamını bulanıklaştırır.
-    Bant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik
-    iki formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
-    diğeri tam tersi olabilir.
+    Üçlü bariyerde beklenti (ortalama) dağılımın şeklini tamamen gizler:
+    OBO 2:1'de beklenti +0,015R iken medyan **−1,000R**'dir, yani olayların
+    yarısından fazlası tam stop yer.
+
+    **StatEnvelope'a sarılmaz, çünkü güven aralığı DEĞİLDİR** — betimleme,
+    iddia değil. Yüzdelik bant (p10–p90) da bilerek yok: ölçüldü, 12/12
+    hücrede tam bariyerlere oturuyor, yani veriden değil konfigürasyondan
+    geliyor. Gölgenin aynı iki sayısı yanında durur.
     """
 
     median: float
-    p10: float
-    p90: float
-    #: Aynı bandın gölge dağılımdaki karşılığı — bant tek başına baseline değil.
+    #: R > 0 ile kapanan olay oranı. Kazanma oranından farklıdır: o yalnız
+    #: TP'ye çarpanları sayar, bu zaman bariyerinden artıda çıkanları da sayar.
+    share_positive: float
     shadow_median: float | None = None
-    shadow_p10: float | None = None
-    shadow_p90: float | None = None
+    shadow_share_positive: float | None = None
 
 
 class OutcomeConfigResponse(BaseModel):

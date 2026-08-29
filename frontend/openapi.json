@@ -841,13 +841,9 @@
             "type": "number",
             "title": "Median"
           },
-          "p10": {
+          "share_positive": {
             "type": "number",
-            "title": "P10"
-          },
-          "p90": {
-            "type": "number",
-            "title": "P90"
+            "title": "Share Positive"
           },
           "shadow_median": {
             "anyOf": [
@@ -860,7 +856,7 @@
             ],
             "title": "Shadow Median"
           },
-          "shadow_p10": {
+          "shadow_share_positive": {
             "anyOf": [
               {
                 "type": "number"
@@ -869,28 +865,16 @@
                 "type": "null"
               }
             ],
-            "title": "Shadow P10"
-          },
-          "shadow_p90": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Shadow P90"
+            "title": "Shadow Share Positive"
           }
         },
         "type": "object",
         "required": [
           "median",
-          "p10",
-          "p90"
+          "share_positive"
         ],
         "title": "ReturnDistribution",
-        "description": "Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).\n\n**StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA\n\"ortalamayı ne kadar bilmiyoruz\"u, bant \"olaylar ne kadar saçılıyor\"u\nölçer; ikisini aynı kutuda göstermek \"±\" işaretinin anlamını bulanıklaştırır.\nBant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik\niki formasyondan biri \"çoğu zaman küçük kayıp, ara sıra büyük kazanç\",\ndiğeri tam tersi olabilir."
+        "description": "Medyan R ve artıda kapanma oranı — ortalamanın gizlediği şey.\n\nÜçlü bariyerde beklenti (ortalama) dağılımın şeklini tamamen gizler:\nOBO 2:1'de beklenti +0,015R iken medyan **−1,000R**'dir, yani olayların\nyarısından fazlası tam stop yer.\n\n**StatEnvelope'a sarılmaz, çünkü güven aralığı DEĞİLDİR** — betimleme,\niddia değil. Yüzdelik bant (p10–p90) da bilerek yok: ölçüldü, 12/12\nhücrede tam bariyerlere oturuyor, yani veriden değil konfigürasyondan\ngeliyor. Gölgenin aynı iki sayısı yanında durur."
       },
       "SearchRequest": {
         "properties": {

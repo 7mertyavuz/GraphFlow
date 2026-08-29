@@ -494,32 +494,32 @@ def test_summarize_verdict_is_honest(random_dataset):
     assert "disclaimer" in stats.as_dict()
 
 
-def test_distribution_reports_the_spread_expectancy_hides():
+def test_distribution_reports_what_the_mean_hides():
     """Aynı ortalamaya sahip iki dağılım aynı DEĞİLDİR."""
-    # Aynı beklenti (+0,1R), tamamen farklı şekil.
+    # Aynı beklenti (+0,1R), tamamen farklı deneyim.
     steady = np.concatenate([np.full(90, 0.2), np.full(10, -0.8)])
     lottery = np.concatenate([np.full(90, -0.2), np.full(10, 2.8)])
     assert steady.mean() == pytest.approx(lottery.mean(), abs=1e-9)
 
-    s_med, (s_lo, s_hi) = distribution(steady)
-    l_med, (l_lo, l_hi) = distribution(lottery)
+    s_med, s_pos = distribution(steady)
+    l_med, l_pos = distribution(lottery)
 
-    # Ortalama aynı ama medyan ve bant taban tabana zıt — gösterilmesinin sebebi bu.
+    # Ortalama aynı; medyan ve artıda kapanma oranı taban tabana zıt.
     assert s_med > 0 > l_med
-    assert (s_hi - s_lo) < (l_hi - l_lo)
+    assert s_pos == pytest.approx(0.90) and l_pos == pytest.approx(0.10)
 
 
-def test_distribution_band_brackets_the_median():
-    rng = np.random.default_rng(3)
-    r = rng.normal(size=5_000)
-    median, (lo, hi) = distribution(r)
-    assert lo < median < hi
-    inside = float(((r >= lo) & (r <= hi)).mean())
-    assert inside == pytest.approx(0.80, abs=0.02)  # %80 bandı gerçekten %80
+def test_share_positive_counts_more_than_the_win_rate(random_dataset):
+    """Kazanma oranı yalnız TP'yi sayar; artıda kapanma zaman çıkışlarını da."""
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, 2.0, 1.0)
+    stats = summarize(results, 2.0, 1.0, "2:1", rng=np.random.default_rng(0))
+    assert stats.share_positive >= stats.win_rate - 1e-12
 
 
 def test_summarize_carries_distribution_for_matches_and_shadow(random_dataset):
-    """Bant hem eşleşmeler hem gölge için dolar — karşılaştırılabilir olmalı."""
+    """İki sayı da hem eşleşmeler hem gölge için dolar — kıyaslanabilir olmalı."""
     events, store = random_dataset
     events = events[eligible(events, store)]
     results = evaluate(events, store, 2.0, 1.0)
@@ -529,12 +529,12 @@ def test_summarize_carries_distribution_for_matches_and_shadow(random_dataset):
                       rng=np.random.default_rng(0))
 
     assert np.isfinite(stats.r_median)
-    assert stats.r_band[0] <= stats.r_median <= stats.r_band[1]
-    assert stats.shadow_r_band is not None
-    assert stats.shadow_r_band[0] <= stats.shadow_r_median <= stats.shadow_r_band[1]
+    assert 0.0 <= stats.share_positive <= 1.0
+    assert stats.shadow_r_median is not None
+    assert 0.0 <= stats.shadow_share_positive <= 1.0
 
     payload = stats.as_dict()
-    assert "r_band" in payload and "shadow_r_band" in payload
+    assert "share_positive" in payload and "shadow_share_positive" in payload
 
 
 def test_both_configs_are_computed_together(random_dataset):
