@@ -27,6 +27,8 @@ geri getirme:
   Python + NumPy. Darboğaz dil değil, veri yapısı (K-01).
 - ❌ **`if-else` formasyon kural motoru** — her formasyon 32 noktalık kanonik
   vektör, aynı DTW pipeline'ından geçer (K-04).
+- ❌ **Alt-stride hizalama ince ayarı** — yazıldı, ölçüldü, BAĞLANMADI (K-19).
+  Mesafe ve kosinüs takas ediyor; net katkı yok. `REFINE_MATCHES=False`.
 - ⚠️ **Aşama 2 metriği K-11'de F3 ölçümüyle DEĞİŞTİ.** Artık `hybrid` =
   (normalize DDTW + normalize ham DTW) / 2. Ne yalnız DDTW, ne yalnız ham DTW.
   Ölçüm: AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733 (12/12 hücre). Metrik
@@ -70,6 +72,9 @@ geri getirme:
   pencere matrise girmez, ileri pencere orada kesilir. Kaldıraçlı tokenlar
   (UP/DOWN/BULL/BEAR) evrenden düşer — F4'te gölge beklentisini +39R'ye
   taşıyan sebep buydu.
+- 🚫 **Güven aralığı kapsaması ölçülür.** `tools/ci_calibration` ile: ay-bloklu
+  bootstrap %92, iid gerçek rejimde ~%80-89 kapsıyor (nominal %95). Blok
+  iid'den belirgin iyi ama kusursuz değil — anlamlılık iyimser okunmamalı.
 - 🚫 **Gölge dağılımda kesitsel korelasyon.** Güven aralıkları **daima
   ay-bloklu bootstrap** ile hesaplanır; iid bootstrap aynı aydan çekilen 20
   gölgeyi 20 bağımsız gözlem sayar. Ölçülen ay içi korelasyon 0,384, tasarım
@@ -95,12 +100,14 @@ geri getirme:
 ✅ engine/templates/               F2  (14 kanonik JSON + loader)
 ✅ engine/api/                     F5  (FastAPI, StatEnvelope, chart, freshness, oturum)
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
-                                  f3_measure, repair_symbol_map
+                                  f3_measure, repair_symbol_map, backfill,
+                                  verify_stage1, ci_calibration, f46_proxy_test
 ✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
 ✅ frontend/                       F6 + F7  (Next.js 16, Radar/Backtest/Bulgular)
+✅ requirements.txt                doğrulanmış sürümler (Python 3.12)
 ```
 
 Veri kökü `GRAPHFLOW_DATA_DIR` ile depo dışına taşınabilir.

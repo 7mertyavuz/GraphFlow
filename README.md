@@ -63,7 +63,10 @@ Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
 Veri deposu (`data/`) commit edilmez; yolu `GRAPHFLOW_DATA_DIR` ile taşıyabilirsiniz.
 
 ```bash
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+
 python -m engine.ingest.download          # F0: Binance klines
+python -m tools.backfill --timeframe 4h   # F0: bir dilimi diğerinin evrenine tamamla
 python -m engine.matrix.build             # F1: vektör matrisleri
 uvicorn engine.api.main:app --reload      # F5: API  → :8000
 cd frontend && npm install && npm run dev # F6/F7: arayüz → :3000
@@ -76,6 +79,14 @@ yazmadan önce Parquet verisine karşı doğrular:
 
 ```bash
 python -m tools.repair_symbol_map
+```
+
+Motorun kendini denetleyen araçları:
+
+```bash
+python -m tools.verify_stage1 --timeframe 1d   # matris == Parquet? stride bedeli?
+python -m tools.ci_calibration                 # %95 aralık gerçekten %95 mi?
+python -m tools.f46_proxy_test                 # şekil mi, momentum vekili mi?
 ```
 
 ---
@@ -101,10 +112,11 @@ python -m tools.repair_symbol_map
 | [F3.5](docs/fazlar/F3.5-temizlik.md) | Temizlik (yüzdelik skorlama, evren) | ✅ **Geçti** |
 | [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | ✅ **Bitti** |
 | [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | ✅ **Bitti** |
-| [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Bitti** |
+| [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Yeniden koşuldu** (N=242–509) |
 | [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
 | [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti** |
+| — | Doğrulama araçları: Aşama 1 kaba kuvvet, GA kapsaması | ✅ **Bitti** |
 
 ---
 

@@ -616,6 +616,42 @@ içinde kalır, zaman eşleştirmesi bootstrap'ta da korunur.
 bu düzeltmeyle anlamlılığını **kaybetti** — o testte tasarım etkisi 1,91'di.
 Bkz. [06-f45-raporu.md](06-f45-raporu.md).
 
+### 🔬 Kapsama sınaması (29 Ağustos 2026) — iddia doğrulandı, bir uyarıyla
+
+F4.5'in hükmü tasarım etkisiyle **dolaylı** gösterilmişti. Bir güven
+aralığının tek anlamı olan soru ise sorulmamıştı: *%95 dediğimiz aralık
+gerçekten vakaların %95'inde doğru cevabı içeriyor mu?*
+
+`tools/ci_calibration.py` bunu simülasyonla ölçer: gerçek edge'in **sıfır
+olduğu bilinen** veri üretilir, aralığın sıfırı kaç kez içerdiği sayılır.
+
+İlk sonuç beklenenin tersiydi — iid %97–100 kapsıyordu, yani *muhafazakâr*.
+Sebebi yöntemin kendisinde: ay şoku hem eşleşmede hem gölgede ortak olduğu
+için **farkta birbirini götürür**. K-12'nin zaman eşleştirmesi, tek başına
+iid'yi güvenli kılıyor. Götürülmeyen tek şey, eşleşmelerin *yalnız kendi
+aralarında* paylaştığı yapıdır — gerçek eşleşmeler rastgele pencere değil,
+aynı formasyonu aynı piyasa hâlinde taşıyan pencerelerdir.
+
+Bu faktör (`ρ_eşleşmeye_özel`) modele eklenince gerçek rejim çıktı
+(ρ_ortak = 0,384, nominal %95, 300 tekrar):
+
+| ρ_eşleşmeye_özel | Tasarım etkisi | Ay-bloklu kapsama | iid kapsama |
+|---|---|---|---|
+| 0,00 | 0,77 | %92,0 | %97,0 |
+| 0,05 | 0,91 | %92,0 | %94,3 |
+| **0,15** | **1,13** | %92,3 | **%89,0** |
+| **0,30** | **1,41** | %92,0 | **%77,0** |
+
+F4.5 gerçek veride tasarım etkisi medyanını **1,28** ölçmüştü → gerçek rejim
+0,15 ile 0,30 arasında. Yani iid'nin fiili kapsaması %95 değil **~%80–89**.
+"iid ile ölçülen anlamlılık sahtedir" hükmü doğrudan doğrulandı ve büyüklüğü
+ilk kez ölçüldü.
+
+⚠️ **Yeni uyarı:** ay-bloklu bootstrap da tam nominal değil — ρ = 0,384'te
+kapsama **%92**. iid'den belirgin biçimde iyi ama kusursuz değil. Blokla
+ölçülen anlamlılık da bir miktar iyimser okunmalıdır; F4.6'nın tek Bonferroni
+bulgusunun ihtiyatla karşılanma sebeplerinden biri budur.
+
 ### İkinci referans: teorik null
 
 ATR tabanlı asimetrik bariyerler, analitik olarak bilinen bir null hipotezi de sağlar (bkz. [K-16](#k-16--triple-barrier-atr-tabanlı-göreli-bariyerler)). İki referans birbirini doğruluyorsa metodoloji sağlamdır; ayrışıyorsa bir yerde hata vardır ve bu **erken görülür**. Bu, kendi kendini denetleyen bir tasarımdır.
@@ -869,6 +905,62 @@ Bu, eşiklerin asıl kaynağının **negatif testler** olduğu anlamına gelir; 
 
 ---
 
+## K-19 — Alt-Stride Hizalama: Ölçüldü, Bağlanmadı
+
+**Karar:** Eşleşmelerin bar bazında ince ayarı **uygulanmadı**. Kod
+`engine/search/refine.py`'de duruyor, `config.REFINE_MATCHES = False`.
+
+### Hipotez
+
+Matris `STRIDE = 3` ile kurulur ([K-01](#k-01--ölçek-gerçeği-problem-sanıldığı-kadar-büyük-değil)).
+Dolayısıyla gösterilen pencere, gerçek en iyi hizadan 1–2 bar kaymış olabilir.
+`tools/verify_stage1.py` bu bedeli **ölçtü** — kaba kuvvet (stride 1) ile
+matrisin bulduğu en iyi pencere arasında kosinüs farkı:
+
+```
+ortalama +0,021 · %95 +0,074 · en kötü +0,096
+```
+
+Gerçek aramalarda ilk sonuçlar r ≈ 0,93 bandında geldiği için bu fark
+görünürdür: motor doğru formasyonu bulup **yanlış hizada** gösteriyor olabilir.
+
+### Ölçüm — hipotez çöktü
+
+Gösterilen ilk 60 eşleşme, ±(STRIDE−1) barlık pencerede üç ayrı hedefle
+yeniden tarandı (1d, 5 şablon):
+
+| Hedef | Δ mesafe | Δ kosinüs |
+|---|---|---|
+| mesafeyi enküçült | −0,00207 | **−0,0145** |
+| kosinüsü enbüyült | **+0,00171** | +0,0063 |
+| mesafeyi bozmadan kosinüs enbüyük | −0,00121 | **−0,0018** |
+
+**Hiçbiri ikisini birden iyileştirmiyor.** İki metrik alt-stride hizalamada
+birbiriyle takas ediyor: mesafeyi iyileştiren offsetler görsel benzerliği
+bozuyor. Kısıtlı varyantta bile — mesafenin asla artmadığı kurulumda —
+kosinüs düşüyor.
+
+### Neden bağlanmadı
+
+Eşikler mesafe üzerinde kalibre edildi (F3.5 yüzdelikleri). Kosinüs hedefiyle
+açmak, kalibre edilmiş eşiği sessizce kaydırırdı. Ölçülen katkı ise her iki
+yönde de yok.
+
+Bu, [K-04](#k-04--kural-motorunun-i̇mhası-kanonik-şablon-vektörleri)'ün kısıt
+katmanıyla aynı muameledir: **ölçülmüş katkı göstermeyen katman bağlanmaz.**
+
+### Asıl değeri: negatif bulgu
+
+Pencere sınırları, algılanan uyumsuzluğun sebebi **değil**. Bu, aramayı asıl
+darboğaza yönlendirdi: korpus büyüklüğü. 4h evreni 80 sembol / 881K pencerede
+kalmıştı, 1d ise 1.165 sembol / 1,87M — ve arayüzün varsayılanı 4h'ydi.
+Kullanıcı, motorun kalibre edildiği korpusun %7'sinde arama yapıyordu.
+
+Nöbetçi test korundu: ince ayar mesafeyi **asla artıramaz** (mevcut hiza da
+aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
+
+---
+
 ## Reddedilen Fikirler Özeti
 
 | # | Reddedilen | Yerine | Gerekçe (özet) |
@@ -892,6 +984,7 @@ Bu, eşiklerin asıl kaynağının **negatif testler** olduğu anlamına gelir; 
 | 17 | Fabric.js / Konva.js | Düz Canvas + pointer events | Editör kütüphanesi; biz editör yapmıyoruz |
 | 18 | "%85 Benzerlik" slider'ı | `Katı ↔ Esnek` toggle | DTW mesafesi yüzde değil; kalibre edilemez |
 | 19 | Sadece yaşayan pariteler | Delist edilenler dahil | Survivorship bias istatistikleri yukarı büker |
+| 20 | Alt-stride hizalama ince ayarı | (bağlanmadı) | Mesafe ve kosinüs takas ediyor; ölçülen net katkı yok (K-19) |
 
 ---
 
