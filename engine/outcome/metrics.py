@@ -205,8 +205,20 @@ class OutcomeStats:
     theoretical_null: float
     outcomes: dict[str, int]
     truncated: int
+    #: Ampirik getiri dağılımı: medyan ve %80 bandı (p10–p90).
+    #:
+    #: Beklenti bir **ortalamadır** ve dağılımın şeklini gizler: +0,1R'lik iki
+    #: formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
+    #: diğeri "çoğu zaman küçük kazanç, ara sıra felaket" olabilir. Pozisyon
+    #: boyutlandıran biri için bu fark ortalamadan daha belirleyicidir.
+    #: Gölgenin aynı bandı yanında durur — bant tek başına baseline değildir.
+    r_median: float = float("nan")
+    r_band: tuple[float, float] = (float("nan"), float("nan"))
+
     shadow_expectancy_r: float | None = None
     shadow_win_rate: float | None = None
+    shadow_r_median: float | None = None
+    shadow_r_band: tuple[float, float] | None = None
     shadow_n: int = 0
     edge_r: float | None = None
     edge_ci: tuple[float, float] | None = None
@@ -239,6 +251,10 @@ class OutcomeStats:
             "expectancy_r": round(self.expectancy_r, 4),
             "expectancy_ci": [round(x, 4) for x in self.expectancy_ci],
             "expectancy_net_r": round(self.expectancy_net_r, 4),
+            "r_median": round(self.r_median, 4),
+            "r_band": [round(x, 4) for x in self.r_band],
+            "shadow_r_median": None if self.shadow_r_median is None else round(self.shadow_r_median, 4),
+            "shadow_r_band": None if self.shadow_r_band is None else [round(x, 4) for x in self.shadow_r_band],
             "win_rate": round(self.win_rate, 4),
             "win_rate_ci": [round(x, 4) for x in self.win_rate_ci],
             "theoretical_null": round(self.theoretical_null, 4),
@@ -258,6 +274,23 @@ class OutcomeStats:
             "by_regime": self.by_regime,
             "disclaimer": DISCLAIMER,
         }
+
+
+#: Ampirik bandın kapsadığı olasılık kütlesi (p10–p90).
+BAND_LOW, BAND_HIGH = 0.10, 0.90
+
+
+def distribution(r: np.ndarray) -> tuple[float, tuple[float, float]]:
+    """``(medyan, (p10, p90))`` — dağılımın şekli, ortalamanın gizlediği şey.
+
+    Yüzdelikler bootstrap'lanmaz: bunlar bir **iddia** değil, gözlenen
+    olayların betimlemesidir. Belirsizlik iddiası taşıyan sayılar (beklenti,
+    edge) güven aralıklarıyla döner; bu bant onlardan ayrı okunmalıdır.
+    """
+    if r.size == 0:
+        return float("nan"), (float("nan"), float("nan"))
+    lo, hi = np.quantile(r, [BAND_LOW, BAND_HIGH])
+    return float(np.median(r)), (float(lo), float(hi))
 
 
 def _counts(results: np.ndarray) -> dict[str, int]:
@@ -338,12 +371,14 @@ def summarize(
 
     stats.direction = direction
     stats.n_months = int(np.unique(month_of(results["end_time"])).size) if n else 0
+    stats.r_median, stats.r_band = distribution(r)
 
     if shadow is not None and shadow.size and n:
         s = shadow["r_gross"].astype(np.float64)
         s_wins = int((shadow["outcome"] == OUTCOME_TP).sum())
         stats.shadow_expectancy_r = float(s.mean())
         stats.shadow_win_rate = s_wins / shadow.size
+        stats.shadow_r_median, stats.shadow_r_band = distribution(s)
         stats.shadow_n = int(shadow.size)
         stats.edge_r = float(r.mean() - s.mean())
         stats.edge_ci_iid = bootstrap_diff_ci(r, s, confidence=confidence, rng=rng)

@@ -682,6 +682,9 @@
               }
             ]
           },
+          "distribution": {
+            "$ref": "#/components/schemas/ReturnDistribution"
+          },
           "outcomes": {
             "additionalProperties": {
               "type": "integer"
@@ -709,6 +712,7 @@
           "expectancy",
           "win_rate",
           "edge",
+          "distribution",
           "outcomes",
           "truncated",
           "by_regime"
@@ -830,6 +834,63 @@
           "expectancy_r"
         ],
         "title": "RegimeRow"
+      },
+      "ReturnDistribution": {
+        "properties": {
+          "median": {
+            "type": "number",
+            "title": "Median"
+          },
+          "p10": {
+            "type": "number",
+            "title": "P10"
+          },
+          "p90": {
+            "type": "number",
+            "title": "P90"
+          },
+          "shadow_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shadow Median"
+          },
+          "shadow_p10": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shadow P10"
+          },
+          "shadow_p90": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shadow P90"
+          }
+        },
+        "type": "object",
+        "required": [
+          "median",
+          "p10",
+          "p90"
+        ],
+        "title": "ReturnDistribution",
+        "description": "Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).\n\n**StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA\n\"ortalamayı ne kadar bilmiyoruz\"u, bant \"olaylar ne kadar saçılıyor\"u\nölçer; ikisini aynı kutuda göstermek \"±\" işaretinin anlamını bulanıklaştırır.\nBant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik\niki formasyondan biri \"çoğu zaman küçük kayıp, ara sıra büyük kazanç\",\ndiğeri tam tersi olabilir."
       },
       "SearchRequest": {
         "properties": {
@@ -1204,6 +1265,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",

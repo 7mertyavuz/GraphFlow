@@ -257,6 +257,7 @@ export interface components {
             expectancy: components["schemas"]["StatEnvelope"];
             win_rate: components["schemas"]["StatEnvelope"];
             edge: components["schemas"]["StatEnvelope"] | null;
+            distribution: components["schemas"]["ReturnDistribution"];
             /** Outcomes */
             outcomes: {
                 [key: string]: number;
@@ -311,6 +312,31 @@ export interface components {
              * @default false
              */
             insufficient: boolean;
+        };
+        /**
+         * ReturnDistribution
+         * @description Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).
+         *
+         *     **StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA
+         *     "ortalamayı ne kadar bilmiyoruz"u, bant "olaylar ne kadar saçılıyor"u
+         *     ölçer; ikisini aynı kutuda göstermek "±" işaretinin anlamını bulanıklaştırır.
+         *     Bant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik
+         *     iki formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
+         *     diğeri tam tersi olabilir.
+         */
+        ReturnDistribution: {
+            /** Median */
+            median: number;
+            /** P10 */
+            p10: number;
+            /** P90 */
+            p90: number;
+            /** Shadow Median */
+            shadow_median?: number | null;
+            /** Shadow P10 */
+            shadow_p10?: number | null;
+            /** Shadow P90 */
+            shadow_p90?: number | null;
         };
         /** SearchRequest */
         SearchRequest: {
@@ -443,6 +469,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
     responses: never;

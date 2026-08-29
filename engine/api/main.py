@@ -32,6 +32,7 @@ from engine.api.schemas import (
     OutcomeConfigResponse,
     OutcomeResponse,
     RegimeRow,
+    ReturnDistribution,
     SearchRequest,
     SearchResponse,
     StatEnvelope,
@@ -190,6 +191,17 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
             unit="R",
         )
 
+    band = stats.r_band if stats.r_band else (float("nan"), float("nan"))
+    shadow_band = stats.shadow_r_band
+    distribution = ReturnDistribution(
+        median=stats.r_median,
+        p10=band[0],
+        p90=band[1],
+        shadow_median=stats.shadow_r_median,
+        shadow_p10=None if shadow_band is None else shadow_band[0],
+        shadow_p90=None if shadow_band is None else shadow_band[1],
+    )
+
     return OutcomeConfigResponse(
         config=stats.config,
         k_tp=stats.k_tp,
@@ -197,6 +209,7 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
         expectancy=expectancy,
         win_rate=win_rate,
         edge=edge,
+        distribution=distribution,
         outcomes=stats.outcomes,
         truncated=stats.truncated,
         by_regime=[RegimeRow(**row) for row in stats.by_regime],

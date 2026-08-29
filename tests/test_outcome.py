@@ -22,6 +22,7 @@ from engine.outcome.bars import BarStore
 from engine.outcome.metrics import (
     bootstrap_diff_ci,
     bootstrap_mean_ci,
+    distribution,
     summarize,
     wilson_interval,
 )
@@ -491,6 +492,49 @@ def test_summarize_verdict_is_honest(random_dataset):
     assert stats.verdict == "anlamlı fark ölçülemedi"
     assert stats.theoretical_null == pytest.approx(1 / 3)
     assert "disclaimer" in stats.as_dict()
+
+
+def test_distribution_reports_the_spread_expectancy_hides():
+    """Aynı ortalamaya sahip iki dağılım aynı DEĞİLDİR."""
+    # Aynı beklenti (+0,1R), tamamen farklı şekil.
+    steady = np.concatenate([np.full(90, 0.2), np.full(10, -0.8)])
+    lottery = np.concatenate([np.full(90, -0.2), np.full(10, 2.8)])
+    assert steady.mean() == pytest.approx(lottery.mean(), abs=1e-9)
+
+    s_med, (s_lo, s_hi) = distribution(steady)
+    l_med, (l_lo, l_hi) = distribution(lottery)
+
+    # Ortalama aynı ama medyan ve bant taban tabana zıt — gösterilmesinin sebebi bu.
+    assert s_med > 0 > l_med
+    assert (s_hi - s_lo) < (l_hi - l_lo)
+
+
+def test_distribution_band_brackets_the_median():
+    rng = np.random.default_rng(3)
+    r = rng.normal(size=5_000)
+    median, (lo, hi) = distribution(r)
+    assert lo < median < hi
+    inside = float(((r >= lo) & (r <= hi)).mean())
+    assert inside == pytest.approx(0.80, abs=0.02)  # %80 bandı gerçekten %80
+
+
+def test_summarize_carries_distribution_for_matches_and_shadow(random_dataset):
+    """Bant hem eşleşmeler hem gölge için dolar — karşılaştırılabilir olmalı."""
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, 2.0, 1.0)
+    half = results.size // 2
+
+    stats = summarize(results[:half], 2.0, 1.0, "2:1", shadow=results[half:],
+                      rng=np.random.default_rng(0))
+
+    assert np.isfinite(stats.r_median)
+    assert stats.r_band[0] <= stats.r_median <= stats.r_band[1]
+    assert stats.shadow_r_band is not None
+    assert stats.shadow_r_band[0] <= stats.shadow_r_median <= stats.shadow_r_band[1]
+
+    payload = stats.as_dict()
+    assert "r_band" in payload and "shadow_r_band" in payload
 
 
 def test_both_configs_are_computed_together(random_dataset):

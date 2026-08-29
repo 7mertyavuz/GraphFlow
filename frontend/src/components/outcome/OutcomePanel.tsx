@@ -12,6 +12,7 @@ import { type Direction, type OutcomeResponse } from "@/services/endpoints";
 import { formatCount, formatPercent } from "@/utils/formatters";
 
 import { RegimeTable } from "./RegimeTable";
+import { ReturnBand } from "./ReturnBand";
 import { StatCard } from "./StatCard";
 
 const OUTCOME_LABELS: Record<string, { label: string; className: string }> = {
@@ -144,6 +145,8 @@ export function OutcomePanel({
                 </Alert>
               )}
             </div>
+
+            <ReturnBand distribution={config.distribution} />
 
             <div className="space-y-2">
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

@@ -126,6 +126,26 @@ class RegimeRow(BaseModel):
     insufficient: bool = False
 
 
+class ReturnDistribution(BaseModel):
+    """Gözlenen R dağılımı: medyan ve %80 bandı (p10–p90).
+
+    **StatEnvelope'a sarılmaz, çünkü bir güven aralığı DEĞİLDİR.** GA
+    "ortalamayı ne kadar bilmiyoruz"u, bant "olaylar ne kadar saçılıyor"u
+    ölçer; ikisini aynı kutuda göstermek "±" işaretinin anlamını bulanıklaştırır.
+    Bant burada, beklentinin gizlediği şeyi görünür kılmak için var: +0,1R'lik
+    iki formasyondan biri "çoğu zaman küçük kayıp, ara sıra büyük kazanç",
+    diğeri tam tersi olabilir.
+    """
+
+    median: float
+    p10: float
+    p90: float
+    #: Aynı bandın gölge dağılımdaki karşılığı — bant tek başına baseline değil.
+    shadow_median: float | None = None
+    shadow_p10: float | None = None
+    shadow_p90: float | None = None
+
+
 class OutcomeConfigResponse(BaseModel):
     config: str
     #: Bariyer oranları (TP, SL) — ATR katı cinsinden (K-16).
@@ -134,6 +154,7 @@ class OutcomeConfigResponse(BaseModel):
     expectancy: StatEnvelope
     win_rate: StatEnvelope
     edge: StatEnvelope | None
+    distribution: ReturnDistribution
     outcomes: dict[str, int]
     truncated: int
     by_regime: list[RegimeRow]

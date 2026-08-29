@@ -8,6 +8,7 @@ export type OutcomeResponse = components["schemas"]["OutcomeResponse"];
 export type OutcomeConfig = components["schemas"]["OutcomeConfigResponse"];
 export type StatEnvelope = components["schemas"]["StatEnvelope"];
 export type RegimeRow = components["schemas"]["RegimeRow"];
+export type ReturnDistribution = components["schemas"]["ReturnDistribution"];
 export type Template = components["schemas"]["TemplateResponse"];
 export type ChartResponse = components["schemas"]["ChartResponse"];
 export type FindingsResponse = components["schemas"]["FindingsResponse"];
