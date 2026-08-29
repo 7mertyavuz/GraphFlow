@@ -63,6 +63,9 @@ class ProxyResult:
     edge_ci: tuple[float, float] | None
     edge_is_significant: bool
     shadow_type: str  # "standard" veya "return_matched"
+    #: Bonferroni düzeltilmiş aralık ve hüküm (aile = bu koşudaki test sayısı).
+    edge_ci_bonferroni: tuple[float, float] | None = None
+    edge_significant_bonferroni: bool = False
     fallback_band_widened: int = 0
     fallback_month_expanded: int = 0
     n_months: int = 0
@@ -74,6 +77,7 @@ def run_proxy_test(
     templates: list[str] | None = None,
     bands: tuple[float, ...] = RETURN_MATCH_BAND_SENSITIVITY,
     seed: int = 20260731,
+    confidence: float | None = None,
 ) -> list[ProxyResult]:
     """Vekil testini çalıştırır.
 
@@ -120,7 +124,7 @@ def run_proxy_test(
         outcome_std = run_template(
             engine, template_id, template.vector, store, pools_standard,
             timeframe=timeframe, rng=np.random.default_rng(seed),
-            direction="short",
+            direction="short", confidence=confidence,
         )
         for config_name, stats in outcome_std.stats.items():
             results.append(ProxyResult(
@@ -147,7 +151,7 @@ def run_proxy_test(
             outcome_matched = run_template(
                 engine, template_id, template.vector, store, pools_matched,
                 timeframe=timeframe, rng=np.random.default_rng(seed),
-                direction="short",
+                direction="short", confidence=confidence,
                 return_matched_shadow=True,
                 return_band_sigma=band,
             )
@@ -182,8 +186,8 @@ def run_proxy_test(
 def format_results_table(results: list[ProxyResult]) -> str:
     """Sonuçları markdown tablo olarak formatlar."""
     lines = [
-        "| Formasyon | Konfig | Gölge Tipi | Band σ | N | Gölge N | Edge (R) | GA %95 | Anlamlı | DE |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| Formasyon | Konfig | Gölge Tipi | Band σ | N | Gölge N | Edge (R) | GA %95 | Anlamlı | Bonferroni | DE |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in results:
         ci_str = f"[{r.edge_ci[0]:+.3f}, {r.edge_ci[1]:+.3f}]" if r.edge_ci and all(np.isfinite(r.edge_ci)) else "—"
@@ -191,9 +195,10 @@ def format_results_table(results: list[ProxyResult]) -> str:
         sig_str = "✅" if r.edge_is_significant else "❌"
         de_str = f"{r.design_effect:.2f}" if r.design_effect is not None and np.isfinite(r.design_effect) else "—"
         band_str = f"±{r.band_sigma:.2f}" if r.band_sigma > 0 else "—"
+        bonf_str = "✅" if r.edge_significant_bonferroni else "❌"
         lines.append(
             f"| {r.template_id} | {r.config} | {r.shadow_type} | {band_str} | "
-            f"{r.n_events} | {r.n_shadow} | {edge_str} | {ci_str} | {sig_str} | {de_str} |"
+            f"{r.n_events} | {r.n_shadow} | {edge_str} | {ci_str} | {sig_str} | {bonf_str} | {de_str} |"
         )
     return "\n".join(lines)
 
@@ -261,10 +266,36 @@ def decide_verdict(results: list[ProxyResult]) -> str:
     return "\n".join(lines)
 
 
+def apply_bonferroni(results: list[ProxyResult], timeframe: str = "1d") -> list[ProxyResult]:
+    """Aileyi bu koşudaki test sayısı kabul edip düzeltilmiş GA'yı ekler.
+
+    F4.5 bunu yapıyordu, F4.6 yapmıyordu — 40 testte %95 ile şans eseri ~2
+    "anlamlı" hücre beklenir. Düzeltilmemiş bir F4.6 tablosu, tam olarak
+    kaçınmak için kurulmuş olduğu tuzağa düşerdi (CLAUDE.md, K-12).
+    """
+    from engine.outcome.metrics import bonferroni_level
+
+    family = len(results)
+    level = bonferroni_level(family)
+    log.info("Bonferroni: aile %d test → güven düzeyi %.6f", family, level)
+
+    corrected = run_proxy_test(timeframe=timeframe, confidence=level)
+    by_key = {
+        (r.template_id, r.config, r.shadow_type, round(r.band_sigma, 3)): r for r in corrected
+    }
+    for r in results:
+        c = by_key.get((r.template_id, r.config, r.shadow_type, round(r.band_sigma, 3)))
+        if c is not None:
+            r.edge_ci_bonferroni = c.edge_ci
+            r.edge_significant_bonferroni = c.edge_is_significant
+    return results
+
+
 def main():
     log.info("F4.6 Vekil Testi başlıyor...")
 
     results = run_proxy_test()
+    results = apply_bonferroni(results)
 
     # Tablo
     table = format_results_table(results)
@@ -291,6 +322,8 @@ def main():
             "edge_r": r.edge_r,
             "edge_ci": list(r.edge_ci) if r.edge_ci else None,
             "edge_is_significant": r.edge_is_significant,
+            "edge_ci_bonferroni": list(r.edge_ci_bonferroni) if r.edge_ci_bonferroni else None,
+            "edge_significant_bonferroni": r.edge_significant_bonferroni,
             "shadow_type": r.shadow_type,
             "fallback_band_widened": r.fallback_band_widened,
             "fallback_month_expanded": r.fallback_month_expanded,

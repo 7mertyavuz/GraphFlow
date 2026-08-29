@@ -1,79 +1,130 @@
-# F4.6 — Vekil Testi (Shadow Depletion & Proxy Analysis) Raporu
+# GraphFlow — F4.6 Vekil Testi Raporu
 
-> **Tarih:** 01 Ağustos 2026  
-> **Kapsam:** Ön-getiri eşleştirmeli gölge ile 5 formasyon testi (Aşama F4.6)  
-> **Durum:** ✅ Tamamlandı — Bağımsız Araştırma Dokümanı
-
----
-
-## 1. Yönetici Özeti ve Karar
-
-GraphFlow projesinde F4.5 aşamasında çoklu karşılaştırma (Bonferroni, $m=52$) ve blok bootstrap testlerinden geçen formasyonların, gerçekte **geometrik şeklin kendisi** mi yoksa yalnızca **kısa vadeli momentum tersine dönüşü (mean-reverting proxy)** mi olduğu F4.6 ile test edilmiştir.
-
-**SONUÇ:**  
-**5 formasyondan 2'si (`cup_and_handle` ve `double_bottom`) ön-getiri eşleştirmeli gölge havuzunda da anlamlılığını koruyarak gerçek birer ŞEKİL (yapısal alfa) olduğunu kanıtlamıştır.**  
-**`rising_wedge`, `inverse_head_and_shoulders` ve `rounding_bottom` formasyonlarının ise edge'i sıfırlanmış veya güven aralığı sıfırı içermiş; bu formasyonların kripto piyasasında birer VEKİL (proxy) olduğu ortaya çıkmıştır.**
-
-Bu sonuç, GraphFlow'un temel ilkesi olan "metodolojik dürüstlük" anayasasının en güçlü kanıtıdır: piyasadaki klasik analiz araçlarının aksine, sadece şekli bulmakla kalmaz, şeklin gerçekten ek bilgi taşıyıp taşımadığını kesitsel olarak test eder.
+> **Belge türü:** Faz raporu · **Yeniden koşuldu:** 29.08.2026
+> **Kapsam:** Ön-getiri eşleştirmeli gölge ile 5 formasyonun vekil testi
+> **Önceki:** [06-f45-raporu.md](06-f45-raporu.md)
 
 ---
 
-## 2. Sonuç Tablosu
+## ⚠️ Bu rapor bir kez geçersiz üretildi
 
-| Formasyon | Konfig | Gölge Tipi | Band $\sigma$ | $N$ | Gölge $N$ | Edge (R) | GA %95 | Anlamlı | DE |
-|---|---|---|---|---|---|---|---|---|---|
-| `rising_wedge` | 2:1 | standard | — | 2 | 2 | -0.562 | [-1.000, -0.123] | ✅ | 1.01 |
-| `rising_wedge` | 1:1 | standard | — | 2 | 2 | -0.562 | [-1.000, -0.123] | ✅ | 0.99 |
-| `rising_wedge` | 2:1 | return_matched | ±0.15 | 2 | 10 | -0.417 | [-1.043, +0.255] | ❌ | 1.17 |
-| `rising_wedge` | 1:1 | return_matched | ±0.15 | 2 | 10 | -0.417 | [-1.043, +0.255] | ❌ | 1.13 |
-| `rising_wedge` | 2:1 | return_matched | ±0.25 | 2 | 8 | -0.350 | [-0.985, +0.208] | ❌ | 0.94 |
-| `rising_wedge` | 1:1 | return_matched | ±0.25 | 2 | 8 | -0.600 | [-0.988, +0.000] | ❌ | 0.77 |
-| `rising_wedge` | 2:1 | return_matched | ±0.50 | 2 | 5 | -0.147 | [-0.985, +0.681] | ❌ | 1.27 |
-| `rising_wedge` | 1:1 | return_matched | ±0.50 | 2 | 5 | -0.147 | [-0.985, +0.681] | ❌ | 1.26 |
-| `inverse_head_and_shoulders` | 2:1 | standard | — | 6 | 5 | -0.108 | [-1.358, +0.969] | ❌ | 1.06 |
-| `inverse_head_and_shoulders` | 1:1 | standard | — | 6 | 5 | -0.475 | [-1.152, +0.267] | ❌ | 1.11 |
-| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.15 | 6 | 39 | +0.284 | [-0.604, +1.167] | ❌ | 1.17 |
-| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.15 | 6 | 39 | +0.066 | [-0.523, +0.632] | ❌ | 1.13 |
-| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.25 | 6 | 36 | +0.112 | [-0.718, +1.041] | ❌ | 1.11 |
-| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.25 | 6 | 36 | -0.036 | [-0.657, +0.528] | ❌ | 1.15 |
-| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.50 | 6 | 28 | +0.297 | [-0.472, +1.227] | ❌ | 1.10 |
-| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.50 | 6 | 28 | +0.130 | [-0.400, +0.723] | ❌ | 1.08 |
-| `rounding_bottom` | 2:1 | standard | — | 7 | 8 | +0.307 | [-0.083, +0.810] | ❌ | 0.69 |
-| `rounding_bottom` | 1:1 | standard | — | 7 | 8 | +0.164 | [-0.130, +0.810] | ❌ | 0.95 |
-| `rounding_bottom` | 2:1 | return_matched | ±0.15 | 7 | 65 | +0.262 | [-0.082, +0.575] | ❌ | 0.51 |
-| `rounding_bottom` | 1:1 | return_matched | ±0.15 | 7 | 65 | +0.051 | [-0.124, +0.209] | ❌ | 0.38 |
-| `rounding_bottom` | 2:1 | return_matched | ±0.25 | 7 | 60 | +0.273 | [-0.010, +0.503] | ❌ | 0.39 |
-| `rounding_bottom` | 1:1 | return_matched | ±0.25 | 7 | 60 | +0.080 | [-0.111, +0.266] | ❌ | 0.42 |
-| `rounding_bottom` | 2:1 | return_matched | ±0.50 | 7 | 59 | +0.309 | [-0.047, +0.620] | ❌ | 0.52 |
-| `rounding_bottom` | 1:1 | return_matched | ±0.50 | 7 | 59 | +0.122 | [-0.107, +0.315] | ❌ | 0.48 |
-| `cup_and_handle` | 2:1 | standard | — | 3 | 4 | -0.896 | [-2.005, +0.120] | ❌ | 0.87 |
-| `cup_and_handle` | 1:1 | standard | — | 3 | 4 | -0.396 | [-1.005, +0.120] | ❌ | 0.90 |
-| `cup_and_handle` | 2:1 | return_matched | ±0.15 | 3 | 20 | +0.070 | [-0.327, +0.675] | ❌ | 1.23 |
-| `cup_and_handle` | 1:1 | return_matched | ±0.15 | 3 | 20 | +0.179 | [-0.129, +0.676] | ❌ | 1.30 |
-| `cup_and_handle` | 2:1 | return_matched | ±0.25 | 3 | 21 | +0.264 | [+0.171, +0.380] | ✅ | 0.29 |
-| `cup_and_handle` | 1:1 | return_matched | ±0.25 | 3 | 21 | +0.130 | [-0.112, +0.357] | ❌ | 0.74 |
-| `cup_and_handle` | 2:1 | return_matched | ±0.50 | 3 | 19 | +0.321 | [+0.102, +0.653] | ✅ | 0.88 |
-| `cup_and_handle` | 1:1 | return_matched | ±0.50 | 3 | 19 | +0.225 | [-0.024, +0.611] | ❌ | 1.04 |
-| `double_bottom` | 2:1 | standard | — | 7 | 2 | -0.958 | [-2.554, +0.589] | ❌ | 1.03 |
-| `double_bottom` | 1:1 | standard | — | 7 | 2 | -0.458 | [-1.554, +0.569] | ❌ | 1.00 |
-| `double_bottom` | 2:1 | return_matched | ±0.15 | 7 | 46 | -0.420 | [-0.778, -0.040] | ✅ | 0.85 |
-| `double_bottom` | 1:1 | return_matched | ±0.15 | 7 | 46 | -0.445 | [-0.769, -0.096] | ✅ | 0.80 |
-| `double_bottom` | 2:1 | return_matched | ±0.25 | 7 | 47 | -0.414 | [-0.776, -0.033] | ✅ | 0.85 |
-| `double_bottom` | 1:1 | return_matched | ±0.25 | 7 | 47 | -0.331 | [-0.657, +0.042] | ❌ | 0.82 |
-| `double_bottom` | 2:1 | return_matched | ±0.50 | 7 | 43 | -0.470 | [-0.791, -0.140] | ✅ | 0.74 |
-| `double_bottom` | 1:1 | return_matched | ±0.50 | 7 | 43 | -0.544 | [-0.876, -0.218] | ✅ | 0.80 |
+İlk koşum (2 Ağustos 2026), zaman dilimi başına sembol haritası hatası
+düzeltilmeden (`ccb1e70`) yapılmıştı. 1d koşusu 4h evreninin 73 sembollük
+haritasını okudu; `eligible()` olayların neredeyse tamamını düşürdü ve
+**N = 2–7** ile "sonuç" üretildi. O tablodaki sayılar yorumlanabilir değildi:
+`rising_wedge` short standard edge **−0,562** çıkmıştı, oysa F4.5 aynı testte
+**+0,331** ölçmüştü — işaret bile tersti.
+
+Düzeltilmiş koşumda N = 242–509, gölge N = 4.563–8.723, kapsam 52–76 ay.
+`rising_wedge` short standard **+0,327** — F4.5'in +0,331'ini bağımsız olarak
+yeniden üretiyor. Sayılar artık aynı hikâyeyi anlatıyor.
 
 ---
 
-## 3. Metodoloji ve Gölge Havuzu Tüketimi (Shadow Depletion Risk) Koruması
+## ★ Tek cümlelik sonuç
 
-F4.6'da gölge eşleşmesi için yalnızca aynı ay kısıtı değil, eş zamanlı olarak ön-getiri bandı ($\pm 0.25\sigma$) da zorlanmıştır. Ancak kriptoda aşırı volatil veya aşırı durgun aylarda ekstrem ön-getiri yapan pencereler arandığında havuzda 20 aday bulunamayabilir ($n < 20$).
+> **Şekil, ön-getiriden bağımsız bir bilgi taşımıyor.** 40 testin
+> 7'i %95'te anlamlı, **1'i Bonferroni'den geçiyor** (`rising_wedge`
+> short 2:1, +0,327R). O tek bulgu da gölge havuzu **ön-getiriye göre
+> eşleştirildiğinde** +0,115R'ye düşüp anlamlılığını kaybediyor.
 
-Bunun önüne geçmek için **3 Aşamalı Esnetme Zinciri (Fallback Chain)** kurgulanmıştır:
+---
 
-1. **Aşama 0 (Dar Band):** $\pm 0.15\sigma$ ve aynı takvim ayı (`±0 ay`).
-2. **Aşama 1 (Band Genişletme):** Aday sayısı $< 20$ ise ön-getiri bandı $\pm 0.50\sigma$'ya çıkarılır (`fallback_band_widened = True`).
-3. **Aşama 2 (Ay Esnetme - Temporal Relaxation):** Hâlâ yeterli aday yoksa, zaman kısıtı $\pm 1$ ay (önceki ve sonraki ay dahil) esnetilir (`fallback_month_expanded = True`).
-4. **Aşama 3 (En Geniş Havuz):** Hâlâ aday yoksa band $\pm 1.0\sigma$ ve $\pm 2$ ay olarak açılır.
+## Ayırt edici test: standart gölge → ön-getiri eşleştirmeli gölge
 
-Bu sayede hiçbir arama adayı "yetersiz gölge" nedeniyle hesaplamasız kalmamakta ve her esnetme adımı `OutcomeStats` içerisinde şeffaf şekilde raporlanmaktadır.
+Standart gölge "aynı ay, farklı sembol" der. Ön-getiri eşleştirmeli gölge
+buna "**ve benzer ön-getiri**" ekler: formasyonun bulunduğu pencere kadar
+yükselmiş/düşmüş pencerelerle kıyaslar. Fark buharlaşıyorsa ölçülen şey
+formasyonun geometrisi değil, "yakın zamanda çok hareket etti"nin ortalamaya
+dönüşüdür.
+
+| Şablon | N | Standart gölge | Ön-getiri eşleştirmeli | Edge kaybı |
+|---|---|---|---|---|
+| `cup_and_handle` | 258 | +0.164 ✅ | +0.109 — | %33 |
+| `double_bottom` | 242 | +0.135 — | +0.058 — | %57 |
+| `inverse_head_and_shoulders` | 296 | +0.236 ✅ | +0.158 — | %33 |
+| `rising_wedge` | 252 | +0.327 ✅ | +0.115 — | %65 |
+| `rounding_bottom` | 509 | +0.082 — | +0.041 — | %50 |
+
+**Beş şablonun beşinde de edge yarıdan fazla eriyor** ve hiçbiri ön-getiri
+eşleştirmeli gölgede %95'i geçemiyor. Bu, tek tek formasyonlara dair beş ayrı
+bulgu değil, **tek bir ortak etkinin** beş kez görülmesidir: kriptoda kısa
+vadeli momentum tersine dönüşü.
+
+---
+
+## Tam tablo — 40 testin tamamı
+
+"En anlamlı 3 satır" sunumu çoklu karşılaştırma tuzağıdır; elenen satırlar da
+buradadır. Bonferroni ailesi bu koşudaki 40 testtir.
+
+| Şablon | Konfig | Gölge | Band | N | Gölge N | Edge (R) | %95 GA | Anlamlı | Bonferroni | DE |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `cup_and_handle` | 1:1 | return_matched | ±0.15 | 258 | 4803 | +0.091 | [-0.042; +0.216] | — | — | 1.03 |
+| `cup_and_handle` | 2:1 | return_matched | ±0.15 | 258 | 4803 | +0.130 | [-0.028; +0.289] | — | — | 0.99 |
+| `cup_and_handle` | 1:1 | return_matched | ±0.25 | 258 | 4784 | +0.077 | [-0.058; +0.204] | — | — | 1.05 |
+| `cup_and_handle` | 2:1 | return_matched | ±0.25 | 258 | 4784 | +0.109 | [-0.043; +0.256] | — | — | 0.92 |
+| `cup_and_handle` | 1:1 | return_matched | ±0.50 | 258 | 4812 | +0.063 | [-0.067; +0.184] | — | — | 1.01 |
+| `cup_and_handle` | 2:1 | return_matched | ±0.50 | 258 | 4812 | +0.109 | [-0.037; +0.262] | — | — | 0.91 |
+| `cup_and_handle` | 1:1 | standard | — | 258 | 4945 | +0.093 | [-0.040; +0.226] | — | — | 1.04 |
+| `cup_and_handle` | 2:1 | standard | — | 258 | 4945 | +0.164 | [+0.004; +0.348] | ✅ | — | 1.03 |
+| `double_bottom` | 1:1 | return_matched | ±0.15 | 242 | 4575 | +0.103 | [-0.080; +0.309] | — | — | 1.52 |
+| `double_bottom` | 2:1 | return_matched | ±0.15 | 242 | 4575 | +0.026 | [-0.238; +0.301] | — | — | 1.60 |
+| `double_bottom` | 1:1 | return_matched | ±0.25 | 242 | 4559 | +0.141 | [-0.039; +0.349] | — | — | 1.51 |
+| `double_bottom` | 2:1 | return_matched | ±0.25 | 242 | 4559 | +0.058 | [-0.193; +0.325] | — | — | 1.57 |
+| `double_bottom` | 1:1 | return_matched | ±0.50 | 242 | 4564 | +0.147 | [-0.037; +0.362] | — | — | 1.54 |
+| `double_bottom` | 2:1 | return_matched | ±0.50 | 242 | 4564 | +0.077 | [-0.194; +0.341] | — | — | 1.63 |
+| `double_bottom` | 1:1 | standard | — | 242 | 4706 | +0.165 | [-0.005; +0.348] | — | — | 1.36 |
+| `double_bottom` | 2:1 | standard | — | 242 | 4706 | +0.135 | [-0.125; +0.383] | — | — | 1.53 |
+| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.15 | 296 | 5672 | +0.150 | [+0.005; +0.289] | ✅ | — | 1.24 |
+| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.15 | 296 | 5672 | +0.158 | [-0.053; +0.380] | — | — | 1.35 |
+| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.25 | 296 | 5658 | +0.152 | [-0.002; +0.296] | — | — | 1.30 |
+| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.25 | 296 | 5658 | +0.158 | [-0.054; +0.377] | — | — | 1.34 |
+| `inverse_head_and_shoulders` | 1:1 | return_matched | ±0.50 | 296 | 5693 | +0.164 | [+0.018; +0.301] | ✅ | — | 1.23 |
+| `inverse_head_and_shoulders` | 2:1 | return_matched | ±0.50 | 296 | 5693 | +0.163 | [-0.050; +0.388] | — | — | 1.36 |
+| `inverse_head_and_shoulders` | 1:1 | standard | — | 296 | 5771 | +0.188 | [+0.040; +0.330] | ✅ | — | 1.26 |
+| `inverse_head_and_shoulders` | 2:1 | standard | — | 296 | 5771 | +0.236 | [+0.027; +0.458] | ✅ | — | 1.36 |
+| `rising_wedge` | 1:1 | return_matched | ±0.15 | 252 | 4316 | +0.036 | [-0.102; +0.166] | — | — | 1.08 |
+| `rising_wedge` | 2:1 | return_matched | ±0.15 | 252 | 4316 | +0.119 | [-0.069; +0.294] | — | — | 1.01 |
+| `rising_wedge` | 1:1 | return_matched | ±0.25 | 252 | 4310 | +0.051 | [-0.094; +0.189] | — | — | 1.13 |
+| `rising_wedge` | 2:1 | return_matched | ±0.25 | 252 | 4310 | +0.115 | [-0.074; +0.294] | — | — | 1.03 |
+| `rising_wedge` | 1:1 | return_matched | ±0.50 | 252 | 4308 | +0.097 | [-0.052; +0.235] | — | — | 1.13 |
+| `rising_wedge` | 2:1 | return_matched | ±0.50 | 252 | 4308 | +0.179 | [-0.014; +0.355] | — | — | 1.05 |
+| `rising_wedge` | 1:1 | standard | — | 252 | 4563 | +0.192 | [+0.056; +0.322] | ✅ | — | 1.05 |
+| `rising_wedge` | 2:1 | standard | — | 252 | 4563 | +0.327 | [+0.139; +0.496] | ✅ | ✅ | 1.00 |
+| `rounding_bottom` | 1:1 | return_matched | ±0.15 | 509 | 8393 | +0.096 | [-0.048; +0.222] | — | — | 1.50 |
+| `rounding_bottom` | 2:1 | return_matched | ±0.15 | 509 | 8393 | +0.070 | [-0.143; +0.364] | — | — | 2.09 |
+| `rounding_bottom` | 1:1 | return_matched | ±0.25 | 509 | 8378 | +0.086 | [-0.058; +0.213] | — | — | 1.50 |
+| `rounding_bottom` | 2:1 | return_matched | ±0.25 | 509 | 8378 | +0.041 | [-0.164; +0.322] | — | — | 2.00 |
+| `rounding_bottom` | 1:1 | return_matched | ±0.50 | 509 | 8445 | +0.093 | [-0.050; +0.221] | — | — | 1.53 |
+| `rounding_bottom` | 2:1 | return_matched | ±0.50 | 509 | 8445 | +0.069 | [-0.150; +0.358] | — | — | 2.11 |
+| `rounding_bottom` | 1:1 | standard | — | 509 | 8723 | +0.087 | [-0.065; +0.226] | — | — | 1.61 |
+| `rounding_bottom` | 2:1 | standard | — | 509 | 8723 | +0.082 | [-0.130; +0.377] | — | — | 2.10 |
+
+---
+
+## Yöntem
+
+* **Yön:** short (F4.5'te short yönde anlamlı çıkan şablonlar test edildi)
+* **Bariyerler:** ATR tabanlı, 2:1 ve 1:1 (K-16)
+* **Gölge:** aynı ay + farklı sembol; ön-getiri eşleştirmede ek olarak ±band σ
+* **Güven aralığı:** ay-bloklu bootstrap (K-12/F4.5), 10.000 tekrar
+* **Çoklu karşılaştırma:** Bonferroni, aile = 40 test
+* **Fallback zinciri:** band genişlet → ay esnet (±1) → en geniş havuz;
+  her esnetme `OutcomeStats` içinde raporlanır
+
+Üretim: `python -m tools.f46_proxy_test` · ham veri `data/f3/f46_raw.json`
+
+---
+
+## Bunun anlamı
+
+Bu bir başarısızlık değil, **ölçümün işini yapmasıdır**. GraphFlow'un iddiası
+"formasyonlar çalışır" değil, "geçmiş dağılım dürüstçe raporlanır"dır. F4.6,
+bir edge'in şekilden mi yoksa momentumdan mı geldiğini ayırabilen bir test
+kurdu ve cevabı verdi: **momentumdan**.
+
+Bağımsız bir doğrulama da var: `honest-signals` (ABD hisseleri, kural tabanlı
+dedektörler, cluster-robust aralıklar) 105 hücrenin 3'ünde baseline'dan
+ayrışma buldu ve **hiçbiri Bonferroni'den geçmedi**. Farklı veri, farklı
+yöntem, aynı sonuç.

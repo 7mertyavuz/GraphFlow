@@ -580,14 +580,23 @@ def _finding_stages() -> list[FindingStage]:
             desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
         ),
         FindingStage(
-            stage="F4.6 — ön-getiri eşleştirmeli gölge ⚠ yeniden koşulmalı",
+            stage="F4.6 — ön-getiri eşleştirmeli gölge",
             significant=sum(1 for r in f46 if r.get("edge_is_significant")),
             total=len(f46),
             desc=(
-                "Bu tablo, zaman dilimi başına sembol haritası düzeltilmeden "
-                "önce üretildi: 1d koşumu 4h evreninin haritasını okudu, olay "
-                "sayısı N=252'den N=2–7'ye düştü. Sayılar yorumlanmamalıdır; "
-                "faz `python -m tools.f46_proxy_test` ile yeniden koşulmalı."
+                "Gölge havuzuna 'benzer ön-getiri' kısıtı eklendi: fark "
+                "buharlaşıyorsa ölçülen şey şekil değil, momentum tersine "
+                "dönüşüdür. Beş şablonun beşinde de edge yarıdan fazla eridi."
+            ),
+        ),
+        FindingStage(
+            stage="F4.6 — Bonferroni",
+            significant=sum(1 for r in f46 if r.get("edge_significant_bonferroni")),
+            total=len(f46),
+            desc=(
+                "Aynı aile, çoklu karşılaştırma düzeltmesiyle. Geçen tek satır "
+                "(yükselen takoz, standart gölge) ön-getiri eşleştirilince "
+                "+0,327R'den +0,115R'ye düşüp anlamlılığını kaybediyor."
             ),
         ),
     ]

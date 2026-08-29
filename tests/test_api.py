@@ -527,7 +527,7 @@ def test_templates_expose_vectors_and_descriptions():
 def test_findings_report_every_stage():
     """Elenen bulgular da raporlanır — 'anlamlı 2' sayısı tek başına yanıltıcı."""
     body = client.get("/api/findings").json()
-    assert len(body["stages"]) == 4
+    assert len(body["stages"]) == 5
     assert "Bonferroni" in body["methodology"]
     for stage in body["stages"]:
         assert 0 <= stage["significant"] <= stage["total"]
