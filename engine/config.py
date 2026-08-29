@@ -189,13 +189,27 @@ PRICE_CONTINUITY_MAX_RATIO: Final[float] = 10.0
 #: için tek barda 100.000x "hareket" üretirler. Evrenden düşerler.
 LEVERAGED_TOKEN_SUFFIXES: Final[tuple[str, ...]] = ("UP", "DOWN", "BULL", "BEAR")
 
-#: Aramada varsayılan minimum genlik (%). 1d değeri ölçüldü: %15 eşiği likit
-#: pencerelerin %95,2'sini koruyor — patolojik kuyruğu kesiyor, veriyi
-#: budamıyor. 4h değeri GEÇİCİ: aynı bar sayısı 1/6 zaman kapsadığı için
-#: oynaklık ~√6 ile ölçekleniyor; 4h matrisleri kurulunca ölçülmeli.
+#: Aramada varsayılan minimum genlik (%). Eşik teorik olarak seçilemez:
+#: doğru değer korpusun oynaklık dağılımına bağlıdır ve zaman dilimine göre
+#: değişir. Ölçüt: likit pencerelerin %95'ini koru — patolojik kuyruğu kes,
+#: veriyi budama. Üretim: ``python -m tools.measure_amplitude``.
+#:
+#: **4h ÖLÇÜLDÜ** (29 Ağu 2026, 4.644.712 likit pencere): p05 %6,0 ·
+#: p25 %13,0 · medyan %21,8 → eşik %6,0, korunan %95,0. Buradaki değer
+#: daha önce √6 ölçeklemesinden TAHMİN edilmişti ve "geçici — ölçülmedi"
+#: notu taşıyordu; ölçüm tahmini doğruladı, sayı değişmedi ama artık
+#: dayanağı var. (Ölçüm ancak 4h evreni 80'den 1.097 sembole çıkarılıp
+#: matrisler yeniden kurulduktan sonra anlamlıydı.)
+#:
+#: 1d değeri F3.5'te ölçüldü ve **değiştirilmedi**. Bugünkü korpusta aynı
+#: ölçüt %18,5 veriyor; %15 ise pencerelerin %96,9'unu koruyor (F3.5'te
+#: %95,2'ydi). Fark korpus değişiminden gelir — evren, peg filtresi ve
+#: süreklilik invariant'ı o günden beri değişti. Kalibre edilmiş bir sabiti
+#: ve ona bağlı tüm F3/F4 ölçümlerini tek taraflı kaydırmak yerine fark
+#: kayda geçiriliyor.
 DEFAULT_MIN_AMPLITUDE: Final[dict[str, float]] = {
-    "4h": 6.0,  # geçici — ölçülmedi
-    "1d": 15.0,  # ölçüldü (F3.5)
+    "4h": 6.0,  # ölçüldü (29 Ağu 2026) — korunan %95,0
+    "1d": 15.0,  # ölçüldü (F3.5); bugünkü korpusta ölçüt %18,5 verir
 }
 
 
