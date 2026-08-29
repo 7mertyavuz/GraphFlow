@@ -842,3 +842,68 @@ def test_warping_path_is_monotone_and_banded():
     assert np.all(np.diff(path[:, 0]) >= 0) and np.all(np.diff(path[:, 1]) >= 0)
     assert np.all(np.abs(path[:, 0] - path[:, 1]) <= SAKOE_CHIBA_RADIUS)
     assert warp_amount(path) < 5.0  # kendi şekline hizalanırken az bükülme
+
+
+# ---------------------------------------------------------------------------
+# İnce ayar katmanı (ölçüldü, bağlanmadı — config.REFINE_MATCHES)
+# ---------------------------------------------------------------------------
+
+
+def test_refine_never_worsens_the_ranking_metric():
+    """İnce ayar mesafeyi ASLA artırmaz: mevcut hiza da aday kümesindedir.
+
+    Bu, katmanın açılması hâlinde eşik kalibrasyonunun (F3.5 yüzdelikleri)
+    sessizce kaymayacağının garantisidir.
+    """
+    import numpy as np
+
+    from engine.outcome.bars import BarStore
+    from engine.search.engine import Match
+    from engine.search.refine import refine_matches
+    from engine.search.ddtw import stage2_scores
+    from engine.normalize.pipeline import normalize_batch
+    from engine.config import N_POINTS, TIMEFRAME_MS
+    from tools.shapes import head_and_shoulders
+
+    rng = np.random.default_rng(11)
+    n_bars = 400
+    shape = head_and_shoulders(60)
+    close = 100.0 * np.exp(np.cumsum(0.01 * rng.normal(size=n_bars)))
+    close[120:180] = 100.0 * np.exp(0.25 * shape)  # gömülü formasyon
+
+    step = TIMEFRAME_MS["1d"]
+    store = BarStore.from_arrays(
+        {
+            7: {
+                "close": close,
+                "high": close * 1.01,
+                "low": close * 0.99,
+                "open": close,
+                "open_time": np.arange(n_bars, dtype=np.int64) * step,
+                "symbol": "TESTUSDT",
+            }
+        }
+    )
+
+    query = normalize_batch(100.0 * np.exp(0.25 * head_and_shoulders(60))[None, :])[0][0]
+    query = np.asarray(query, dtype=np.float64)
+
+    # Formasyonun 2 bar kaymış hâlini "bulunmuş eşleşme" gibi ver.
+    start = 122
+    window = close[start : start + 60][None, :]
+    vec, _ = normalize_batch(window, N_POINTS)
+    distance = float(stage2_scores(query, np.asarray(vec, dtype=np.float64))[0])
+
+    match = Match(
+        symbol="TESTUSDT", symbol_id=7, timeframe="1d", window_length=60,
+        start_idx=start, end_idx=start + 59,
+        end_time=int(store.open_time[start + 59]),
+        score=float(np.asarray(vec[0], dtype=np.float64) @ query / N_POINTS),
+        distance=distance, amplitude=10.0, atr=1.0, percentile=0.5,
+    )
+
+    refined = refine_matches([match], store, query, "1d")
+    assert len(refined) == 1
+    assert refined[0].distance <= match.distance + 1e-12
+    # Kayma olduysa uç indeksler tutarlı kalmalı.
+    assert refined[0].end_idx - refined[0].start_idx == 59

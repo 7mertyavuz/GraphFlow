@@ -42,6 +42,8 @@ from engine.api.session import get_session_id, read_session, track_session
 from engine.config import (
     DATA_DIR,
     N_POINTS,
+    REFINE_MATCHES,
+    REFINE_TOP_N,
     SEARCH_CACHE_MATCHES,
     SEARCH_RATE_LIMIT,
     TIMEFRAME_MS,
@@ -55,6 +57,7 @@ from engine.outcome.pipeline import TemplateOutcome, load_shadow_pools, run_even
 from engine.outcome.shadow import ShadowPool
 from engine.outcome.triple_barrier import EVENT_DTYPE
 from engine.search.engine import SearchEngine
+from engine.search.refine import refine_matches
 from engine.templates.loader import load_all as load_all_templates
 
 log = logging.getLogger(__name__)
@@ -324,6 +327,23 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
         min_amplitude=request.min_amplitude,
         limit=SEARCH_CACHE_MATCHES,  # sayfalama havuzu; istemciye limit kadarı gider
     )
+
+    # İnce ayar: matris STRIDE=3 ile kurulduğu için gösterilen pencere
+    # gerçek en iyi hizadan 1-2 bar kaymış olabilir (ölçüldü: ortalama
+    # +0,021, en kötü +0,096 kosinüs). Yalnızca kullanıcının göreceği ilk
+    # eşleşmeler düzeltilir; bar verisi gerektirdiği için bedava değildir.
+    if REFINE_MATCHES and result.results:
+        try:
+            head = refine_matches(
+                result.results[:REFINE_TOP_N],
+                get_store(request.timeframe),
+                query_vector,
+                request.timeframe,
+                null_dist=result.null_dist,
+            )
+            result.results = head + result.results[REFINE_TOP_N:]
+        except Exception:  # ince ayar aramayı düşürmemeli
+            log.warning("ince ayar atlandı", exc_info=True)
 
     # Hizalama yolu yalnızca ilk sayfalar için: aday başına O(32²) Python.
     warp_paths = engine.compute_warp_paths(result.results[:WARP_PATH_TOP_N], query_vector)

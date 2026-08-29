@@ -156,6 +156,10 @@ class SearchResult:
     stage1_candidates: int = 0
     stage2_candidates: int = 0
     null_stats: dict[int, "NullStats"] = field(default_factory=dict)
+    #: Sıralı null skor dizileri (uzunluk başına). İnce ayar katmanı (F8)
+    #: yüzdelik dilimi yeniden hesaplayabilsin diye taşınır — özet
+    #: ``null_stats`` eşikleri verir, yeniden hesap için dizinin kendisi gerekir.
+    null_dist: dict[int, np.ndarray] = field(default_factory=dict)
     discriminative: bool = True
 
     def __len__(self) -> int:
@@ -365,6 +369,7 @@ class SearchEngine:
         # --- Aşama 1 ------------------------------------------------------
         blocks: list[np.ndarray] = []
         null_by_length: dict[int, np.ndarray] = {}
+        result_null_dist: dict[int, np.ndarray] = {}
         for length in lengths:
             h = self.handle(timeframe, length)
             if len(h) == 0:
@@ -383,6 +388,7 @@ class SearchEngine:
             )
             if null is not None:
                 null_by_length[length] = null
+                result_null_dist[length] = null
 
             rows, scores = top_k(h.vectors, q, k=per_length, mask=mask)
             if rows.size == 0:
@@ -403,6 +409,7 @@ class SearchEngine:
             blocks.append(block)
 
         result = SearchResult(mode=mode, timeframe=timeframe, tolerance=tolerance, metric=metric)
+        result.null_dist = result_null_dist
         if not blocks:
             result.elapsed_ms = (time.perf_counter() - t0) * 1000.0
             return result

@@ -464,6 +464,35 @@ SEARCH_CACHE_MATCHES: Final[int] = 600
 #: aday başına O(32²) Python döngüsüdür, sıcak yolda değildir.
 WARP_PATH_TOP_N: Final[int] = 60
 
+#: Gösterilecek eşleşmelerin bar bazında ince ayarı — ÖLÇÜLDÜ, KAPALI.
+#:
+#: Hipotez: matris STRIDE=3 ile kurulduğu için gösterilen pencere en iyi
+#: hizadan 1-2 bar kaymış olabilir. tools/verify_stage1 stride bedelini
+#: doğruladı: kaba kuvvet (stride 1) ile matrisin en iyi penceresi arasında
+#: kosinüs farkı ortalama +0,021 · %95 +0,074 · en kötü +0,096.
+#:
+#: Ama telafi denendiğinde hipotez ÇÖKTÜ. 1d, 5 şablon, ilk 60 eşleşme;
+#: ±(STRIDE-1) barlık pencerede üç ayrı hedefle tarandı:
+#:
+#:   hedef                              Δmesafe    Δkosinüs
+#:   mesafeyi enküçült                 -0,00207     -0,0145
+#:   kosinüsü enbüyült                 +0,00171     +0,0063
+#:   mesafeyi bozmadan kosinüs enbüyük -0,00121     -0,0018
+#:
+#: Hiçbiri ikisini birden iyileştirmiyor: iki metrik alt-stride hizalamada
+#: birbiriyle TAKAS ediyor. Kısıtlı varyantta bile (mesafe asla artmaz)
+#: kosinüs düşüyor — yani mesafeyi iyileştiren offsetler görsel benzerliği
+#: bozuyor. Eşikler mesafe üzerinde kalibre edildiği için kosinüs hedefiyle
+#: açmak, kalibre edilmiş eşiği sessizce kaydırırdı.
+#:
+#: Sonuç: pencere sınırları algılanan uyumsuzluğun sebebi DEĞİL. Kod
+#: engine/search/refine.py'de duruyor (K-04'ün kısıt katmanı gibi: ölçülmüş
+#: katkı göstermeyen katman bağlanmaz), bayrakla açılabilir.
+REFINE_MATCHES: Final[bool] = False
+
+#: İnce ayar açılırsa uygulanacağı eşleşme sayısı (bar verisi gerektirir).
+REFINE_TOP_N: Final[int] = 120
+
 #: Eşleşme karosunda pencerenin iki yanına eklenen bağlam barı, pencere
 #: uzunluğunun oranı olarak. Bağlamsız bir karo "formasyon nereden geldi,
 #: sonra ne oldu" sorusunu cevaplayamaz.
