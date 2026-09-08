@@ -1,9 +1,9 @@
 "use client";
 
-import { Clock, Database } from "lucide-react";
+import { Clock, Database, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { formatCount, formatDate, formatDecimal } from "@/utils/formatters";
+import { formatCount, formatDate, formatDecimal, formatRelative } from "@/utils/formatters";
 
 interface ResultsHeaderProps {
   title: string;
@@ -13,6 +13,8 @@ interface ResultsHeaderProps {
   elapsedMs: number;
   dataAsOf: number;
   hasSearched: boolean;
+  /** Radar kendini yenilediğinde son tazeleme anı; Backtest'te null. */
+  refreshedAt?: number | null;
 }
 
 export function ResultsHeader({
@@ -23,6 +25,7 @@ export function ResultsHeader({
   elapsedMs,
   dataAsOf,
   hasSearched,
+  refreshedAt = null,
 }: ResultsHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -36,6 +39,12 @@ export function ResultsHeader({
           <Badge tone="brand" className="tabular">
             {formatCount(total)} eşleşme
           </Badge>
+          {refreshedAt !== null && (
+            <Badge tone="outline" className="tabular gap-1">
+              <RefreshCw className="size-3" />
+              {formatRelative(refreshedAt)} tarandı
+            </Badge>
+          )}
           {shown > 0 && shown < total && (
             <Badge tone="outline" className="tabular">
               {formatCount(shown)} gösteriliyor
