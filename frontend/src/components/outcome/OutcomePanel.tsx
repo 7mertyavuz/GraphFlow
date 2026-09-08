@@ -72,7 +72,19 @@ export function OutcomePanel({
     );
   }
 
-  if (!data || !active) return null;
+  if (!data) return null;
+
+  // Hiç konfigürasyon yoksa istatistiğe giren olay da yoktur. Sessizce boş
+  // dönmek, kullanıcıya panelin bozuk olduğunu düşündürür — sebebi yazılır.
+  if (!active) {
+    return (
+      <Alert tone="info" title="İstatistik üretilemedi">
+        Bu aramada bağımsız olay kalmadı: eşleşmeler ya ileri pencere ayrımına
+        ya da işlem maliyeti tabanına takıldı. Baseline&apos;sız bir sayı
+        gösterilmez.
+      </Alert>
+    );
+  }
 
   const [name, config] = active;
   const total = Object.values(config.outcomes).reduce((sum, v) => sum + v, 0);
