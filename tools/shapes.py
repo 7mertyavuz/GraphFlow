@@ -215,9 +215,28 @@ def falling_wedge(
     return _unit(_wedge(n, slope=slope, cycles=cycles, decay=decay))
 
 
-def symmetrical_triangle(n: int = 32) -> np.ndarray:
-    """Simetrik üçgen — yatay eksende daralan salınım."""
-    return _unit(_wedge(n, slope=0.0, cycles=3.0, decay=0.9))
+def symmetrical_triangle(n: int = 32, cycles: float = 2.0) -> np.ndarray:
+    """Simetrik üçgen — yatay eksende daralan salınım.
+
+    ``cycles`` 3,0'dan 2,0'a indirildi (Eylül 2026). Gerekçe ölçüm:
+
+    | çevrim | 1d eşleşme | null yayılımı |
+    |---|---|---|
+    | 1,5 | 260 | 4,5 |
+    | **2,0** | **165** | **3,1** |
+    | 2,5 | 23 | 2,5 |
+    | 3,0 | 4 | 2,4 |
+
+    3 tam salınım, 32 noktalık gösterimde çevrim başına ~10 nokta demek —
+    temsil sınırı. Sonuç, kütüphanenin 14 öğesinden birinin gerçek veride
+    pratikte ölü olmasıydı (1d'de 4, 4h'de 16 eşleşme; diğerleri 166-799).
+
+    Şablon kusurlu değildi: kendi gürültülü varyantlarına mesafesi 0,0037 ile
+    bayrak (0,0029) ve OBO (0,0034) ile aynı bantta — motor onu tanıyordu.
+    Gerçek piyasada o kadar temiz üç çevrim nadir. 2,0 çevrim, simetrik
+    üçgenin ders kitabı tanımındaki asgari dokunuş sayısıdır.
+    """
+    return _unit(_wedge(n, slope=0.0, cycles=cycles, decay=0.9))
 
 
 def ascending_triangle(n: int = 32) -> np.ndarray:
