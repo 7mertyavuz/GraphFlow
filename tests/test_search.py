@@ -997,3 +997,104 @@ def test_signature_mask_keeps_only_matching_structure():
 
     assert mask is not None
     assert bool(mask[0]) and not bool(mask[1])
+
+
+# ---------------------------------------------------------------------------
+# Yapısal filtre — motor entegrasyonu (ground truth ile)
+# ---------------------------------------------------------------------------
+
+
+def test_structure_filter_raises_precision_against_ground_truth(obo_dataset):
+    """Filtre, ENJEKTE EDİLMİŞ OBO'ların ilk sayfadaki payını artırmalı.
+
+    Bu test filtreyi kendi yapı denetçisiyle değil, korpusa bilerek
+    yerleştirilmiş gerçek formasyonlarla sınar — bağımsız doğrulama.
+    """
+    root, truth = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = get_template("head_and_shoulders").vector
+
+    ham = engine.search(q, timeframe=TF, tolerance="flexible", limit=12, structure_filter=False)
+    filtreli = engine.search(q, timeframe=TF, tolerance="flexible", limit=12, structure_filter=True)
+
+    def isabet(result) -> int:
+        n = 0
+        for match in result.results:
+            for inj in truth:
+                if inj.symbol == match.symbol and iou_1d(
+                    match.start_idx, match.end_idx, inj.start, inj.end
+                ) >= 0.3:
+                    n += 1
+                    break
+        return n
+
+    assert isabet(filtreli) >= isabet(ham), (
+        f"filtre isabeti düşürdü: ham {isabet(ham)}/12 → filtreli {isabet(filtreli)}/12"
+    )
+
+
+def test_structure_filter_sets_its_flag(obo_dataset):
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = get_template("head_and_shoulders").vector
+
+    result = engine.search(q, timeframe=TF, tolerance="flexible", limit=12)
+    assert result.structure_filtered or result.structure_relaxed
+
+
+def test_structure_filter_falls_back_loudly_when_too_few_survive(obo_dataset, monkeypatch):
+    """Az aday kalırsa filtre uygulanmaz ama SESSİZ kalmaz.
+
+    "Yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir; ikincisi
+    kullanıcıya motorun bozuk olduğunu düşündürür. Geri düşüş uyarıyla gelir.
+
+    Taban imkânsız bir değere çekilerek yol zorla tetikleniyor: gerçek veride
+    nadir olan dal, test edilmediğinde sessizce bozulan daldır.
+    """
+    import engine.search.engine as engine_module
+
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = get_template("head_and_shoulders").vector
+
+    monkeypatch.setattr(engine_module, "STRUCTURE_MIN_SURVIVORS", 10**9)
+    result = engine.search(q, timeframe=TF, tolerance="flexible", limit=12)
+
+    assert result.structure_relaxed
+    assert not result.structure_filtered
+    assert result.warning and "yapısal filtre" in result.warning.lower()
+    # Geri düşüş sonuçları YOK ETMEZ; filtresiz liste döner.
+    assert result.total > 0
+
+
+def test_no_candidate_is_an_honest_answer(obo_dataset):
+    """Korpusta karşılığı olmayan yapı → 0 sonuç, uydurma değil (K-18)."""
+    import numpy as np
+
+    from engine.search.constraints import structural_signature
+
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+
+    t = np.linspace(0, 1, 32)
+    exotic = np.sin(2 * np.pi * 5 * t)
+    exotic = (exotic - exotic.mean()) / exotic.std()
+    assert structural_signature(exotic)[1] >= 4  # gerçekten çok tepeli
+
+    result = engine.search(exotic, timeframe=TF, tolerance="flexible", limit=12)
+    assert result.total == 0
+    assert not result.discriminative
+    assert result.warning
+
+
+def test_filter_can_be_disabled(obo_dataset):
+    """Bayrak gerçekten devre dışı bırakmalı — kapatınca daha çok sonuç."""
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = get_template("head_and_shoulders").vector
+
+    acik = engine.search(q, timeframe=TF, tolerance="flexible", limit=1, structure_filter=True)
+    kapali = engine.search(q, timeframe=TF, tolerance="flexible", limit=1, structure_filter=False)
+
+    assert kapali.total >= acik.total
+    assert not kapali.structure_filtered
