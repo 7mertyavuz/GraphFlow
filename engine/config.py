@@ -218,10 +218,24 @@ DEFAULT_MIN_AMPLITUDE: Final[dict[str, float]] = {
 # ---------------------------------------------------------------------------
 
 #: Aşama 1 (kosinüs) çıktısında tutulacak aday sayısı.
-STAGE1_TOPK: Final[int] = 5_000
+#:
+#: 5.000'den 12.500'e çıkarıldı (Eylül 2026). Sebep: yapısal imza filtresi
+#: (K-04 Eylül eki) adayların %70-85'ini eliyor ve bu, istatistiksel gücü
+#: düşürüyordu (F4.8: ortalama N 291→114). Filtre yalnız Aşama 2'ye giren
+#: adaylar üzerinde çalıştığı için havuzu büyütmek kaybın bir kısmını geri
+#: veriyor — ölçüldü, 4h'de şablon başına sonuç 224 → 358.
+STAGE1_TOPK: Final[int] = 12_500
 
 #: Pre-NMS sonrası Aşama 2'ye (DDTW) girecek aday sayısı.
-STAGE2_TOPK: Final[int] = 1_000
+#:
+#: 1.000 → 2.500. Maliyet ölçüldü (ısınmış önbellekle, 5 şablon):
+#:
+#:   4h : medyan 251 → 333 ms · en kötü 275 → 400 ms
+#:   1d : medyan 114 → 211 ms · en kötü 148 → 237 ms
+#:
+#: Performans bütçesi (§15) toplam arama için < 500 ms diyor; en kötü durum
+#: 400 ms ile içeride. Aşama 2 aday başına ~35 µs, yani doğrusal ve öngörülür.
+STAGE2_TOPK: Final[int] = 2_500
 
 #: Aşama 1'de memmap üzerinden tek seferde işlenecek satır sayısı. Skorlama
 #: chunk'lanır ki 12M satırlık matris için geçici dizi RAM'i şişirmesin (K-01).
