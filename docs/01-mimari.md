@@ -880,7 +880,14 @@ sorgu-göreli null kalibrasyonu, her yeni şekil için uzunluk başına 2.000
 rastgele pencereyi Aşama 2'den geçirir; bu ilk çağrıya ~180 ms ekler ve
 sonraki çağrılarda önbellekten gelir (`NULL_CACHE_SIZE`). Bütçe yazıldığında
 bu katman yoktu. Radar'da mesele değil (sonuç zaten önbellekli, 1,2 ms);
-Backtest'te ilk sorgu 500 ms sınırını ~%15 aşıyor.
+Backtest'te ilk sorgu 500 ms sınırını ~%15 aşıyordu.
+
+**Çözüldü — açılışta ısıtma.** Kütüphane şablonları sabit ve sayılı olduğu
+için null dağılımları açılışta arka planda hesaplanıyor
+(`GRAPHFLOW_WARMUP=1`). Ölçüm: hiç çağrılmamış 4h şablonlarında ilk istek
+**364–459 ms** — soğuk 537–595 ms yerine, bütçe içinde. Serbest çizim
+ısıtılamaz (sonsuz uzay) ve ilk sorgusunda aşımı yaşamaya devam eder;
+bu kabul edilen sınırdır.
 | Pre-NMS | < 20 ms | 5.000 aday |
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |

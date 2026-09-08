@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any
 
 import numpy as np
@@ -41,6 +44,7 @@ from engine.api.schemas import (
 from engine.api.session import get_session_id, read_session, track_session
 from engine.config import (
     DATA_DIR,
+    TIMEFRAMES,
     N_POINTS,
     REFINE_MATCHES,
     REFINE_TOP_N,
@@ -62,10 +66,40 @@ from engine.templates.loader import load_all as load_all_templates
 
 log = logging.getLogger(__name__)
 
+#: Açılışta kütüphane şablonlarının null dağılımını önden hesapla.
+#: Kapalı varsayılan: testler `app`'i içe aktarır ve 14 şablon × 2 dilimlik
+#: bir ısıtma onları dakikalarca yavaşlatırdı. Sunucu bunu açıkça ister.
+WARMUP_ENV = "GRAPHFLOW_WARMUP"
+
+#: Isıtma sorguları arasında beklenecek süre (saniye).
+WARMUP_PAUSE_SEC = 0.4
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Soğuk ilk sorguyu arka planda ısıtır (§15 ölçülen aşım).
+
+    F3.5'in sorgu-göreli null kalibrasyonu her YENİ şekil için uzunluk başına
+    2.000 rastgele pencereyi Aşama 2'den geçirir; bu ilk çağrıya ~180 ms
+    ekliyor ve 4h'de toplam süreyi 500 ms bütçesinin üstüne taşıyordu
+    (ölçüldü: soğuk 537-595 ms, sıcak 365-417 ms).
+
+    Kütüphane şablonları sabit ve sayılı olduğu için dağılımları açılışta
+    hesaplanabilir. Serbest çizim ısıtılamaz — sonsuz uzay.
+
+    Arka plan iş parçacığında: ısıtma sunucunun ayağa kalkmasını geciktirmez,
+    hata verirse aramayı düşürmez.
+    """
+    if os.environ.get(WARMUP_ENV):
+        threading.Thread(target=_warm_template_nulls, daemon=True).start()
+    yield
+
+
 app = FastAPI(
     title="GraphFlow API",
     version="1.0.0",
     description="Görsel formasyon arama motoru — ölçülmüş geçmiş dağılım, sinyal değil.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -90,6 +124,32 @@ DISCLAIMER = (
 _engine: SearchEngine | None = None
 _stores: dict[str, BarStore] = {}
 _pools_by_tf: dict[str, dict[int, ShadowPool]] = {}
+
+
+def _warm_template_nulls() -> None:
+    """Her şablon için bir kez arama koşarak null önbelleğini doldurur."""
+    import time
+
+    started = time.time()
+    engine = get_engine()
+    warmed = 0
+    for timeframe in TIMEFRAMES:
+        for template_id, template in load_all_templates().items():
+            try:
+                engine.search(
+                    np.asarray(template.vector, dtype=np.float64),
+                    timeframe=timeframe,
+                    limit=1,
+                )
+                warmed += 1
+            except Exception:  # matris yoksa ya da bozuksa arama yine çalışır
+                log.warning("ısıtma atlandı: %s/%s", timeframe, template_id, exc_info=True)
+            # Nefes payı: NumPy GIL'i bıraktığı için ısıtma gerçek CPU
+            # rekabeti yaratıyor. Ölçüldü — ısıtma sürerken gelen bir istek
+            # 1.444 ms'ye çıkabiliyordu. Ara vermek ısıtmayı birkaç saniye
+            # uzatır, öndeki kullanıcıyı bekletmez.
+            time.sleep(WARMUP_PAUSE_SEC)
+    log.info("null önbelleği ısıtıldı: %d sorgu, %.0f sn", warmed, time.time() - started)
 
 
 def get_engine() -> SearchEngine:

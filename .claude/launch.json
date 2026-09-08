@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "graphflow-api",
-      "runtimeExecutable": ".venv/bin/uvicorn",
-      "runtimeArgs": ["engine.api.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "export GRAPHFLOW_WARMUP=1; exec .venv/bin/uvicorn engine.api.main:app --host 127.0.0.1 --port 8000"
+      ],
       "port": 8000
     },
     {
