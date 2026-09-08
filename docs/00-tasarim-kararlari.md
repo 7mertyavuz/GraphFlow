@@ -1044,7 +1044,15 @@ Motor tasarımı kapandı, ancak uygulama sırasında karara bağlanacak noktala
 4. **Şablon kütüphanesi kaynağı:** Kanonik vektörler elle mi çizilecek, yoksa literatürdeki ideal formasyon tanımlarından mı türetilecek?
 5. **Short yönü:** Triple-barrier şu an long varsayımıyla tanımlı. Düşüş formasyonları için ayna versiyonu ne zaman eklenecek?
 6. **1H ve 1W:** Aynı pipeline'a eklenmesi kolay; hangi kullanıcı geri bildiriminden sonra açılacak?
-7. **`symmetrical_triangle` şablonu yeniden parametrelenmeli mi?** (8 Eyl 2026)
+7. ~~**`symmetrical_triangle` şablonu yeniden parametrelenmeli mi?**~~ **KAPANDI
+   (8 Eyl 2026): çevrim 3,0 → 2,0.** 2,0, simetrik üçgenin ders kitabı
+   tanımındaki asgari dokunuş sayısıdır (her kenara iki temas) ve ölçümde
+   165 eşleşme veriyordu. Kalibrasyon riski düşük bulundu: F3.5'ten beri
+   eşikler sorgu-göreli yüzdeliktir, mutlak sabitler yalnız akıl sağlığı
+   tavanıdır; bir şablonun vektörü o sabitleri değiştirmez. Sonuç: 16 → 129
+   eşleşme, null yayılımı 2,4 → 3,3. Aşağıdaki ölçüm kayıt için duruyor.
+
+   *(özgün soru)* (8 Eyl 2026)
    Kanonik vektör 3 tam salınım istiyor; 32 noktada bu çevrim başına ~10
    nokta demek, yani temsil sınırı. Gerçek veride sonucu 1d'de **4**, 4h'de
    **16** eşleşme — diğer 13 şablon 166–799 veriyor. Ölçülen tarama
@@ -1055,13 +1063,61 @@ Motor tasarımı kapandı, ancak uygulama sırasında karara bağlanacak noktala
    | 1,5 | 260 | 4,5 |
    | 2,0 | 165 | 3,1 |
    | 2,5 | 23 | 2,5 |
-   | **3,0** | **4** | **2,4** ← mevcut |
+   | **3,0** | **4** | **2,4** ← eskisi |
 
    Şablon **kusurlu değil**: kendi gürültülü varyantlarına mesafesi (0,0037)
    diğer şablonlarla aynı bantta, yani motor onu tanıyor. Gerçek piyasada o
    kadar temiz üç çevrim nadir. `cycles = 2,0` kütüphane öğesini diriltir
    ama **F3 eşik kalibrasyonunun girdisini değiştirir** (eşikler 14 şablon
    sorgusundan okundu) — bu yüzden tek taraflı değiştirilmedi.
+
+---
+
+---
+
+## Eylül 2026 — üç karar birden
+
+Kullanıcı "ne öneriyorsan onu yap" dedi; üç açık soru şöyle bağlandı.
+
+### 1. Yapısal imza filtresi AÇIK kalır
+
+Ürün kalitesi ile istatistiksel güç arasında bir takas var ve ölçüldü:
+
+| | Filtre kapalı | Filtre açık |
+|---|---|---|
+| İlk 12'de gerçekten o formasyon | %42 (elle çizimde 1/12) | **%100 (12/12)** |
+| Ortalama N (1d) | 291 | 114 |
+| %95'te anlamlı (1d) | 14/56 | 6/56 |
+
+Filtre **açık kalıyor**, çünkü kapalı hâlde daha fazla "güç" aldığımız
+örneklemin %58'i aranan formasyon bile değildi. Kirli bir örneklem üzerinde
+daha yüksek çözünürlük, yanlış soruyu daha hassas ölçmektir.
+Ayrıntı: [09-yapisal-filtre-ve-istatistik.md](09-yapisal-filtre-ve-istatistik.md).
+
+Güç kaybının bir kısmı aday havuzu büyütülerek geri alındı
+(`STAGE1_TOPK` 5.000 → 12.500, `STAGE2_TOPK` 1.000 → 2.500): şablon başına
+sonuç 4h'de 224 → 358, en kötü arama süresi 400 ms ile bütçe içinde.
+
+### 2. `symmetrical_triangle` yeniden parametrelendi (Açık Soru #7)
+
+3 çevrim → 2 çevrim. Yukarıda.
+
+### 3. 1d genlik eşiği %15'te KALIR
+
+Ölçülen "likit pencerelerin %95'ini koru" eşiği bugünkü korpusta **%18,5**;
+config'deki %15 ise pencerelerin **%96,9'unu** koruyor (F3.5'te %95,2'ydi).
+
+Değiştirilmedi, üç gerekçeyle:
+
+* Sapma yönü **güvenli**: %15 daha az filtreliyor, yani veriyi daha az
+  buduyor. Ölçütün amacı patolojik kuyruğu kesmekti; kesiyor.
+* Fark küçük (%96,9 ↔ %95) ve kalibre bir sabiti oynatmanın bedeli büyük:
+  F4/F4.5/F4.6/F4.7/F4.8 tablolarının tamamı yeniden üretilir.
+* Kalibre sabitler ancak **ölçülmüş bir kusur** gösterdiğinde değişir; burada
+  gösterilen tek şey ölçütün tanımındaki bir yumuşaklık.
+
+Ölçüm `tools/measure_amplitude` ile her zaman tekrarlanabilir; karar
+değişirse dayanağı orada.
 
 ---
 
