@@ -237,9 +237,21 @@ data/matrix/{timeframe}_{window_length}/
 
 | Parametre | Değer | Not |
 |---|---|---|
-| Stride | 3 | Stride 1 ile komşu pencereler ~%99 aynı; stride 3 bilgi kaybetmeden hacmi 3'e böler |
-| Toplam pencere | ~12.000.000 | Tüm 8 matris |
-| Bellek | ~1,5 GB | `float32` |
+| Stride | 3 | Stride 1 ile komşu pencereler ~%99 aynı; stride 3 bilgi kaybetmeden hacmi 3'e böler. Bedeli **ölçüldü** (`tools/verify_stage1`): kaba kuvvete göre kosinüs farkı ortalama +0,021, en kötü +0,096. Telafisi denendi ve bağlanmadı (K-19) |
+| Toplam pencere | ~12.000.000 (plan) | |
+
+**Ölçülen (8 Eyl 2026, 1.097 sembol):**
+
+| Zaman dilimi | Pencere | Likit pencere | Disk |
+|---|---|---|---|
+| 4h | **11.600.769** | 1.174.008 | ~1,7 GB |
+| 1d | 1.884.157 | 192.481 | ~0,3 GB |
+| **Toplam** | **13.484.926** | | **2,0 GB** |
+
+Plan 12M/1,5 GB öngörüyordu; gerçek toplam yakın çıktı ama **dağılım
+bambaşka**: hacmin %86'sı 4h'de. Sebebi bar yoğunluğu — aynı takvim aralığı
+4h'de 6 kat fazla bar demek. 4h evreni uzun süre 80 sembolde kaldığı için bu
+görülmemişti (bkz. `tools/backfill`).
 
 ### 4.3. Erişim — memmap
 
@@ -807,6 +819,26 @@ GraphFlow/
 | **F5** | FastAPI + Redis | Çalışan API | Yük testi |
 | **F6** | Next.js 16 — Radar (MVP 1) | Canlı tarayıcı arayüzü | Kullanıcı testi |
 | **F7** | Next.js 16 — Backtest (MVP 2) | Tarihsel arama + outcome kartı | Kullanıcı testi |
+| **F4.5** | Ay-bloklu bootstrap + short yönü | Kesitsel korelasyon düzeltmesi | Null kapısı (long ve short) |
+| **F4.6** | Ön-getiri eşleştirmeli gölge | Şekil mi, momentum vekili mi? | Vekil testi |
+| **F4.7** | Zaman dilimi çaprazlaması | Aynı 56 test 1d ve 4h'de | Replikasyon |
+
+### Doğrulama araçları (faz dışı, sürekli)
+
+Ölçümler tek seferlik betiklerle üretilmemeli — yayınlanan sayı yeniden
+üretilemiyorsa bayatladığını kimse fark etmez (F4.6 tam olarak böyle üç hafta
+geçersiz kaldı). Her ölçümün bir aracı vardır:
+
+| Araç | Soru |
+|---|---|
+| `tools/verify_stage1` | Matris Parquet'le aynı mı? Stride'ın bedeli ne? |
+| `tools/ci_calibration` | %95 dediğimiz aralık gerçekten %95 kapsıyor mu? |
+| `tools/run_outcomes` | F4/F4.5 tablolarını üretir (14 şablon × 2 yön × 2 konfig) |
+| `tools/f46_proxy_test` | Edge şekilden mi, ön-getiriden mi? |
+| `tools/template_health` | Hangi şablon gerçek veride ölü? |
+| `tools/measure_amplitude` | Genlik eşiği korpustan ne çıkıyor? |
+| `tools/backfill` | Bir zaman dilimini diğerinin evrenine tamamlar |
+| `tests/test_integration.py` | Gerçek korpusta uçtan uca sözleşmeler |
 
 ### F3 kapısının anlamı
 
@@ -827,6 +859,8 @@ GraphFlow/
 | İşlem | Hedef | Not |
 |---|---|---|
 | Aşama 1 (kosinüs, 12M pencere) | < 300 ms | NumPy/BLAS matris çarpımı |
+| — *ölçülen*, 4h (11,6M pencere) | **~340–390 ms toplam** | uçtan uca arama, bütçe içinde |
+| — *ölçülen*, 1d (1,88M pencere) | **~235–245 ms toplam** | |
 | Pre-NMS | < 20 ms | 5.000 aday |
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |
