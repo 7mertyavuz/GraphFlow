@@ -692,7 +692,7 @@ def _finding_stages() -> list[FindingStage]:
             desc=(
                 "Gölge havuzuna 'benzer ön-getiri' kısıtı eklendi: fark "
                 "buharlaşıyorsa ölçülen şey şekil değil, momentum tersine "
-                "dönüşüdür. Beş şablonun beşinde de edge yarıdan fazla eridi."
+                "dönüşüdür. Beş şablonun beşinde de edge eriyor."
             ),
         ),
         FindingStage(
@@ -700,9 +700,9 @@ def _finding_stages() -> list[FindingStage]:
             significant=sum(1 for r in f46 if r.get("edge_significant_bonferroni")),
             total=len(f46),
             desc=(
-                "Aynı aile, çoklu karşılaştırma düzeltmesiyle. Geçen tek satır "
-                "(yükselen takoz, standart gölge) ön-getiri eşleştirilince "
-                "+0,327R'den +0,115R'ye düşüp anlamlılığını kaybediyor."
+                "Aynı aile, çoklu karşılaştırma düzeltmesiyle. Yapısal imza "
+                "filtresi açıkken örneklem gerçekten o formasyonla sınırlı; "
+                "N düştüğü için güç de düştü (bkz. F4.8)."
             ),
         ),
         FindingStage(
