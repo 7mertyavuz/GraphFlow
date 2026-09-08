@@ -80,6 +80,10 @@ geri getirme:
   gölgeyi 20 bağımsız gözlem sayar. Ölçülen ay içi korelasyon 0,384, tasarım
   etkisi medyan 1,28 — iid, belirsizliği ~%29 eksik ölçüyordu ve F4'ün tek
   pozitif bulgusu bu yüzden sahte çıktı (K-12).
+- 🚫 **Replikasyon.** Bir bulgu tek zaman diliminde anlamlıysa bulgu değildir.
+  1d ve 4h çaprazlandığında 56'şar testten yalnız `rising_wedge` aynı yönde
+  anlamlı kaldı; diğerleri bir dilimde var, ötekinde yok (F4.7). Yayınlanan
+  her edge iddiası iki dilimde de gösterilmelidir.
 - 🚫 **Çoklu karşılaştırma.** 14 şablon × 2 konfigürasyon = 28 test; %95 ile
   şans eseri ~1,4 "anlamlı" sonuç beklenir. Edge iddiaları Bonferroni ile de
   sınanır ve **tüm şablonlar** tek tabloda raporlanır.
@@ -101,7 +105,8 @@ geri getirme:
 ✅ engine/api/                     F5  (FastAPI, StatEnvelope, chart, freshness, oturum)
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
                                   f3_measure, repair_symbol_map, backfill,
-                                  verify_stage1, ci_calibration, f46_proxy_test
+                                  verify_stage1, ci_calibration, f46_proxy_test,
+                                  run_outcomes, measure_amplitude
 ✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
