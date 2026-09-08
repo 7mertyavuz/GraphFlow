@@ -81,9 +81,14 @@ geri getirme:
   etkisi medyan 1,28 — iid, belirsizliği ~%29 eksik ölçüyordu ve F4'ün tek
   pozitif bulgusu bu yüzden sahte çıktı (K-12).
 - 🚫 **Replikasyon.** Bir bulgu tek zaman diliminde anlamlıysa bulgu değildir.
-  1d ve 4h çaprazlandığında 56'şar testten yalnız `rising_wedge` aynı yönde
-  anlamlı kaldı; diğerleri bir dilimde var, ötekinde yok (F4.7). Yayınlanan
-  her edge iddiası iki dilimde de gösterilmelidir.
+  1d ve 4h çaprazlandığında 56'şar testten yalnız `rising_wedge long 2:1`
+  aynı yönde anlamlı kaldı (F4.7). Yayınlanan her edge iddiası iki dilimde de
+  gösterilmelidir.
+- 🚫 **Sınırdaki bulgu kırılgandır.** Ölçüldü: korpusa 10 günlük veri eklemek
+  (9 yıllık geçmişe) Bonferroni'yi geçen hücrelerin **kimliğini** değiştirdi,
+  replike eden hücre 3'ten 1'e düştü. Kod değişmedi. Güven aralıkları sıfırı
+  kıl payı dışlıyor. Bonferroni sınırında duran bir bulguya "keşif" muamelesi
+  yapmak gürültüyü kanıt sanmaktır (F4.7).
 - 🚫 **Çoklu karşılaştırma.** 14 şablon × 2 konfigürasyon = 28 test; %95 ile
   şans eseri ~1,4 "anlamlı" sonuç beklenir. Edge iddiaları Bonferroni ile de
   sınanır ve **tüm şablonlar** tek tabloda raporlanır.
