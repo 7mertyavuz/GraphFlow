@@ -89,6 +89,9 @@ export function useDraw() {
     pts[pts.length - 1] = { x: last.x, y: p.y };
   }, []);
 
+  /** Kap ölçülebilir mi? Sıfır genişlikte her nokta aynı x'e düşer. */
+  const measurable = (rect: DOMRect) => rect.width > 1 && rect.height > 1;
+
   const toLocal = useCallback((clientX: number, clientY: number, rect: DOMRect): Point => {
     const x = (clientX - rect.left) / Math.max(1, rect.width);
     const y = 1 - (clientY - rect.top) / Math.max(1, rect.height);
@@ -107,6 +110,11 @@ export function useDraw() {
       // Devralma bilinçli: pointerup kaybolmuş bir darbe (sistem hareketi,
       // sekme değişimi) yüzünden panel kalıcı olarak kilitlenmemeli.
       const rect = event.currentTarget.getBoundingClientRect();
+      // Kap henüz ölçülmediyse (gizli sekme, açılmakta olan panel) darbeyi
+      // hiç başlatma: sıfır genişlikte tüm noktalar aynı x'e düşer ve
+      // y = f(x) sözleşmesi darbeyi tek noktaya indirger. Çöp bir sorgu
+      // göndermektense hiç göndermemek doğrudur.
+      if (!measurable(rect)) return;
       pointerId.current = event.pointerId;
       // Yeni bir çizim eskisini siler: iki ayrı formasyon tek sorgu olamaz.
       buffer.current = [toLocal(event.clientX, event.clientY, rect)];
