@@ -1,5 +1,11 @@
 # GraphFlow — Zaman Dilimi Çaprazlaması (F4.7)
 
+> ⚠️ **Bu rapordaki sayılar yapısal imza filtresinden ÖNCEki korpusa aittir.**
+> Filtre bağlandıktan sonra örneklem değişti; güncel tablolar ve filtrenin
+> istatistiğe etkisi için bkz. [09-yapisal-filtre-ve-istatistik.md](09-yapisal-filtre-ve-istatistik.md).
+> Buradaki yöntem ve çıkarımlar (replikasyon, kırılganlık) geçerliliğini
+> koruyor — değişen, hangi pencerelerin örnekleme girdiği.
+>
 > **Belge türü:** Faz raporu · **Tarih:** 08.09.2026
 > **Önceki:** [07-f46-raporu.md](07-f46-raporu.md)
 > **Üretim:** `python -m tools.run_outcomes --timeframe 1d` ve `--timeframe 4h --out-suffix _4h`
