@@ -55,6 +55,7 @@ from engine.config import (
     STAGE2_METRIC,
     STAGE2_TOPK,
     STRUCTURE_FILTER,
+    STRUCTURE_MIN_STABILITY,
     STRUCTURE_MIN_SURVIVORS,
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
@@ -67,7 +68,12 @@ from engine.matrix.build import (
     symbols_file,
 )
 from engine.matrix.npy_store import load_matrix
-from engine.search.constraints import describe_signature, signature_mask, structural_signature
+from engine.search.constraints import (
+    describe_signature,
+    signature_mask,
+    signature_stability,
+    structural_signature,
+)
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
 from engine.search.stage1_cosine import prepare_query, top_k
@@ -170,6 +176,12 @@ class SearchResult:
     #: Motorun çizimden okuduğu yapı, insan diliyle. Kullanıcı motorun
     #: yorumunu göremezse yanlış yorumu da göremez.
     structure_read: str | None = None
+    #: Okuma sağlam mı: aynı şekil biraz farklı çizilse aynı okunur muydu?
+    #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır
+    #: ve o kararsızlık ölçülen doğrulukla birebir örtüşür: dönüş ailesinde
+    #: ilk 50'nin %99'u aranan formasyonken eğim ailesinde %49
+    #: (docs/10-formasyon-denetimi.md). Kesinmiş gibi göstermek fazla iddia.
+    structure_stable: bool = True
 
     def __len__(self) -> int:
         return len(self.results)
@@ -473,7 +485,12 @@ class SearchEngine:
         #
         # Kural sorgudan türer — formasyon başına kod yok (K-04). Serbest
         # çizimde de çalışmasının sebebi bu: şablon meta-verisi gerekmiyor.
-        result.structure_read = describe_signature(structural_signature(q))
+        signature = structural_signature(q)
+        result.structure_read = describe_signature(signature)
+        if signature is not None:
+            result.structure_stable = (
+                signature_stability(q) >= STRUCTURE_MIN_STABILITY
+            )
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:

@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Database, RefreshCw, ScanEye } from "lucide-react";
+import { Clock, Database, RefreshCw, ScanEye, TriangleAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatCount, formatDate, formatDecimal, formatRelative } from "@/utils/formatters";
@@ -18,6 +18,13 @@ interface ResultsHeaderProps {
   /** Motorun çizimden okuduğu yapı — yanlış okunduysa kullanıcı görsün. */
   structureRead?: string | null;
   structureFiltered?: boolean;
+  /**
+   * Okuma sağlam mı. Eğimle tanımlı formasyonlarda (üçgen, takoz, flama)
+   * uç düzeni kararsızdır: ölçüldü — dönüş ailesinde ilk 50'nin %99'u aranan
+   * formasyonken eğim ailesinde %49. Kararsız okumayı kesinmiş gibi
+   * göstermek fazla iddia olur.
+   */
+  structureStable?: boolean;
 }
 
 export function ResultsHeader({
@@ -31,6 +38,7 @@ export function ResultsHeader({
   refreshedAt = null,
   structureRead = null,
   structureFiltered = false,
+  structureStable = true,
 }: ResultsHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -44,6 +52,18 @@ export function ResultsHeader({
               Motor şeklinizi şöyle okudu:{" "}
               <span className="text-foreground">{structureRead}</span>
               {structureFiltered && " — sonuçlar bu yapıyla sınırlı"}
+            </span>
+          </p>
+        )}
+        {hasSearched && structureRead && !structureStable && (
+          <p className="mt-1 inline-flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
+            <TriangleAlert className="mt-px size-3.5 shrink-0" />
+            <span>
+              Bu okuma kararsız: aynı şekli biraz farklı çizerseniz farklı
+              okunabilir. Üçgen, takoz ve flama gibi formasyonları tanımlayan
+              şey tepe sayısı değil trend çizgilerinin eğimidir; motor bunları
+              ilk 50 sonuçta ~%49 doğrulukla buluyor (dönüş formasyonlarında
+              %99).
             </span>
           </p>
         )}

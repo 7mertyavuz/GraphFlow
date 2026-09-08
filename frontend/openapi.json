@@ -1042,6 +1042,11 @@
             "title": "Structure Filtered",
             "default": false
           },
+          "structure_stable": {
+            "type": "boolean",
+            "title": "Structure Stable",
+            "default": true
+          },
           "results": {
             "items": {
               "$ref": "#/components/schemas/MatchResponse"

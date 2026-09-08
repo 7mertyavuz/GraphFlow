@@ -135,7 +135,13 @@ def filter_candidates(
 # kendisinden türetilir. Formasyon başına kod yoktur — K-04 aynen korunur,
 # hatta saflaşır: artık şablon meta-verisi bile gerekmiyor.
 
-from engine.config import STRUCTURE_EQUAL_TOL, STRUCTURE_PROMINENCE  # noqa: E402
+from engine.config import (  # noqa: E402
+    STRUCTURE_EQUAL_TOL,
+    STRUCTURE_NOISE_SIGMA,
+    STRUCTURE_PROMINENCE,
+    STRUCTURE_STABILITY_DRAWS,
+    STRUCTURE_STABILITY_SEED,
+)
 
 
 def prominent_extrema(y: np.ndarray, prominence: float) -> tuple[list[int], list[int]]:
@@ -252,6 +258,44 @@ def signature_mask(
         dtype=bool,
         count=len(vectors),
     )
+
+
+def signature_stability(
+    y: np.ndarray,
+    sigma: float = STRUCTURE_NOISE_SIGMA,
+    draws: int = STRUCTURE_STABILITY_DRAWS,
+    prominence: float = STRUCTURE_PROMINENCE,
+    tol: float = STRUCTURE_EQUAL_TOL,
+) -> float:
+    """İmza, sorgunun kendisine eklenen gürültüye ne kadar dayanıyor (0–1).
+
+    **Neden gerekli:** İmza uç *düzenini* okur. Bazı formasyonları tanımlayan
+    şey uç düzeni değil **eğimdir** — yükselen üçgeni yatay direnç ile
+    yükselen dipler tanımlar, "iki tepe" değil. Böyle bir şekilde imza
+    kararsızdır: küçük bir gürültü uç sayısını değiştirir. Kararsız bir
+    özelliği adaylarda *aynen* aramak, yapıya göre değil gürültüye göre
+    elemektir.
+
+    Ölçüldü (σ=0,10, 400 çekim) — OBO %98 · ters OBO %96 · ikili tepe %94 ·
+    ikili dip %94 · boğa bayrağı %92 · ayı bayrağı %91 ‖ simetrik üçgen %75 ·
+    düşen takoz %74 · alçalan üçgen %72 · yükselen takoz %62 · yükselen üçgen
+    %42 · flama %16. İki küme arasında %75–%91 bandı boştur; eşik oraya
+    konur, kenarına değil.
+
+    Tohum sabittir: arama yeniden üretilebilir olmalı (``tools/run_outcomes``
+    aynı sorguyu iki kez koşup aynı olay kümesini beklerse, rastgele bir
+    kapı bunu sessizce bozardı).
+    """
+    y = np.asarray(y, dtype=np.float64)
+    base = structural_signature(y, prominence, tol)
+    if base is None:
+        return 0.0
+    rng = np.random.default_rng(STRUCTURE_STABILITY_SEED)
+    noise = rng.normal(scale=sigma, size=(draws, y.size))
+    hits = sum(
+        structural_signature(y + noise[k], prominence, tol) == base for k in range(draws)
+    )
+    return hits / draws
 
 
 def describe_signature(signature: tuple | None) -> str | None:

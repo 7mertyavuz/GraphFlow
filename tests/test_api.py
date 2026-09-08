@@ -92,6 +92,7 @@ def _mock_result(n: int):
     result.structure_read = None
     result.structure_filtered = False
     result.structure_relaxed = False
+    result.structure_stable = True
     result.null_dist = {}
     return result
 

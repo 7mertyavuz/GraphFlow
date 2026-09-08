@@ -413,6 +413,48 @@ STRUCTURE_EQUAL_TOL: Final[float] = 0.8
 #: Filtre açık mı. Kapatıldığında motor F4.7 öncesi davranışa döner.
 STRUCTURE_FILTER: Final[bool] = True
 
+#: --- İmza kararlılığı ------------------------------------------------------
+#:
+#: İmza uç DÜZENİNİ okur. Bazı formasyonları tanımlayan şey uç düzeni değil
+#: EĞİMDİR: yükselen üçgeni "iki tepe" değil, yatay direnç + yükselen dipler
+#: tanımlar. Böyle şekillerde imza kararsızdır — sorguya küçük bir gürültü
+#: eklemek uç sayısını değiştirir.
+#:
+#: Kararlılık = sorguya σ gürültü eklendiğinde imzanın hayatta kalma oranı.
+#: Ölçüldü (σ=0,10, 128 çekim) — iki küme arasında %80-%91 bandı boş:
+#:
+#:   yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 · boğa bayrağı 94
+#:   ayı bayrağı 92 · ikili dip 91 · fincan 91
+#:   ‖ düşen takoz 80 · alçalan üçgen 70 · simetrik üçgen 61 · yükselen takoz
+#:   59 · yükselen üçgen 33 · flama 23
+#:
+#: **Kapı olarak BAĞLANMADI (K-19 emsali).** Hipotez şuydu: kararsız imzayı
+#: adaylarda aramak gürültüye göre elemektir, o hâlde filtre kapatılmalı.
+#: Ölçüldü (4h, ilk 50, tools/formation_audit --compare):
+#:
+#:   dönüş ailesi   filtre AÇIK 197/200 (%99)  ·  KAPALI  56/200 (%28)
+#:   eğim ailesi    filtre AÇIK 195/400 (%49)  ·  KAPALI 200/400 (%50)
+#:
+#: Eğim ailesinde filtre ZARARLI değil, ETKİSİZ (400'de 5 fark). Kapatmanın
+#: ölçülebilir bir kazancı yok; bağlanmadı. İlk ölçüm ilk 12 sonuçla
+#: yapıldığında alçalan üçgende 3'e 7'lik bir "zarar" görünüyordu — hücre
+#: başına 12 denemede beklenen gürültü buydu, n 50'ye çıkınca kayboldu.
+#:
+#: Bağlı olan tek kullanımı **raporlamadır**: kararsız bir okumayı kesinmiş
+#: gibi göstermek fazla iddiadır (bkz. docs/10-formasyon-denetimi.md).
+STRUCTURE_NOISE_SIGMA: Final[float] = 0.10
+
+#: Kararlılık tahmininin çekim sayısı. 128 → standart hata ~0,03; eşiğin
+#: iki yanındaki boşluk (%80-%91) bundan çok daha geniş. Maliyet 11 ms.
+STRUCTURE_STABILITY_DRAWS: Final[int] = 128
+
+#: Sabit tohum: arama yeniden üretilebilir olmalı.
+STRUCTURE_STABILITY_SEED: Final[int] = 0
+
+#: Okumanın "sağlam" sayılacağı kararlılık. Ölçülen boş bandın (%80-%91)
+#: ortasına konur, kenarına değil.
+STRUCTURE_MIN_STABILITY: Final[float] = 0.85
+
 #: Filtre sonrası bu sayının altında aday kalırsa filtre UYGULANMAZ.
 #: Gerekçe: "yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir; ikincisi
 #: kullanıcıya motorun bozuk olduğunu düşündürür. Geri düşüldüğünde yanıt

@@ -97,6 +97,10 @@ class SearchResponse(BaseModel):
     structure_read: str | None = None
     #: Sonuçlar bu yapıya göre filtrelendi mi.
     structure_filtered: bool = False
+    #: Okuma sağlam mı — aynı şekil biraz farklı çizilse aynı okunur muydu?
+    #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır;
+    #: kesinmiş gibi göstermek fazla iddia olur.
+    structure_stable: bool = True
     results: list[MatchResponse]
     session: SessionInfo
 

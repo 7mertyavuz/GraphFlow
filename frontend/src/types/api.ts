@@ -407,6 +407,11 @@ export interface components {
              * @default false
              */
             structure_filtered: boolean;
+            /**
+             * Structure Stable
+             * @default true
+             */
+            structure_stable: boolean;
             /** Results */
             results: components["schemas"]["MatchResponse"][];
             session: components["schemas"]["SessionInfo"];

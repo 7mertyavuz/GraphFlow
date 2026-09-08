@@ -1139,3 +1139,57 @@ def test_shapeless_query_has_no_description():
     ramp = np.linspace(0, 1, 32)
     ramp = (ramp - ramp.mean()) / ramp.std()
     assert describe_signature(structural_signature(ramp)) is None
+
+
+# ---------------------------------------------------------------------------
+# İmza kararlılığı — ölçüldü, filtre olarak bağlanmadı, rapora bağlandı
+# ---------------------------------------------------------------------------
+
+
+def _canonical(name: str) -> np.ndarray:
+    from tools import shapes
+
+    y = np.asarray(shapes.shape(name, 32), dtype=np.float64)
+    return (y - y.mean()) / y.std()
+
+
+def test_kararlilik_donusleri_egimlilerden_ayirir():
+    """Kararlılık, filtrenin işe yaradığı aileyi yaramadığından ayırmalı.
+
+    Ölçülen doğrulukla birebir örtüşüyor: dönüş ailesinde ilk 50'nin %99'u
+    aranan formasyon, eğim ailesinde %49 (docs/10-formasyon-denetimi.md).
+    Bu testin koruduğu şey eşiğin kendisi değil, **ayrımın var olması**:
+    iki küme çakışırsa kararlılık artık bir şey söylemiyor demektir.
+    """
+    from engine.config import STRUCTURE_MIN_STABILITY
+    from engine.search.constraints import signature_stability
+
+    saglam = ["head_and_shoulders", "inverse_head_and_shoulders", "double_top", "double_bottom"]
+    kararsiz = ["ascending_triangle", "pennant", "rising_wedge", "symmetrical_triangle"]
+
+    a = [signature_stability(_canonical(n)) for n in saglam]
+    b = [signature_stability(_canonical(n)) for n in kararsiz]
+
+    assert min(a) >= STRUCTURE_MIN_STABILITY, f"dönüş ailesi kararsız çıktı: {a}"
+    assert max(b) < STRUCTURE_MIN_STABILITY, f"eğim ailesi sağlam çıktı: {b}"
+
+
+def test_kararlilik_yeniden_uretilebilir():
+    """Sabit tohum: aynı sorgu iki koşuda aynı kararlılığı vermeli.
+
+    ``tools/run_outcomes`` aynı sorguyu iki kez koşup aynı olay kümesini
+    bekler; rastgele bir kapı bunu sessizce bozardı.
+    """
+    from engine.search.constraints import signature_stability
+
+    q = _canonical("head_and_shoulders")
+    assert signature_stability(q) == signature_stability(q)
+
+
+def test_imzasiz_sekil_kararliligi_sifir():
+    """Belirgin ucu olmayan şekilde kararlılık uydurulmaz."""
+    from engine.search.constraints import signature_stability, structural_signature
+
+    ramp = np.linspace(-1.5, 1.5, 32)
+    assert structural_signature(ramp) is None
+    assert signature_stability(ramp) == 0.0

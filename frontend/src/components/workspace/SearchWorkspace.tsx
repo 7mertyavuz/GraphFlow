@@ -125,6 +125,7 @@ export function SearchWorkspace({
           refreshedAt={mode === "live" ? refreshedAt : null}
           structureRead={page.structureRead}
           structureFiltered={page.structureFiltered}
+          structureStable={page.structureStable}
         />
 
         {hasSearched && page.staleWarning && (
