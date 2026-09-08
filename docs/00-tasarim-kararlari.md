@@ -234,6 +234,52 @@ Kısıtsız şablon hiçbir ek filtreden geçmez.
 ölçülmüş katkı gösterirse kalır — göstermedi.
 Ayrıntı: [04-f35-raporu.md](04-f35-raporu.md#adım-7--geometrik-kısıt-katmanı--bağlanmadı).
 
+### ✅ Eylül 2026 eki — yapısal imza: kural şablondan değil, SORGUDAN türer
+
+Kullanıcı şikâyeti sorunu geri getirdi: *"OBO ya da çift tepe çiziyorum,
+benzer şeyler getiriyor ama formasyonu bulmuyor."* Bağımsız ölçüm
+(`tools/formation_audit` — DTW'den ve çapa mekanizmasından ayrı, belirginlik
+tabanlı tepe/dip denetimi) şikâyeti doğruladı:
+
+| Sorgu kaynağı | İlk 12'de gerçekten o formasyon olan |
+|---|---|
+| kütüphane şablonu | **%42** (ikili tepede 12'de 3) |
+| **elle çizim** | **daha kötü** — OBO'da 12'de **1** |
+
+Elle çizimin daha kötü olması tesadüf değil: çapa tabanlı kısıt katmanı
+şablon meta-verisinden okur, serbest çizimde **meta-veri yoktur**. Ürünün
+yarısı hiçbir kısıttan geçmiyordu.
+
+Üç yol ölçüldü (4h, ilk 12):
+
+| Yaklaşım | Doğruluk |
+|---|---|
+| ham (filtresiz) | %42 |
+| çapa tabanlı kısıt katmanı | %54 — **OBO'da kötüleşti** (6→4) |
+| **sorgudan türetilen yapısal imza** | **%100** |
+
+Çapa yolunun ikinci sınırı: çapalar DTW hizalama yolundan okunur, yol
+bozulduğunda kural da bozulur.
+
+**Yapısal imza** (`engine/search/constraints.py`) kuralı çizimin kendisinden
+türetir: baskın uç tarafı (tepe/dip), belirgin uç sayısı, en uç olanın sırası,
+hepsinin ve en uç dışındakilerin birbirine yakın olup olmadığı. Formasyon
+başına kod yoktur — K-04 korunur, hatta **saflaşır**: artık şablon
+meta-verisi bile gerekmiyor, dolayısıyla serbest çizimde de çalışır.
+
+Elle çizimde sonuç: OBO 1/12 → **12/12**, ters OBO 5/12 → 12/12, çift tepe
+6/12 → 12/12, çift dip 6/12 → 12/12.
+
+Maliyet ölçüldü ve kabul edildi: kosinüs ~0,02 düşüyor, hayatta kalan 51–574
+eşleşme (12 gösteriliyor), ~50 ms. Filtre sonrası taban altında aday kalırsa
+uygulanmaz ve yanıt bunu **uyarı olarak taşır** — "yapıya uyan yok" ile "hiç
+sonuç yok" farklı şeylerdir.
+
+**Dürüst sınır:** imza tam formasyon kimliği değil, uç düzenidir. Yükselen
+üçgen ile ikili tepe aynı imzayı taşır; ayrımı DTW mesafesi yapar. Bu katman
+yalnızca *"yükseliş–tümsek–düşüş yakalayıp omuz–baş–omuz olup olmadığını
+sormama"* hatasını engeller.
+
 ### Sonuç
 
 - **Tek motor**, iki giriş yolu (kütüphane seçimi / serbest çizim)

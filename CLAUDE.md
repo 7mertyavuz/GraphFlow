@@ -27,6 +27,10 @@ geri getirme:
   Python + NumPy. Darboğaz dil değil, veri yapısı (K-01).
 - ❌ **`if-else` formasyon kural motoru** — her formasyon 32 noktalık kanonik
   vektör, aynı DTW pipeline'ından geçer (K-04).
+- ✅ **Yapısal imza filtresi AÇIK** (K-04 Eylül eki). Kural sorgudan türer,
+  formasyon başına kod yoktur. Ölçüm: elle çizilen OBO'da ilk 12'nin doğruluğu
+  1/12 → 12/12. `STRUCTURE_FILTER=False` ile kapatılabilir ama kapatmadan önce
+  `tools/formation_audit --freehand` koş.
 - ❌ **Alt-stride hizalama ince ayarı** — yazıldı, ölçüldü, BAĞLANMADI (K-19).
   Mesafe ve kosinüs takas ediyor; net katkı yok. `REFINE_MATCHES=False`.
 - ⚠️ **Aşama 2 metriği K-11'de F3 ölçümüyle DEĞİŞTİ.** Artık `hybrid` =
@@ -116,7 +120,8 @@ geri getirme:
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
                                   f3_measure, repair_symbol_map, backfill,
                                   verify_stage1, ci_calibration, f46_proxy_test,
-                                  run_outcomes, measure_amplitude, template_health
+                                  run_outcomes, measure_amplitude, template_health,
+                                  formation_audit
 ✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)

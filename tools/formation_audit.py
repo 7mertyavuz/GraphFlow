@@ -112,6 +112,24 @@ CHECKS = {
 }
 
 
+def freehand_query(template_id: str, seed: int, noise: float = 0.035, n: int = 240) -> np.ndarray:
+    """Elle çizim taklidi: titrek el + düzensiz çizim hızı.
+
+    Kütüphaneden seçmek ile elle çizmek AYNI yol değildir. Ölçüldü: filtresiz
+    hâlde OBO şablonu ilk 12'de 6 doğru verirken, elle çizilmiş OBO yalnız
+    **1** veriyordu. Kullanıcının şikâyeti bu farkın kendisiydi.
+    """
+    from engine.normalize.pipeline import normalize_drawing
+    from tools import shapes
+
+    fn = getattr(shapes, template_id)
+    rng = np.random.default_rng(seed)
+    y = fn(n) + noise * rng.normal(size=n)
+    x = np.sort(rng.uniform(0.0, 1.0, n))
+    x = (x - x[0]) / (x[-1] - x[0])
+    return normalize_drawing(np.column_stack([x, y]), invert_y=False, smooth=True)
+
+
 def audit(
     timeframe: str = "4h",
     top: int = 12,
@@ -119,6 +137,8 @@ def audit(
     tol: float = DEFAULT_EQUAL_TOL,
     tolerance: str = OUTCOME_TOLERANCE,
     templates: list[str] | None = None,
+    freehand: bool = False,
+    seed: int = 3,
 ) -> list[dict]:
     """Şablon başına: ilk ``top`` sonucun kaçı gerçekten o formasyon?"""
     from engine.templates import load_all
@@ -134,7 +154,11 @@ def audit(
         if check is None or template is None:
             continue
 
-        query = np.asarray(template.vector, dtype=np.float64)
+        query = (
+            freehand_query(template_id, seed)
+            if freehand
+            else np.asarray(template.vector, dtype=np.float64)
+        )
 
         # Kanonik şablonun kendisi denetimden geçmeli — geçmiyorsa denetçi
         # yanlıştır, sonuçlar değil.
@@ -166,13 +190,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--tol", type=float, default=DEFAULT_EQUAL_TOL)
     p.add_argument("--tolerance", default=OUTCOME_TOLERANCE)
     p.add_argument("--templates", nargs="+", default=None)
+    p.add_argument("--freehand", action="store_true",
+                   help="Şablon yerine elle çizim taklidi kullan (titrek el, düzensiz hız)")
+    p.add_argument("--seed", type=int, default=3)
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    rows = audit(args.timeframe, args.top, args.prominence, args.tol, args.tolerance, args.templates)
+    rows = audit(args.timeframe, args.top, args.prominence, args.tol, args.tolerance,
+                 args.templates, args.freehand, args.seed)
 
     print()
-    print(f"{args.timeframe} · ilk {args.top} sonuç · belirginlik {args.prominence} · eşitlik toleransı {args.tol}")
+    kaynak = "elle çizim" if args.freehand else "kütüphane şablonu"
+    print(f"{args.timeframe} · {kaynak} · ilk {args.top} sonuç · belirginlik {args.prominence}")
     print()
     print(f"{'şablon':<30}{'yapıya uyan':>13}{'oran':>8}{'şablonun kendisi':>19}")
     print("-" * 72)
