@@ -537,6 +537,38 @@ def _load_findings_file(name: str) -> list[dict]:
     return []
 
 
+def _replicated() -> int:
+    """1d ve 4h'de **aynı yönde** anlamlı çıkan hücre sayısı (F4.7).
+
+    Bir bulgu tek zaman diliminde anlamlıysa bulgu değildir. İki dilim
+    bağımsız veri kümesi olmasa da (aynı piyasa, aynı semboller) farklı
+    pencereleme ve toplulaştırma kullanır; replikasyon bir sağlamlık
+    kontrolüdür.
+    """
+    one_day = _load_findings_file("f45_raw.json")
+    four_hour = _load_findings_file("f45_raw_4h.json")
+    if not one_day or not four_hour:
+        return 0
+
+    def key(row: dict) -> tuple:
+        return (row.get("sablon"), row.get("yon"), row.get("konf"))
+
+    def significant(row: dict) -> bool:
+        lo, hi = row.get("blok_alt"), row.get("blok_ust")
+        return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
+
+    by_4h = {key(r): r for r in four_hour}
+    count = 0
+    for row in one_day:
+        other = by_4h.get(key(row))
+        if other is None or not (significant(row) and significant(other)):
+            continue
+        # Aynı yön şartı: işaret dönüyorsa replikasyon değil, çelişkidir.
+        if (row.get("edge") or 0.0) * (other.get("edge") or 0.0) > 0:
+            count += 1
+    return count
+
+
 def _finding_stages() -> list[FindingStage]:
     """Eleme zinciri sayıları — **ölçüm dosyalarından**, elle değil.
 
@@ -594,6 +626,17 @@ def _finding_stages() -> list[FindingStage]:
                 "Aynı aile, çoklu karşılaştırma düzeltmesiyle. Geçen tek satır "
                 "(yükselen takoz, standart gölge) ön-getiri eşleştirilince "
                 "+0,327R'den +0,115R'ye düşüp anlamlılığını kaybediyor."
+            ),
+        ),
+        FindingStage(
+            stage="F4.7 — zaman dilimi çaprazlaması",
+            significant=_replicated(),
+            total=len(_load_findings_file("f45_raw.json")),
+            desc=(
+                "Aynı 56 test 1d ve 4h'de ayrı ayrı koşuldu. Sayılan: iki "
+                "dilimde de AYNI YÖNDE anlamlı çıkan hücreler. Replike eden "
+                "tek formasyon yükselen takoz; diğerleri bir dilimde var, "
+                "ötekinde yok — gürültünün klasik imzası."
             ),
         ),
     ]

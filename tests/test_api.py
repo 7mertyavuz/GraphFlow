@@ -527,7 +527,7 @@ def test_templates_expose_vectors_and_descriptions():
 def test_findings_report_every_stage():
     """Elenen bulgular da raporlanır — 'anlamlı 2' sayısı tek başına yanıltıcı."""
     body = client.get("/api/findings").json()
-    assert len(body["stages"]) == 5
+    assert len(body["stages"]) == 6
     assert "Bonferroni" in body["methodology"]
     for stage in body["stages"]:
         assert 0 <= stage["significant"] <= stage["total"]
@@ -553,6 +553,38 @@ def test_findings_counts_come_from_the_measurement_files():
     bonferroni = next(s for s in body["stages"] if "Bonferroni" in s["stage"])
     assert bonferroni["significant"] == expected
     assert bonferroni["total"] == len(measurable)
+
+
+def test_replication_stage_counts_only_same_direction_agreement():
+    """F4.7: iki dilimde de anlamlı VE aynı işaretli hücreler sayılır.
+
+    İşaret dönüyorsa bu replikasyon değil çelişkidir; saymak, gürültüyü
+    kanıt diye sunmak olurdu.
+    """
+    from engine.api.main import _load_findings_file, _replicated
+
+    if not _load_findings_file("f45_raw_4h.json"):
+        pytest.skip("4h ölçümü yok (data/f3)")
+
+    one = {(r["sablon"], r["yon"], r["konf"]): r for r in _load_findings_file("f45_raw.json")}
+    four = {(r["sablon"], r["yon"], r["konf"]): r for r in _load_findings_file("f45_raw_4h.json")}
+
+    def sig(r):
+        lo, hi = r.get("blok_alt"), r.get("blok_ust")
+        return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
+
+    expected = sum(
+        1 for k, r in one.items()
+        if k in four and sig(r) and sig(four[k]) and r["edge"] * four[k]["edge"] > 0
+    )
+    assert _replicated() == expected
+
+    # Ters işaretli hücreler sayılmamalı.
+    opposite = sum(
+        1 for k, r in one.items()
+        if k in four and sig(r) and sig(four[k]) and r["edge"] * four[k]["edge"] < 0
+    )
+    assert _replicated() + opposite <= len(one)
 
 
 def test_bonferroni_cannot_increase_the_significant_count():
