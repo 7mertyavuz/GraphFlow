@@ -90,6 +90,7 @@ async def lifespan(_: FastAPI):
     Arka plan iş parçacığında: ısıtma sunucunun ayağa kalkmasını geciktirmez,
     hata verirse aramayı düşürmez.
     """
+    _attach_engine_logging()
     if os.environ.get(WARMUP_ENV):
         threading.Thread(target=_warm_template_nulls, daemon=True).start()
     yield
@@ -124,6 +125,26 @@ DISCLAIMER = (
 _engine: SearchEngine | None = None
 _stores: dict[str, BarStore] = {}
 _pools_by_tf: dict[str, dict[int, ShadowPool]] = {}
+
+
+def _attach_engine_logging() -> None:
+    """Motor loglarını uvicorn'un akışına bağlar.
+
+    uvicorn yalnız kendi ("uvicorn*") logger'larına handler kurar; kök
+    logger'da handler olmadığı için motorun ``log.info`` çağrıları hiçbir yere
+    gitmiyordu. Görünmeyen tek şey gürültü değildi — atlanan ince ayar,
+    okunamayan ölçüm dosyası, ısıtma hatası da sessizce kayboluyordu.
+    ``lastResort`` yalnız WARNING ve üstünü, o da biçimsiz basıyor.
+    """
+    handlers = logging.getLogger("uvicorn").handlers
+    if not handlers:
+        return
+    engine_log = logging.getLogger("engine")
+    if engine_log.handlers:
+        return
+    for handler in handlers:
+        engine_log.addHandler(handler)
+    engine_log.setLevel(logging.INFO)
 
 
 def _warm_template_nulls() -> None:
