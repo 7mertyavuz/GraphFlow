@@ -116,7 +116,8 @@ python -m tools.measure_amplitude              # genlik eşiğini korpustan öl�
 | [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | ✅ **Bitti** |
 | [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Yeniden koşuldu** (N=242–509) |
 | [F4.7](docs/08-zaman-dilimi-caprazlama.md) | Zaman dilimi çaprazlaması (1d ↔ 4h) | ✅ Bitti |
-| [F4.8](docs/09-yapisal-filtre-ve-istatistik.md) | Yapısal filtre ve istatistik | ✅ **Yeni** — örneklem artık gerçekten o formasyon |
+| [F4.8](docs/09-yapisal-filtre-ve-istatistik.md) | Yapısal filtre ve istatistik | ✅ Bitti — örneklem artık gerçekten o formasyon |
+| [F4.9](docs/10-formasyon-denetimi.md) | Formasyon denetimi (12 formasyon) | ✅ **Yeni** — dönüşlerde %99, eğim tabanlılarda %49 |
 | [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
 | [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti** |

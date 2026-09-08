@@ -129,3 +129,10 @@ gösterilememiştir.**
 Yeni ve önemli olan şu: artık **doğru şeyi** ölçüyoruz. Ekranda görülen 12
 grafik gerçekten çizilen formasyon, altındaki istatistik de tam o olayların
 istatistiği.
+
+---
+
+> **Devamı:** [10-formasyon-denetimi.md](10-formasyon-denetimi.md) — bu
+> rapordaki "%42 → %100" ölçümü 4 formasyonluktu ve denetçi sıkılaştıktan
+> sonra 12 formasyona genişletildi. Dönüş ailesi ilk 50'de %99; eğim tabanlı
+> formasyonlarda filtrenin **etkisiz** olduğu orada ölçülür (K-20).

@@ -1031,6 +1031,7 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 18 | "%85 Benzerlik" slider'ı | `Katı ↔ Esnek` toggle | DTW mesafesi yüzde değil; kalibre edilemez |
 | 19 | Sadece yaşayan pariteler | Delist edilenler dahil | Survivorship bias istatistikleri yukarı büker |
 | 20 | Alt-stride hizalama ince ayarı | (bağlanmadı) | Mesafe ve kosinüs takas ediyor; ölçülen net katkı yok (K-19) |
+| 21 | İmza kararlılık kapısı | (bağlanmadı) | Eğim tabanlı formasyonlarda filtre zararlı değil etkisiz — 400'de 5 fark (K-20) |
 
 ---
 
@@ -1118,6 +1119,68 @@ Değiştirilmedi, üç gerekçeyle:
 
 Ölçüm `tools/measure_amplitude` ile her zaman tekrarlanabilir; karar
 değişirse dayanağı orada.
+
+---
+
+## K-20 — İmza Kararlılık Kapısı: Ölçüldü, Bağlanmadı
+
+**Karar:** Yapısal imza filtresi **her sorguda** uygulanır. İmzanın kararlı
+olup olmadığına bakan bir kapı yazıldı, ölçüldü ve **bağlanmadı**.
+
+### Hipotez
+
+Yapısal imza uç *düzenini* okur. Bazı formasyonları tanımlayan şey uç düzeni
+değil **eğimdir**: yükselen üçgeni "iki tepe" değil, yatay direnç + yükselen
+dipler tanımlar. Böyle şekillerde imza kararsızdır — sorguya küçük bir
+gürültü uç sayısını değiştirir. Kararsız bir özelliği adaylarda *aynen*
+aramak, yapıya göre değil gürültüye göre elemek olmalıydı.
+
+Kararlılık ölçülebilir: sorguya σ = 0,10 gürültü ekle, imzanın hayatta kalma
+oranına bak (128 çekim, sabit tohum). İki küme temiz ayrışıyor ve arada
+%80–%91 boş bandı var:
+
+| sağlam | kararsız |
+|---|---|
+| yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 | düşen takoz 80 · alçalan üçgen 70 |
+| boğa bayrağı 94 · ayı bayrağı 92 · ikili dip 91 · fincan 91 | simetrik üçgen 61 · yükselen takoz 59 · yükselen üçgen 33 · flama 23 |
+
+### Ölçüm
+
+`tools/formation_audit --compare --top 50` (4h, 1.097 sembol, 11,6M pencere):
+
+| aile | filtre AÇIK | filtre KAPALI |
+|---|---|---|
+| dönüş (OBO, ters OBO, ikili tepe/dip) | **197/200 · %99** | 56/200 · %28 |
+| eğim (üçgen, takoz, flama, bayrak) | 195/400 · %49 | 200/400 · %50 |
+
+### Neden bağlanmadı
+
+Eğim ailesinde filtre **zararlı değil, etkisiz** — 400 denemede 5 fark.
+Kapatmanın ölçülebilir bir kazancı yok, dolayısıyla bağlanmadı (K-19 ile
+aynı ilke: ölçülmüş, net katkısı yok, motora girmiyor).
+
+**Metodolojik not.** İlk ölçüm ilk 12 sonuçla yapıldığında alçalan üçgende
+3'e 7, yükselen takozda 7'ye 10'luk bir "zarar" görünüyordu ve kapı haklı
+çıkmış gibi duruyordu. Hücre başına 12 Bernoulli denemesinde standart hata
+~1,7 sonuçtur; yani o farklar gürültüydü ve n = 50'de kayboldular. Güç
+artırılmadan bağlansaydı gürültüye göre mimari değiştirmiş olurduk. **Bir
+"zarar" bulgusu, bir "kazanç" bulgusu kadar güç ister.**
+
+### Bağlı olan kullanım: raporlama
+
+Kararlılık, ölçülen doğrulukla birebir örtüşüyor (sağlam aile %99, kararsız
+aile %49). Kararsız bir okumayı kesinmiş gibi göstermek fazla iddiadır;
+`SearchResponse.structure_stable` bunu taşır ve arayüz okumanın yanına
+kararsız olduğunu ve ölçülen doğruluğu yazar. Maliyet 11 ms.
+
+### Açık kalan
+
+Eğim tabanlı formasyonlarda motor ~%50'de, flamada 5/50. Sebep ölçülmüş
+durumda: DTW şekli noktasal hizalar, *trend çizgisi* diye bir kavramı
+yoktur. Zarf eğimlerini aday elemesinde kullanmak bir sonraki adımın
+konusudur; `tools/formation_audit` o adımın ölçüm zeminidir.
+
+Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
 
 ---
 

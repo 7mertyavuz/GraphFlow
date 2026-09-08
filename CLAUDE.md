@@ -8,7 +8,7 @@ tarihsel modda o formasyondan sonra ne olduğunu istatistiksel olarak raporlar.
 
 | Belge | Ne zaman |
 |---|---|
-| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 18 karar (K-01…K-18), gerekçeleri, reddedilen 19 alternatif. Projenin anayasası. |
+| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 20 karar (K-01…K-20), gerekçeleri, reddedilen 21 alternatif. Projenin anayasası. |
 | `docs/01-mimari.md` | Kod yazmadan önce. Şemalar, algoritmalar (sözde kod), API, repo yapısı, yol haritası. |
 
 Bir kararı değiştirmen gerektiğini düşünüyorsan **önce ilgili `K-xx` bölümünü
@@ -33,6 +33,11 @@ geri getirme:
   `tools/formation_audit --freehand` koş.
 - ❌ **Alt-stride hizalama ince ayarı** — yazıldı, ölçüldü, BAĞLANMADI (K-19).
   Mesafe ve kosinüs takas ediyor; net katkı yok. `REFINE_MATCHES=False`.
+- ❌ **İmza kararlılık kapısı** — yazıldı, ölçüldü, BAĞLANMADI (K-20).
+  Yapısal filtre eğim tabanlı formasyonlarda (üçgen, takoz, flama) zararlı
+  değil, **etkisiz**: 400 denemede 5 fark. `signature_stability` yalnız
+  raporlamaya bağlıdır. Dönüş ailesinde filtre belirleyicidir (%99 vs %28) —
+  filtreyi kapatmayı önerme.
 - ⚠️ **Aşama 2 metriği K-11'de F3 ölçümüyle DEĞİŞTİ.** Artık `hybrid` =
   (normalize DDTW + normalize ham DTW) / 2. Ne yalnız DDTW, ne yalnız ham DTW.
   Ölçüm: AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733 (12/12 hücre). Metrik
@@ -98,6 +103,13 @@ geri getirme:
   replike eden hücre 3'ten 1'e düştü. Kod değişmedi. Güven aralıkları sıfırı
   kıl payı dışlıyor. Bonferroni sınırında duran bir bulguya "keşif" muamelesi
   yapmak gürültüyü kanıt sanmaktır (F4.7).
+- 🚫 **Bir "zarar" bulgusu, bir "kazanç" bulgusu kadar güç ister.** İlk 12
+  sonuçla ölçüldüğünde yapısal filtre alçalan üçgende 3'e 7 "zarar" veriyor
+  görünüyordu; hücre başına 12 denemede standart hata ~1,7 sonuçtur ve fark
+  n=50'de kayboldu. Az örnekle görülen zarara göre mimari değiştirme (K-20).
+- 🚫 **Denetçi denetlenir.** `tools/formation_audit --cross` köşegen dışı
+  kabul saymalıdır. Gevşeyen bir denetçi doğruluk oranını yükseltir ve motor
+  iyileşmiş GİBİ görünür; her şeye "evet" diyen kontrol hiçbir şey ölçmez.
 - 🚫 **Çoklu karşılaştırma.** 14 şablon × 2 konfigürasyon = 28 test; %95 ile
   şans eseri ~1,4 "anlamlı" sonuç beklenir. Edge iddiaları Bonferroni ile de
   sınanır ve **tüm şablonlar** tek tabloda raporlanır.
@@ -120,10 +132,11 @@ geri getirme:
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
                                   f3_measure, repair_symbol_map, backfill,
                                   verify_stage1, ci_calibration, f46_proxy_test,
+                                  formation_audit (12 formasyon · --cross · --compare),
                                   run_outcomes, measure_amplitude, template_health,
                                   formation_audit
-✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
-                                  outcome, api, grafik karosu)
+✅ tests/                          282 test (ingest, arşiv, normalize, matrix, search,
+                                  outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
 ✅ frontend/                       F6 + F7  (Next.js 16, Radar/Backtest/Bulgular)
@@ -203,6 +216,7 @@ Her motor modülünün `pytest` testi olmalı. Özellikle:
 python -m engine.ingest.download        # F0: Binance klines indir
 python -m engine.matrix.build           # F1: vektör matrislerini üret
 python -m tools.f46_proxy_test          # F4.6: Vekil testi ve ön-getiri eşleştirmeli gölge analizi
+python -m tools.formation_audit --cross # F4.9: denetçiyi denetle (veri gerekmez)
 pytest -q                               # testler
 uvicorn engine.api.main:app --reload    # F5: API
 ```
