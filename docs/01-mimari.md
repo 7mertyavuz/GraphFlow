@@ -871,8 +871,16 @@ geçersiz kaldı). Her ölçümün bir aracı vardır:
 | İşlem | Hedef | Not |
 |---|---|---|
 | Aşama 1 (kosinüs, 12M pencere) | < 300 ms | NumPy/BLAS matris çarpımı |
-| — *ölçülen*, 4h (11,6M pencere) | **~340–390 ms toplam** | uçtan uca arama, bütçe içinde |
-| — *ölçülen*, 1d (1,88M pencere) | **~235–245 ms toplam** | |
+| — *ölçülen*, 4h **sıcak** | **365–417 ms** | API üzerinden uçtan uca, bütçe içinde |
+| — *ölçülen*, 4h **soğuk** | **537–595 ms** | ilk çağrı: sorgunun null dağılımı hesaplanıyor |
+| — *ölçülen*, 1d sıcak | ~211 ms (medyan) | |
+
+**Soğuk/sıcak farkı bütçede yoktu ve dürüstçe kayda geçiriliyor.** F3.5'in
+sorgu-göreli null kalibrasyonu, her yeni şekil için uzunluk başına 2.000
+rastgele pencereyi Aşama 2'den geçirir; bu ilk çağrıya ~180 ms ekler ve
+sonraki çağrılarda önbellekten gelir (`NULL_CACHE_SIZE`). Bütçe yazıldığında
+bu katman yoktu. Radar'da mesele değil (sonuç zaten önbellekli, 1,2 ms);
+Backtest'te ilk sorgu 500 ms sınırını ~%15 aşıyor.
 | Pre-NMS | < 20 ms | 5.000 aday |
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |
