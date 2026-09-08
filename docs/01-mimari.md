@@ -388,6 +388,18 @@ Her iki modda da **oluşmakta olan son mum** veriden düşürülür. Radar'da bu
 
 Radar sorguları çok ucuz olduğu için, **kütüphanedeki şablonlar** için sonuçlar Cron ile 5 dakikada bir önceden hesaplanıp Redis'e yazılır. Kullanıcı sol panelden "OBO" tıkladığında sonuç **anında** gelir. Serbest çizim ise talep üzerine hesaplanır (yine < 10 ms).
 
+**Durum: uygulandı** (`engine/api/main.py:radar_key`, `RADAR_TTL = 300`).
+Ölçülen: ilk çağrı 552 ms, sonraki çağrılar **1,2 ms** — aynı `search_id`
+döndüğü için sayfalama ve istatistik tutarlı kalır. Yalnız kütüphane şablonu
+ve canlı mod önbelleğe girer; serbest çizimde anahtar uzayı sınırsızdır ve
+isabet oranı sıfıra yakındır. Tazelik önbellekten gelmez, her çağrıda
+yeniden okunur.
+
+Arayüz de aynı aralıkta kendini yeniler. Bunu mümkün kılan şey performans
+değil muhasebedir: oturum sayacı artık **ayrı hipotez** sayar (parmak izi =
+şekil + parametreler), yoksa açık bırakılmış bir sekme kullanıcı hiçbir şey
+denemeden Bonferroni α'sını küçültürdü.
+
 ---
 
 ## 7. Şablon Kütüphanesi

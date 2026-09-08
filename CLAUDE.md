@@ -61,6 +61,11 @@ geri getirme:
   **sorgu-göreli null dağılımının uzunluk-içi yüzdelik dilimine** göre yapılır.
   Eşik de yüzdeliktir; yanında MUTLAK akıl sağlığı tavanı bulunur — yalnız
   yüzdelik kalırsa motor her sorguya sonuç döndürür ve "eşleşme yok" diyemez.
+- 🚫 **Örneklem gösterim sabitiyle kırpılmaz.** `SEARCH_CACHE_MATCHES` bir
+  sayfalama sabiti değil, istatistiğin örneklem sınırıdır — `/stats` o
+  havuzdan hesaplar. Sınır post-NMS toplamının altına düşerse kırpma **en iyi
+  eşleşmeleri tutar** ve beklentiyi şişirir (ölçüldü: rounding_bottom 4h'de
+  +0,0391R → +0,0018R). `tests/test_integration.py` bunu nöbetle tutar.
 - 🚫 **Bağımsız N.** İstatistiğe yalnızca post-NMS'ten geçmiş tekil olaylar
   girer. Örtüşen pencereleri saymak `n`'i şişirir, güven aralığını sahte
   biçimde daraltır (K-09, K-12).

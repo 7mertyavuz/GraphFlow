@@ -142,3 +142,32 @@ def test_matrix_and_symbol_map_agree(engine):
     ids = set(np.unique(meta["symbol_id"]).tolist())
     missing = sorted(i for i in ids if int(i) not in symbols)
     assert not missing, f"haritada olmayan symbol_id: {missing[:10]}"
+
+
+def test_cache_pool_covers_every_template(engine):
+    """Hiçbir şablonun eşleşme toplamı önbellek havuzunu aşmamalı.
+
+    Aşarsa istatistik **yanlı bir alt örneklemden** hesaplanır: kırpma
+    rastgele değil, en iyi sıralanmış olanları tutar. Ölçülmüştü —
+    rounding_bottom 4h'de 600 sınırıyla beklentiyi +0,0391R gösteriyordu,
+    sınır kalkınca +0,0018R'ye düştü (21 kat).
+
+    Bu test korpus büyüdükçe sınırın yeniden yetersiz kalmasını yakalar.
+    """
+    from engine.config import OUTCOME_TOLERANCE, SEARCH_CACHE_MATCHES
+    from engine.templates import load_all
+
+    over: list[tuple[str, int]] = []
+    for template_id, template in load_all().items():
+        query = np.asarray(template.vector, dtype=np.float64)
+        total = engine.search(
+            query, timeframe=TIMEFRAME, tolerance=OUTCOME_TOLERANCE, limit=1
+        ).total
+        if total > SEARCH_CACHE_MATCHES:
+            over.append((template_id, total))
+
+    assert not over, (
+        f"SEARCH_CACHE_MATCHES={SEARCH_CACHE_MATCHES} yetersiz: {over}. "
+        "İstatistik bu havuzdan hesaplanıyor; sınır aşılırsa örneklem "
+        "en iyi eşleşmelere doğru yanlı kesilir."
+    )
