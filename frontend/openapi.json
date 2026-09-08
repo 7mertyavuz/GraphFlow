@@ -1026,6 +1026,22 @@
             ],
             "title": "Warning"
           },
+          "structure_read": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure Read"
+          },
+          "structure_filtered": {
+            "type": "boolean",
+            "title": "Structure Filtered",
+            "default": false
+          },
           "results": {
             "items": {
               "$ref": "#/components/schemas/MatchResponse"

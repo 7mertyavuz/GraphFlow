@@ -92,6 +92,11 @@ class SearchResponse(BaseModel):
     #: ama "bu şekle benzeyen bir hareket yok" uyarısıyla birlikte.
     discriminative: bool = True
     warning: str | None = None
+    #: Motorun çizimden okuduğu yapı ("3 belirgin tepe · ortadaki en yüksek").
+    #: Yanlış okunduysa kullanıcı ancak görürse anlayabilir.
+    structure_read: str | None = None
+    #: Sonuçlar bu yapıya göre filtrelendi mi.
+    structure_filtered: bool = False
     results: list[MatchResponse]
     session: SessionInfo
 

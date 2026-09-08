@@ -467,6 +467,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                     stale_warning=freshness.is_stale(request.timeframe),
                     discriminative=stored.get("discriminative", True),
                     warning=stored.get("warning"),
+                    structure_read=stored.get("structure_read"),
+                    structure_filtered=stored.get("structure_filtered", False),
                     results=[MatchResponse(**m) for m in page],
                     session=session_info,
                 )
@@ -517,6 +519,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                 "tolerance": request.tolerance,
                 "discriminative": result.discriminative,
                 "warning": result.warning,
+                "structure_read": result.structure_read,
+                "structure_filtered": result.structure_filtered,
                 "query_vector": [float(v) for v in query_vector],
                 "matches": matches,
             }
@@ -537,6 +541,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
         stale_warning=freshness.is_stale(request.timeframe),
         discriminative=result.discriminative,
         warning=result.warning,
+        structure_read=result.structure_read,
+        structure_filtered=result.structure_filtered,
         results=[MatchResponse(**m) for m in matches[: request.limit]],
         session=session_info,
     )
@@ -566,6 +572,8 @@ async def get_search(
         stale_warning=freshness.is_stale(timeframe),
         discriminative=parsed.get("discriminative", True),
         warning=parsed.get("warning"),
+        structure_read=parsed.get("structure_read"),
+        structure_filtered=parsed.get("structure_filtered", False),
         results=[MatchResponse(**m) for m in page],
         session=session_info,
     )

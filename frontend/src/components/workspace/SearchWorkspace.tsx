@@ -123,6 +123,8 @@ export function SearchWorkspace({
           dataAsOf={page.dataAsOf}
           hasSearched={hasSearched && !page.isLoading}
           refreshedAt={mode === "live" ? refreshedAt : null}
+          structureRead={page.structureRead}
+          structureFiltered={page.structureFiltered}
         />
 
         {hasSearched && page.staleWarning && (

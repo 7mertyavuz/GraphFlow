@@ -252,3 +252,39 @@ def signature_mask(
         dtype=bool,
         count=len(vectors),
     )
+
+
+def describe_signature(signature: tuple | None) -> str | None:
+    """Yapısal imzayı okunur bir cümleye çevirir.
+
+    Kullanıcının asıl şikâyeti *"çizdiğimi anlamıyor"*du. Motorun çizimden ne
+    anladığını **göstermek**, o şikâyetin doğrudan cevabı: yanlış okuduysa
+    (el titremesi fazladan bir tepe yarattıysa, omuzlar eşit çıkmadıysa)
+    kullanıcı bunu görür ve yeniden çizer. Görünmeyen bir yorum, tartışılamaz
+    bir yorumdur.
+    """
+    if signature is None:
+        return None
+
+    side, count, extreme, all_similar, others_similar = signature
+    uc = "tepe" if side > 0 else "dip"
+    en = "yüksek" if side > 0 else "derin"
+    parts = [f"{count} belirgin {uc}"]
+
+    if count >= 2:
+        if all_similar:
+            parts.append("hepsi benzer seviyede")
+        else:
+            if extreme == 0:
+                sira = "ilki"
+            elif extreme == count - 1:
+                sira = "sonuncusu"
+            elif count == 3 and extreme == 1:
+                sira = "ortadaki"
+            else:
+                sira = f"{extreme + 1}. sıradaki"
+            parts.append(f"{sira} en {en}")
+            if count >= 3 and others_similar:
+                parts.append("diğerleri benzer seviyede")
+
+    return " · ".join(parts)

@@ -400,6 +400,13 @@ export interface components {
             discriminative: boolean;
             /** Warning */
             warning?: string | null;
+            /** Structure Read */
+            structure_read?: string | null;
+            /**
+             * Structure Filtered
+             * @default false
+             */
+            structure_filtered: boolean;
             /** Results */
             results: components["schemas"]["MatchResponse"][];
             session: components["schemas"]["SessionInfo"];

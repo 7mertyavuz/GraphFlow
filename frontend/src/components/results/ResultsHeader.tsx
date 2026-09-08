@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Database, RefreshCw } from "lucide-react";
+import { Clock, Database, RefreshCw, ScanEye } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatCount, formatDate, formatDecimal, formatRelative } from "@/utils/formatters";
@@ -15,6 +15,9 @@ interface ResultsHeaderProps {
   hasSearched: boolean;
   /** Radar kendini yenilediğinde son tazeleme anı; Backtest'te null. */
   refreshedAt?: number | null;
+  /** Motorun çizimden okuduğu yapı — yanlış okunduysa kullanıcı görsün. */
+  structureRead?: string | null;
+  structureFiltered?: boolean;
 }
 
 export function ResultsHeader({
@@ -26,12 +29,24 @@ export function ResultsHeader({
   dataAsOf,
   hasSearched,
   refreshedAt = null,
+  structureRead = null,
+  structureFiltered = false,
 }: ResultsHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
         <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        {hasSearched && structureRead && (
+          <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <ScanEye className="size-3.5 shrink-0 text-brand" />
+            <span>
+              Motor şeklinizi şöyle okudu:{" "}
+              <span className="text-foreground">{structureRead}</span>
+              {structureFiltered && " — sonuçlar bu yapıyla sınırlı"}
+            </span>
+          </p>
+        )}
       </div>
 
       {hasSearched && (

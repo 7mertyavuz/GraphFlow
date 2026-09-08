@@ -90,6 +90,8 @@ export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
     results,
     total: head?.total ?? 0,
     warning: head?.warning ?? null,
+    structureRead: head?.structure_read ?? null,
+    structureFiltered: head?.structure_filtered ?? false,
     discriminative: head?.discriminative ?? true,
     staleWarning: head?.stale_warning ?? false,
     dataAsOf: head?.data_as_of ?? 0,

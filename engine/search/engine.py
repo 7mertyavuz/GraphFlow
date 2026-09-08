@@ -67,7 +67,7 @@ from engine.matrix.build import (
     symbols_file,
 )
 from engine.matrix.npy_store import load_matrix
-from engine.search.constraints import signature_mask
+from engine.search.constraints import describe_signature, signature_mask, structural_signature
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
 from engine.search.stage1_cosine import prepare_query, top_k
@@ -167,6 +167,9 @@ class SearchResult:
     #: Yapısal imza filtresi uygulandı mı, ve uygulanamadıysa neden.
     structure_filtered: bool = False
     structure_relaxed: bool = False
+    #: Motorun çizimden okuduğu yapı, insan diliyle. Kullanıcı motorun
+    #: yorumunu göremezse yanlış yorumu da göremez.
+    structure_read: str | None = None
 
     def __len__(self) -> int:
         return len(self.results)
@@ -470,6 +473,7 @@ class SearchEngine:
         #
         # Kural sorgudan türer — formasyon başına kod yok (K-04). Serbest
         # çizimde de çalışmasının sebebi bu: şablon meta-verisi gerekmiyor.
+        result.structure_read = describe_signature(structural_signature(q))
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:

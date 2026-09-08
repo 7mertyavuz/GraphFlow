@@ -1098,3 +1098,44 @@ def test_filter_can_be_disabled(obo_dataset):
 
     assert kapali.total >= acik.total
     assert not kapali.structure_filtered
+
+
+def test_engine_reports_how_it_read_the_drawing(obo_dataset):
+    """Motorun yorumu görünür olmalı — görünmeyen yorum tartışılamaz."""
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+
+    result = engine.search(
+        get_template("head_and_shoulders").vector, timeframe=TF, tolerance="flexible", limit=1
+    )
+    assert result.structure_read == "3 belirgin tepe · ortadaki en yüksek · diğerleri benzer seviyede"
+
+
+def test_structure_description_covers_the_library():
+    """14 şablonun her biri okunur bir cümleye çevrilmeli."""
+    import numpy as np
+
+    from engine.search.constraints import describe_signature, structural_signature
+    from engine.templates import load_all
+
+    for template_id, template in load_all().items():
+        text = describe_signature(structural_signature(np.asarray(template.vector, dtype=np.float64)))
+        assert text, f"{template_id} için açıklama üretilemedi"
+        assert "belirgin" in text
+
+    # Ayırt edici olmalı: çift tepe ile OBO aynı cümleyi vermemeli
+    lib = load_all()
+    obo = describe_signature(structural_signature(np.asarray(lib["head_and_shoulders"].vector)))
+    ct = describe_signature(structural_signature(np.asarray(lib["double_top"].vector)))
+    assert obo != ct
+
+
+def test_shapeless_query_has_no_description():
+    """Yapısı olmayan çizime yorum uydurulmaz."""
+    import numpy as np
+
+    from engine.search.constraints import describe_signature, structural_signature
+
+    ramp = np.linspace(0, 1, 32)
+    ramp = (ramp - ramp.mean()) / ramp.std()
+    assert describe_signature(structural_signature(ramp)) is None
