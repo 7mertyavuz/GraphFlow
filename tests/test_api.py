@@ -236,8 +236,11 @@ def test_unknown_template_is_rejected():
 # ---------------------------------------------------------------------------
 
 
-def test_session_counter_counts_new_searches():
+def test_session_counter_counts_distinct_shapes():
+    """Sayaç AYRI şekilleri sayar — aynı şekli tekrar sormak yeni test değil."""
     headers = {"X-Session-ID": "oturum-1"}
+    farkli_sekil = list(np.sin(np.linspace(0, 3 * np.pi, 40)))
+
     with patch("engine.api.main.get_engine") as mock_engine:
         mock_engine.return_value.search.return_value = _mock_result(0)
         mock_engine.return_value.compute_warp_paths.return_value = []
@@ -246,7 +249,12 @@ def test_session_counter_counts_new_searches():
         assert first.json()["session"]["session_queries"] == 1
         assert first.json()["session"]["multiple_comparison_warning"] is False
 
-        second = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+        # Aynı şekil yeniden: hipotez sayısı değişmez.
+        again = client.post("/api/search", json={"points": _query_points()}, headers=headers)
+        assert again.json()["session"]["session_queries"] == 1
+
+        # Farklı şekil: ikinci hipotez.
+        second = client.post("/api/search", json={"points": farkli_sekil}, headers=headers)
         session = second.json()["session"]
         assert session["session_queries"] == 2
         assert session["multiple_comparison_warning"] is True
@@ -653,8 +661,8 @@ def test_radar_cache_serves_second_call_without_rescanning(fresh_cache):
     assert engine.search.call_count == 1
     # Aynı search_id → sayfalama ve istatistik tutarlı kalır.
     assert first.json()["search_id"] == second.json()["search_id"]
-    # Oturum sayacı yine arttı: aynı hipotezi tekrar sormak ucuzlamaz.
-    assert second.json()["session"]["session_queries"] == 2
+    # Aynı hipotez → sayaç ARTMAZ (Bonferroni ailesi ayrı şekil sayar).
+    assert second.json()["session"]["session_queries"] == 1
 
 
 def test_historical_search_is_not_cached(fresh_cache):
@@ -672,3 +680,52 @@ def test_historical_search_is_not_cached(fresh_cache):
         client.post("/api/search", json=payload, headers={"X-Session-Id": "h1"})
 
     assert engine.search.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Oturum sayacı ayrı hipotez sayar
+# ---------------------------------------------------------------------------
+
+
+def test_fingerprint_is_shape_and_parameters():
+    """Aynı şekil + aynı parametre = aynı parmak izi."""
+    from engine.api.main import query_fingerprint
+
+    ys = _query_points()
+    vector = resolve_query(SearchRequest(points=ys))
+    a = SearchRequest(points=ys, timeframe="4h", tolerance="medium")
+    b = SearchRequest(points=list(ys), timeframe="4h", tolerance="medium")
+    assert query_fingerprint(a, vector, [24, 40]) == query_fingerprint(b, vector, [24, 40])
+
+    # Parametre değişince ayrı hipotez.
+    other = SearchRequest(points=ys, timeframe="1d", tolerance="medium")
+    assert query_fingerprint(a, vector, [24, 40]) != query_fingerprint(other, vector, [24, 40])
+
+    # Şablon ile çizim ayrı parmak izi taşır.
+    tmpl = SearchRequest(template_id="bull_flag", timeframe="4h", tolerance="medium")
+    assert query_fingerprint(tmpl, vector, [24, 40]).startswith("t:")
+    assert query_fingerprint(a, vector, [24, 40]).startswith("d:")
+
+
+def test_repeating_a_query_does_not_inflate_bonferroni(fresh_cache):
+    """Açık bırakılmış bir Radar sekmesi α'yı zamanla küçültmemeli."""
+    engine = MagicMock()
+    engine.search.return_value = _mock_result(2)
+    engine.compute_warp_paths.return_value = []
+    engine.symbols_for.return_value = {}
+
+    same = {"template_id": "bull_flag", "mode": "historical", "timeframe": "4h", "limit": 2}
+    other = {**same, "tolerance": "strict"}
+
+    with patch("engine.api.main.get_engine", return_value=engine), patch(
+        "engine.api.main.REFINE_MATCHES", False
+    ):
+        r1 = client.post("/api/search", json=same, headers={"X-Session-Id": "s9"})
+        r2 = client.post("/api/search", json=same, headers={"X-Session-Id": "s9"})
+        r3 = client.post("/api/search", json=other, headers={"X-Session-Id": "s9"})
+
+    assert r1.json()["session"]["session_queries"] == 1
+    assert r2.json()["session"]["session_queries"] == 1  # aynı hipotez
+    assert r3.json()["session"]["session_queries"] == 2  # farklı tolerans → ayrı test
+    # α ayrı hipotez sayısına bölünür.
+    assert r3.json()["session"]["adjusted_alpha"] == pytest.approx(0.05 / 2)

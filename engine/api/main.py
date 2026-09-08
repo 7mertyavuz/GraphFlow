@@ -285,6 +285,28 @@ def match_payload(match, timeframe: str, warp_path: list[list[int]] | None) -> d
     return data
 
 
+def query_fingerprint(request: SearchRequest, query_vector: np.ndarray, window_lengths: list[int]) -> str:
+    """Sorgunun kimliği — Bonferroni ailesi bunu sayar, isteği değil.
+
+    Aynı şekli aynı parametrelerle yeniden sormak (kullanıcı tekrar tıkladı,
+    Radar kendini yeniledi) **yeni bir hipotez değildir**. Parmak izi
+    şeklin kendisinden türetilir: serbest çizimde vektörün hash'i, kütüphanede
+    şablon kimliği.
+    """
+    import hashlib
+
+    if request.template_id:
+        shape = f"t:{request.template_id}"
+    else:
+        digest = hashlib.sha1(np.asarray(query_vector, dtype=np.float32).tobytes()).hexdigest()
+        shape = f"d:{digest[:16]}"
+
+    return (
+        f"{shape}:{request.mode}:{request.timeframe}:{request.tolerance}"
+        f":{request.min_amplitude}:{'-'.join(str(w) for w in sorted(window_lengths))}"
+    )
+
+
 def radar_key(request: SearchRequest, window_lengths: list[int]) -> str | None:
     """Radar önbelleği anahtarı — yalnız **kütüphane şablonu** sorguları için.
 
@@ -327,7 +349,6 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
     if rl_count > SEARCH_RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Dakikalık arama limiti aşıldı")
 
-    session_info = await track_session(session_id)
     query_vector = resolve_query(request)
 
     window_lengths = [int(w) for w in (request.window_lengths or WINDOW_LENGTHS)]
@@ -335,9 +356,14 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
     if unknown:
         raise HTTPException(status_code=400, detail=f"Kalibre edilmemiş pencere: {unknown}")
 
+    # Sayaç ayrı hipotez sayar: aynı şekil aynı parametrelerle tekrar
+    # sorulduğunda artmaz (Radar'ın kendini yenilemesi dahil).
+    session_info = await track_session(
+        session_id, query_fingerprint(request, query_vector, window_lengths)
+    )
+
     # Radar önbelleği (§6): aynı şablon 5 dakika içinde yeniden sorulursa
-    # matris yeniden taranmaz. Oturum sayacı YİNE artar — aynı hipotezi
-    # tekrar sormak Bonferroni muhasebesinde ucuzlamaz.
+    # matris yeniden taranmaz.
     rkey = radar_key(request, window_lengths)
     if rkey is not None:
         cached_id = await cache.get(rkey)

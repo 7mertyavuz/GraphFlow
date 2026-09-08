@@ -6,6 +6,12 @@ sayısına bölünerek (Bonferroni) raporlanır.
 
 **Yalnızca yeni arama sayılır.** Sayfalama ve istatistik çağrıları sayacı
 artırmaz; "Daha fazla" tuşuna basmak yeni bir hipotez testi değildir.
+
+**Ve yalnızca AYRI hipotez sayılır.** Aynı şekli aynı parametrelerle yeniden
+sormak (kullanıcı tekrar tıkladı, Radar kendini yeniledi) yeni bir test
+değildir. Sayaç isteği değil hipotezi sayar: aksi hâlde açık bırakılmış bir
+Radar sekmesi, kullanıcı hiçbir şey denemeden α'yı zamanla küçültürdü ve
+uyarı anlamsızlaşırdı.
 """
 
 from __future__ import annotations
@@ -45,9 +51,24 @@ def _envelope(queries: int) -> SessionInfo:
     )
 
 
-async def track_session(session_id: str) -> SessionInfo:
-    """Yeni bir sorguyu sayar ve güncel zarfı döner."""
+def _seen_key(session_id: str, fingerprint: str) -> str:
+    return f"session:{session_id}:seen:{fingerprint}"
+
+
+async def track_session(session_id: str, fingerprint: str | None = None) -> SessionInfo:
+    """Yeni bir **hipotezi** sayar ve güncel zarfı döner.
+
+    ``fingerprint`` verilirse aynı parmak izi ikinci kez geldiğinde sayaç
+    artmaz — Bonferroni ailesi denenen ayrı şekil sayısıdır, gönderilen
+    istek sayısı değil.
+    """
     cache = get_cache()
+    if fingerprint is not None:
+        seen = _seen_key(session_id, fingerprint)
+        if await cache.get(seen):
+            return await read_session(session_id)
+        await cache.set(seen, b"1", SESSION_TTL)
+
     # incr ilk çağrıda 1 döner ve TTL penceresini başlatır
     queries = await cache.incr(_key(session_id), SESSION_TTL)
     return _envelope(queries)
