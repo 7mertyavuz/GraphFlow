@@ -485,7 +485,23 @@ PAGE_SIZE: Final[int] = 12
 
 #: Bir aramada önbelleğe alınan eşleşme sayısı. Sayfalama bu havuzdan beslenir;
 #: "Daha fazla" tüm matrisi yeniden skorlamaz (K-08).
-SEARCH_CACHE_MATCHES: Final[int] = 600
+#:
+#: **Bu bir gösterim sabiti DEĞİL, örneklem sınırıdır.** ``/stats`` istatistiği
+#: bu havuzdan hesaplar (K-09: ekranda görülen olaylar). Havuz post-NMS
+#: toplamının altında kalırsa üç sayı birbirinden ayrışır: başlıkta yazan
+#: eşleşme sayısı, sayfalanabilen liste ve istatistiğin N'i. Üstelik kırpma
+#: rastgele değildir — en iyi sıralanmış olanları tutar, yani istatistik
+#: **yanlı bir alt örneklemden** hesaplanırdı.
+#:
+#: Ölçüm (8 Eyl 2026, 14 şablon × 2 dilim, orta tolerans): en yüksek toplam
+#: **758** (rounding_bottom, 4h); 600 sınırını 4h'de 5 şablon aşıyordu
+#: (bear_flag 736, rounding_bottom 758, bull_flag 650, cup_and_handle 635,
+#: pennant 605). 4h evreni 80 sembolden 1.097'ye çıkınca ortaya çıkan bir
+#: sorun — eski korpusta hiçbir şablon 600'e yaklaşmıyordu.
+#:
+#: 2.000: gözlenen en yüksek değerin ~2,6 katı, korpus büyümesine pay bırakır.
+#: Bellek maliyeti arama başına ~600 KB (TTL 1 saat).
+SEARCH_CACHE_MATCHES: Final[int] = 2_000
 
 #: DTW hizalama yolu yalnızca ilk N eşleşme için hesaplanır — yol çıkarımı
 #: aday başına O(32²) Python döngüsüdür, sıcak yolda değildir.
