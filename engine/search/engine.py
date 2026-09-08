@@ -54,6 +54,8 @@ from engine.config import (
     STAGE1_TOPK,
     STAGE2_METRIC,
     STAGE2_TOPK,
+    STRUCTURE_FILTER,
+    STRUCTURE_MIN_SURVIVORS,
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
@@ -65,6 +67,7 @@ from engine.matrix.build import (
     symbols_file,
 )
 from engine.matrix.npy_store import load_matrix
+from engine.search.constraints import signature_mask
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
 from engine.search.stage1_cosine import prepare_query, top_k
@@ -161,6 +164,9 @@ class SearchResult:
     #: ``null_stats`` eşikleri verir, yeniden hesap için dizinin kendisi gerekir.
     null_dist: dict[int, np.ndarray] = field(default_factory=dict)
     discriminative: bool = True
+    #: Yapısal imza filtresi uygulandı mı, ve uygulanamadıysa neden.
+    structure_filtered: bool = False
+    structure_relaxed: bool = False
 
     def __len__(self) -> int:
         return len(self.results)
@@ -173,6 +179,12 @@ class SearchResult:
         pencereler sorguya aynı derecede uzaktır: ortada bulunacak bir yapı
         yoktur. Ölçülen: whipsaw 1,3 · white noise 1,4 · OBO 8,1 · bayrak 15,1.
         """
+        if self.structure_relaxed:
+            return (
+                "Çizdiğiniz yapıyı (tepe/dip düzenini) taşıyan yeterli pencere "
+                "bulunamadı; sonuçlar yapısal filtre UYGULANMADAN listelendi. "
+                "Şekil benzer olabilir ama formasyonun kendisi olmayabilir."
+            )
         if self.discriminative:
             return None
         return (
@@ -345,6 +357,7 @@ class SearchEngine:
         radius: int = SAKOE_CHIBA_RADIUS,
         metric: str = STAGE2_METRIC,
         null_sample: int = NULL_SAMPLE_SIZE,
+        structure_filter: bool = STRUCTURE_FILTER,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
         # ~4-8x büyüktür (K-11, F3 kalibrasyonu).
@@ -448,6 +461,25 @@ class SearchEngine:
         if candidates.size == 0:
             result.elapsed_ms = (time.perf_counter() - t0) * 1000.0
             return result
+
+        # --- Yapısal imza filtresi ---------------------------------------
+        # DTW noktaları hizalar, hizalanan noktaların SEVİYELERİNİN mantıklı
+        # olup olmadığına bakmaz: "yükseliş-tümsek-düşüş" yakalanır, omuz-baş-
+        # omuz olup olmadığı sorulmaz. Ölçüldü: ilk 12'nin yalnız %42'si
+        # gerçekten aranan formasyondu (tools/formation_audit).
+        #
+        # Kural sorgudan türer — formasyon başına kod yok (K-04). Serbest
+        # çizimde de çalışmasının sebebi bu: şablon meta-verisi gerekmiyor.
+        if structure_filter and candidates.size:
+            mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
+            if mask is not None:
+                if int(mask.sum()) >= min(STRUCTURE_MIN_SURVIVORS, candidates.size):
+                    candidates = candidates[mask]
+                    result.structure_filtered = True
+                else:
+                    # "Yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir.
+                    # Geri düşülür ama SESSİZCE değil: uyarı yanıtta taşınır.
+                    result.structure_relaxed = True
 
         # --- Post-NMS (katı) ---------------------------------------------
         # Sıralama yüzdelik dilime göre: 24 barlık pencereler 100 barlıkları

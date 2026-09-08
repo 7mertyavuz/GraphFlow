@@ -907,3 +907,93 @@ def test_refine_never_worsens_the_ranking_metric():
     assert refined[0].distance <= match.distance + 1e-12
     # Kayma olduysa uç indeksler tutarlı kalmalı.
     assert refined[0].end_idx - refined[0].start_idx == 59
+
+
+# ---------------------------------------------------------------------------
+# Yapısal imza — "çizdiğim formasyonu bulmuyor" şikâyetinin cevabı
+# ---------------------------------------------------------------------------
+
+
+def _z(y):
+    import numpy as np
+
+    y = np.asarray(y, dtype=np.float64)
+    return (y - y.mean()) / y.std()
+
+
+def test_signature_separates_head_and_shoulders_from_a_single_bump():
+    """Ölçülen asıl hata: yuvarlak tümsek OBO sanılıyordu.
+
+    DTW "yükseliş-tümsek-düşüş"ü yakalar; omuz-baş-omuz olup olmadığını
+    sormaz. İmza tam olarak bunu sorar.
+    """
+    import numpy as np
+
+    from engine.search.constraints import structural_signature
+    from tools.shapes import head_and_shoulders, rounding_bottom
+
+    obo = _z(head_and_shoulders(32))
+    tumsek = _z(-rounding_bottom(32))  # tek yuvarlak tepe
+
+    assert structural_signature(obo) != structural_signature(tumsek)
+    assert structural_signature(obo)[1] == 3  # üç belirgin tepe
+
+
+def test_signature_rejects_one_tall_one_small_peak_as_double_top():
+    """İkili tepenin tanımı iki zirvenin YAKLAŞIK EŞİT olmasıdır."""
+    import numpy as np
+
+    from engine.search.constraints import structural_signature
+    from tools.shapes import double_top
+
+    t = np.linspace(0, 1, 64)
+    dengeli = _z(double_top(64))
+    carpik = _z(np.exp(-(((t - 0.25) / 0.08) ** 2)) + 0.25 * np.exp(-(((t - 0.75) / 0.08) ** 2)))
+
+    assert structural_signature(dengeli) != structural_signature(carpik)
+
+
+def test_side_comes_from_the_query_not_the_candidate():
+    """Taraf adayın sayılarından seçilirse dengeli şekiller haksız elenir.
+
+    Ölçüldü: yükselen üçgen 431 eşleşmeden 18'e düşüyordu; taraf sorgudan
+    sabitlenince 47'ye çıktı ve dört formasyonun doğruluğu %100'de kaldı.
+    """
+    import numpy as np
+
+    from engine.search.constraints import dominant_side, side_signature
+
+    from tools.shapes import head_and_shoulders
+
+    q = _z(head_and_shoulders(32))
+    side = dominant_side(q)
+    assert side == 1  # OBO tepelerle tanımlanır
+
+    # Aday dip sayısı fazla olsa bile TEPE tarafında sınanmalı.
+    aday = _z(head_and_shoulders(32) + 0.05 * np.sin(np.linspace(0, 20, 32)))
+    assert side_signature(aday, side) is not None
+
+
+def test_shapeless_query_is_not_filtered():
+    """Düz rampanın 'yapısı' yoktur — uydurulmaz, filtre uygulanmaz."""
+    import numpy as np
+
+    from engine.search.constraints import signature_mask
+
+    rampa = _z(np.linspace(0, 1, 32))
+    adaylar = np.array([_z(np.linspace(0, 1, 32)), _z(np.linspace(1, 0, 32))])
+    assert signature_mask(rampa, adaylar) is None
+
+
+def test_signature_mask_keeps_only_matching_structure():
+    import numpy as np
+
+    from engine.search.constraints import signature_mask
+    from tools.shapes import double_top, head_and_shoulders
+
+    q = _z(head_and_shoulders(32))
+    adaylar = np.array([_z(head_and_shoulders(32)), _z(double_top(32))])
+    mask = signature_mask(q, adaylar)
+
+    assert mask is not None
+    assert bool(mask[0]) and not bool(mask[1])

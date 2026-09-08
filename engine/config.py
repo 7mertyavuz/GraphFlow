@@ -364,6 +364,47 @@ NULL_PERCENTILES: Final[dict[str, float]] = {
 #: ayrım: şablonların en iyi skoru 0,014–0,067, white noise 0,34, whipsaw 0,55.
 NULL_ABSOLUTE_CAP: Final[float] = TOLERANCE_THRESHOLDS["flexible"]
 
+# ---------------------------------------------------------------------------
+# Yapısal imza filtresi — "çizdiğim formasyonu bulmuyor" şikâyetinin cevabı
+#
+# Ölçülen sorun (4h, ilk 12 sonuç, bağımsız yapı denetimi ile —
+# `tools/formation_audit`): sonuçların yalnız **%42'si** gerçekten o
+# formasyondu. İkili tepede 12'de 3. DTW noktaları hizalar, hizalanan
+# noktaların SEVİYELERİNİN mantıklı olup olmadığına bakmaz (K-04'ün F3.5 eki).
+#
+# Denenen üç yol:
+#
+#   ham (filtresiz)                        %42
+#   çapa tabanlı kısıt katmanı (K-04 eki)  %54   — OBO'da KÖTÜLEŞTİ (6→4)
+#   sorgudan türetilen yapısal imza        %100
+#
+# Çapa yolu iki yerde tıkanıyordu: serbest çizimde meta-veri yok (ürünün
+# yarısı), ve çapalar DTW hizalama yolundan okunduğu için yol bozulduğunda
+# kural da bozuluyor. Yapısal imza kuralı **çizimin kendisinden** türetir;
+# formasyon başına kod yoktur, K-04 aynen korunur.
+#
+# Maliyet ölçüldü: kosinüs 0,930→0,914 · 0,940→0,916 · 0,919→0,889 ·
+# 0,923→0,899 (ortalama ~0,02 kayıp), hayatta kalan 31–67 sonuç (12
+# gösteriliyor), ~50 ms.
+# ---------------------------------------------------------------------------
+
+#: Bir tepenin/dibin "gerçek" sayılması için gereken en az belirginlik
+#: (z-score birimi — pencere z-score'lu olduğu için ölçek-değişmez).
+STRUCTURE_PROMINENCE: Final[float] = 0.5
+
+#: İki ucun "yaklaşık eşit" sayılacağı fark (z birimi). Şablon
+#: meta-verisindeki level_match toleransıyla aynı mertebede.
+STRUCTURE_EQUAL_TOL: Final[float] = 0.8
+
+#: Filtre açık mı. Kapatıldığında motor F4.7 öncesi davranışa döner.
+STRUCTURE_FILTER: Final[bool] = True
+
+#: Filtre sonrası bu sayının altında aday kalırsa filtre UYGULANMAZ.
+#: Gerekçe: "yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir; ikincisi
+#: kullanıcıya motorun bozuk olduğunu düşündürür. Geri düşüldüğünde yanıt
+#: bunu uyarı olarak taşır — sessizce filtresiz sonuç döndürmek yalan olurdu.
+STRUCTURE_MIN_SURVIVORS: Final[int] = 12
+
 #: Yapısal benzerlik uyarısı.
 #:
 #: ``null_medyan / null_p01`` oranı, korpusta sorguya *yapısal olarak* benzeyen
