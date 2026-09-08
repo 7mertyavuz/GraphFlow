@@ -685,6 +685,11 @@
           "distribution": {
             "$ref": "#/components/schemas/ReturnDistribution"
           },
+          "insufficient": {
+            "type": "boolean",
+            "title": "Insufficient",
+            "default": false
+          },
           "outcomes": {
             "additionalProperties": {
               "type": "integer"

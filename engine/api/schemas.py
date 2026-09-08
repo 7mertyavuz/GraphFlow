@@ -156,6 +156,9 @@ class OutcomeConfigResponse(BaseModel):
     win_rate: StatEnvelope
     edge: StatEnvelope | None
     distribution: ReturnDistribution
+    #: MIN_EVENTS_FOR_CLAIM altındaki örneklem. Sayılar yine döner (gizlemek
+    #: de bir tür yalan olurdu) ama arayüz onları iddia gibi sunmamalıdır.
+    insufficient: bool = False
     outcomes: dict[str, int]
     truncated: int
     by_regime: list[RegimeRow]

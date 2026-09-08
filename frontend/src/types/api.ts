@@ -258,6 +258,11 @@ export interface components {
             win_rate: components["schemas"]["StatEnvelope"];
             edge: components["schemas"]["StatEnvelope"] | null;
             distribution: components["schemas"]["ReturnDistribution"];
+            /**
+             * Insufficient
+             * @default false
+             */
+            insufficient: boolean;
             /** Outcomes */
             outcomes: {
                 [key: string]: number;

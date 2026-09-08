@@ -120,7 +120,21 @@ export function OutcomePanel({
           </Alert>
         ) : (
           <>
-            <div className="grid gap-3 lg:grid-cols-3">
+            {config.insufficient && (
+              <Alert tone="warn" title={`Yetersiz örnek — ${config.expectancy.n_events} bağımsız olay`}>
+                Aşağıdaki sayılar hesaplandı ama <strong>iddia olarak
+                okunmamalıdır</strong>. Bu örneklem büyüklüğünde güven aralığı
+                neredeyse her değeri kapsar; bir formasyonun işe yarayıp
+                yaramadığı buradan anlaşılamaz.
+              </Alert>
+            )}
+
+            <div
+              className={cn(
+                "grid gap-3 lg:grid-cols-3",
+                config.insufficient && "opacity-60"
+              )}
+            >
               <StatCard
                 label="Beklenti"
                 hint="Olay başına ortalama R — başrol metrik"

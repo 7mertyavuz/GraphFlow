@@ -458,6 +458,19 @@ REGIMES: Final[tuple[tuple[str, int, int], ...]] = (
 #: Bu sayının altındaki rejim hücresi "yetersiz örnek" işaretlenir.
 MIN_REGIME_N: Final[int] = 30
 
+#: Bu sayının altında BAŞLIK istatistikleri de "yetersiz örnek" işaretlenir.
+#:
+#: Rejim satırlarının bayrağı vardı, başlık sayılarının yoktu — ve boşluk
+#: ölçüldü: `symmetrical_triangle` 1d'de yalnız 4 eşleşme veriyor (null
+#: yayılımı 2,4 ile 14 şablonun en düşüğü), buna rağmen API "beklenti
+#: +0,803R" diye normal bir kart döndürüyordu. Güven aralığı doğruydu
+#: ([-0,39; +2,00]) ve hüküm "anlamlı fark ölçülemedi" diyordu, ama ekranın
+#: ortasındaki sayı yine de +0,80R'ydi.
+#:
+#: Ayrı bir sabit: rejim hücresiyle başlık sayısının eşiği aynı olmak
+#: zorunda değil, ikisi farklı soruları yanıtlar.
+MIN_EVENTS_FOR_CLAIM: Final[int] = 30
+
 
 # ---------------------------------------------------------------------------
 # K-08 — Sayfalama

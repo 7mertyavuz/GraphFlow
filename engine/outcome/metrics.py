@@ -27,6 +27,7 @@ import pandas as pd
 from engine.config import (
     BOOTSTRAP_SAMPLES,
     CONFIDENCE_LEVEL,
+    MIN_EVENTS_FOR_CLAIM,
     MIN_REGIME_N,
     REGIMES,
 )
@@ -238,6 +239,17 @@ class OutcomeStats:
     by_regime: list[dict] = field(default_factory=list)
 
     @property
+    def insufficient(self) -> bool:
+        """Örneklem, başlık sayılarının okunabileceği tabanın altında mı?
+
+        Güven aralığı zaten geniş çıkar ve hüküm "anlamlı fark ölçülemedi"
+        der — ama ekranın ortasındaki büyük sayı yine de okunur. N = 4 ile
+        hesaplanmış "+0,80R beklenti" teknik olarak doğru, iletişim olarak
+        yanlıştır.
+        """
+        return self.n < MIN_EVENTS_FOR_CLAIM
+
+    @property
     def edge_is_significant(self) -> bool:
         """GA sıfırı içeriyorsa edge iddiası ekrana YAZILMAZ (K-12)."""
         if self.edge_ci is None or not all(np.isfinite(self.edge_ci)):
@@ -246,6 +258,8 @@ class OutcomeStats:
 
     @property
     def verdict(self) -> str:
+        if self.insufficient:
+            return f"yetersiz örnek (N = {self.n}) — sayılar okunmamalı"
         if self.shadow_n == 0:
             return "gölge dağılım yok — edge iddiası yapılamaz"
         if not self.edge_is_significant:
@@ -257,6 +271,7 @@ class OutcomeStats:
         return {
             "config": self.config,
             "n_independent": self.n,
+            "insufficient": self.insufficient,
             "expectancy_r": round(self.expectancy_r, 4),
             "expectancy_ci": [round(x, 4) for x in self.expectancy_ci],
             "expectancy_net_r": round(self.expectancy_net_r, 4),

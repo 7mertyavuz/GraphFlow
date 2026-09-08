@@ -209,6 +209,7 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
         win_rate=win_rate,
         edge=edge,
         distribution=distribution,
+        insufficient=stats.insufficient,
         outcomes=stats.outcomes,
         truncated=stats.truncated,
         by_regime=[RegimeRow(**row) for row in stats.by_regime],

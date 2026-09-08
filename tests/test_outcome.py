@@ -927,3 +927,28 @@ def test_adjacent_months():
     assert expected_jul in adj
     assert len(adj) == 2
 
+
+
+def test_small_sample_is_flagged_and_says_so(random_dataset):
+    """N < MIN_EVENTS_FOR_CLAIM → sayılar döner ama iddia diye sunulmaz.
+
+    Ölçülen boşluk: `symmetrical_triangle` 1d'de yalnız 4 eşleşme veriyordu,
+    buna rağmen API "beklenti +0,803R" diye normal bir kart döndürüyordu.
+    Güven aralığı doğruydu ve hüküm "anlamlı fark ölçülemedi" diyordu — ama
+    ekranın ortasındaki sayı yine de +0,80R'ydi.
+    """
+    from engine.config import MIN_EVENTS_FOR_CLAIM
+
+    events, store = random_dataset
+    events = events[eligible(events, store)]
+    results = evaluate(events, store, 2.0, 1.0)
+
+    few = summarize(results[:4], 2.0, 1.0, "2:1", rng=np.random.default_rng(0))
+    assert few.insufficient
+    assert "yetersiz örnek" in few.verdict
+    assert few.as_dict()["insufficient"] is True
+
+    many = summarize(results[:MIN_EVENTS_FOR_CLAIM], 2.0, 1.0, "2:1",
+                     rng=np.random.default_rng(0))
+    assert not many.insufficient
+    assert "yetersiz örnek" not in many.verdict
