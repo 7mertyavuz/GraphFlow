@@ -22,7 +22,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from engine.api import freshness, health
-from engine.api.cache import OUTCOME_TTL, SEARCH_TTL, get_cache
+from engine.api.cache import OUTCOME_TTL, RADAR_TTL, SEARCH_TTL, get_cache
 from engine.api.chart import build_chart
 from engine.api.schemas import (
     ChartResponse,
@@ -285,6 +285,26 @@ def match_payload(match, timeframe: str, warp_path: list[list[int]] | None) -> d
     return data
 
 
+def radar_key(request: SearchRequest, window_lengths: list[int]) -> str | None:
+    """Radar önbelleği anahtarı — yalnız **kütüphane şablonu** sorguları için.
+
+    docs/01-mimari.md §6: kütüphanedeki şablonların canlı sonuçları 5 dakikada
+    bir önceden hesaplanır ki kullanıcı "OBO" tıkladığında sonuç anında gelsin.
+    Serbest çizim önbelleğe alınmaz: her çizim farklıdır, anahtar uzayı
+    sınırsızdır ve isabet oranı sıfıra yakındır.
+
+    TTL, cron döngüsüyle aynı (``RADAR_TTL`` = 300 sn). Bu aynı zamanda
+    tazelik sınırıdır: 4h barı 4 saatte kapanır, 5 dakikalık bayatlık
+    görünmez — ama daha uzun bir TTL, kapanmış bir barı geç göstermeye başlar.
+    """
+    if request.mode != "live" or not request.template_id:
+        return None
+    return (
+        f"radar:{request.template_id}:{request.timeframe}:{request.tolerance}"
+        f":{request.min_amplitude}:{'-'.join(str(w) for w in sorted(window_lengths))}"
+    )
+
+
 async def load_search(search_id: str) -> dict[str, Any]:
     data = await get_cache().get(f"search:{search_id}")
     if not data:
@@ -314,6 +334,35 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
     unknown = [w for w in window_lengths if w not in WINDOW_LENGTHS]
     if unknown:
         raise HTTPException(status_code=400, detail=f"Kalibre edilmemiş pencere: {unknown}")
+
+    # Radar önbelleği (§6): aynı şablon 5 dakika içinde yeniden sorulursa
+    # matris yeniden taranmaz. Oturum sayacı YİNE artar — aynı hipotezi
+    # tekrar sormak Bonferroni muhasebesinde ucuzlamaz.
+    rkey = radar_key(request, window_lengths)
+    if rkey is not None:
+        cached_id = await cache.get(rkey)
+        if cached_id:
+            hit_id = cached_id.decode("utf-8")
+            parsed = await cache.get(f"search:{hit_id}")
+            if parsed:
+                stored = json.loads(parsed)
+                page = stored["matches"][: request.limit]
+                return SearchResponse(
+                    search_id=hit_id,
+                    total=stored["total"],
+                    elapsed_ms=stored["elapsed_ms"],
+                    mode=stored.get("mode", "live"),
+                    timeframe=stored.get("timeframe", request.timeframe),
+                    tolerance=stored.get("tolerance", request.tolerance),
+                    # Tazelik ÖNBELLEKTEN GELMEZ: depo bu 5 dakika içinde
+                    # bayatlamış olabilir ve uyarı yanıtın içinde taşınır.
+                    data_as_of=freshness.data_as_of(request.timeframe),
+                    stale_warning=freshness.is_stale(request.timeframe),
+                    discriminative=stored.get("discriminative", True),
+                    warning=stored.get("warning"),
+                    results=[MatchResponse(**m) for m in page],
+                    session=session_info,
+                )
 
     result = engine.search(
         query_vector,
@@ -367,6 +416,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
         ).encode("utf-8"),
         SEARCH_TTL,
     )
+    if rkey is not None:
+        await cache.set(rkey, search_id.encode("utf-8"), RADAR_TTL)
 
     return SearchResponse(
         search_id=search_id,

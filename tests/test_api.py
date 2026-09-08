@@ -597,3 +597,78 @@ def test_bonferroni_cannot_increase_the_significant_count():
         pytest.skip("ölçüm dosyası yok (data/f3)")
     assert bonf["total"] == block["total"], "aynı test ailesi olmalı"
     assert bonf["significant"] <= block["significant"]
+
+
+# ---------------------------------------------------------------------------
+# Radar önbelleği (docs/01-mimari.md §6)
+# ---------------------------------------------------------------------------
+
+
+def test_radar_key_only_for_library_templates():
+    """Serbest çizim önbelleğe alınmaz: anahtar uzayı sınırsız, isabet ~0."""
+    from engine.api.main import radar_key
+
+    live_template = SearchRequest(template_id="head_and_shoulders", mode="live")
+    assert radar_key(live_template, [24, 40]) is not None
+
+    # Tarihsel mod: Radar değil.
+    assert radar_key(SearchRequest(template_id="head_and_shoulders", mode="historical"), [24]) is None
+    # Serbest çizim: şablon yok.
+    assert radar_key(SearchRequest(points=_query_points(), mode="live"), [24]) is None
+
+
+def test_radar_key_separates_every_parameter():
+    """Aynı anahtar farklı parametreye düşerse yanlış sonuç servis edilir."""
+    from engine.api.main import radar_key
+
+    base = dict(template_id="bull_flag", mode="live")
+    key = radar_key(SearchRequest(**base, timeframe="4h", tolerance="medium"), [24, 40])
+
+    assert key != radar_key(SearchRequest(**base, timeframe="1d", tolerance="medium"), [24, 40])
+    assert key != radar_key(SearchRequest(**base, timeframe="4h", tolerance="strict"), [24, 40])
+    assert key != radar_key(SearchRequest(**base, timeframe="4h", tolerance="medium"), [24, 64])
+    assert key != radar_key(
+        SearchRequest(**base, timeframe="4h", tolerance="medium", min_amplitude=20.0), [24, 40]
+    )
+    # Pencere sırası anahtarı değiştirmemeli.
+    assert key == radar_key(SearchRequest(**base, timeframe="4h", tolerance="medium"), [40, 24])
+
+
+def test_radar_cache_serves_second_call_without_rescanning(fresh_cache):
+    """İkinci çağrı matrisi yeniden taramamalı ama tazeliği yeniden okumalı."""
+    engine = MagicMock()
+    engine.search.return_value = _mock_result(3)
+    engine.compute_warp_paths.return_value = []
+    engine.symbols_for.return_value = {}
+
+    payload = {"template_id": "bull_flag", "mode": "live", "timeframe": "4h", "limit": 3}
+    with patch("engine.api.main.get_engine", return_value=engine), patch(
+        "engine.api.main.REFINE_MATCHES", False
+    ):
+        first = client.post("/api/search", json=payload, headers={"X-Session-Id": "r1"})
+        second = client.post("/api/search", json=payload, headers={"X-Session-Id": "r1"})
+
+    assert first.status_code == second.status_code == 200
+    # Motor yalnız BİR kez tarandı.
+    assert engine.search.call_count == 1
+    # Aynı search_id → sayfalama ve istatistik tutarlı kalır.
+    assert first.json()["search_id"] == second.json()["search_id"]
+    # Oturum sayacı yine arttı: aynı hipotezi tekrar sormak ucuzlamaz.
+    assert second.json()["session"]["session_queries"] == 2
+
+
+def test_historical_search_is_not_cached(fresh_cache):
+    """Tarihsel sorgu her seferinde taranır — Radar önbelleği ona ait değil."""
+    engine = MagicMock()
+    engine.search.return_value = _mock_result(2)
+    engine.compute_warp_paths.return_value = []
+    engine.symbols_for.return_value = {}
+
+    payload = {"template_id": "bull_flag", "mode": "historical", "timeframe": "4h", "limit": 2}
+    with patch("engine.api.main.get_engine", return_value=engine), patch(
+        "engine.api.main.REFINE_MATCHES", False
+    ):
+        client.post("/api/search", json=payload, headers={"X-Session-Id": "h1"})
+        client.post("/api/search", json=payload, headers={"X-Session-Id": "h1"})
+
+    assert engine.search.call_count == 2
