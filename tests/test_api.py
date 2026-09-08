@@ -86,6 +86,13 @@ def _mock_result(n: int):
     result.elapsed_ms = 5.0
     result.discriminative = True
     result.warning = None
+    # MagicMock her alanı otomatik üretir; JSON'a serileşmeyen bir mock
+    # önbelleğe yazılırken patlıyordu. Yanıt sözleşmesindeki her alan
+    # burada da açıkça verilmeli.
+    result.structure_read = None
+    result.structure_filtered = False
+    result.structure_relaxed = False
+    result.null_dist = {}
     return result
 
 
