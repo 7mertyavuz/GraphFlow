@@ -998,6 +998,24 @@ Motor tasarımı kapandı, ancak uygulama sırasında karara bağlanacak noktala
 4. **Şablon kütüphanesi kaynağı:** Kanonik vektörler elle mi çizilecek, yoksa literatürdeki ideal formasyon tanımlarından mı türetilecek?
 5. **Short yönü:** Triple-barrier şu an long varsayımıyla tanımlı. Düşüş formasyonları için ayna versiyonu ne zaman eklenecek?
 6. **1H ve 1W:** Aynı pipeline'a eklenmesi kolay; hangi kullanıcı geri bildiriminden sonra açılacak?
+7. **`symmetrical_triangle` şablonu yeniden parametrelenmeli mi?** (8 Eyl 2026)
+   Kanonik vektör 3 tam salınım istiyor; 32 noktada bu çevrim başına ~10
+   nokta demek, yani temsil sınırı. Gerçek veride sonucu 1d'de **4**, 4h'de
+   **16** eşleşme — diğer 13 şablon 166–799 veriyor. Ölçülen tarama
+   (`tools/template_health`, 1d, orta tolerans):
+
+   | çevrim | eşleşme | null yayılımı |
+   |---|---|---|
+   | 1,5 | 260 | 4,5 |
+   | 2,0 | 165 | 3,1 |
+   | 2,5 | 23 | 2,5 |
+   | **3,0** | **4** | **2,4** ← mevcut |
+
+   Şablon **kusurlu değil**: kendi gürültülü varyantlarına mesafesi (0,0037)
+   diğer şablonlarla aynı bantta, yani motor onu tanıyor. Gerçek piyasada o
+   kadar temiz üç çevrim nadir. `cycles = 2,0` kütüphane öğesini diriltir
+   ama **F3 eşik kalibrasyonunun girdisini değiştirir** (eşikler 14 şablon
+   sorgusundan okundu) — bu yüzden tek taraflı değiştirilmedi.
 
 ---
 

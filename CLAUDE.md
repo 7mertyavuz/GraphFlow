@@ -106,7 +106,7 @@ geri getirme:
 ✅ tools/                          shapes, variants, gen_synthetic, ab_stage2,
                                   f3_measure, repair_symbol_map, backfill,
                                   verify_stage1, ci_calibration, f46_proxy_test,
-                                  run_outcomes, measure_amplitude
+                                  run_outcomes, measure_amplitude, template_health
 ✅ tests/                          219 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
