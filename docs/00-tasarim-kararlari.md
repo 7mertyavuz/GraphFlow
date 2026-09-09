@@ -1031,7 +1031,7 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 18 | "%85 Benzerlik" slider'ı | `Katı ↔ Esnek` toggle | DTW mesafesi yüzde değil; kalibre edilemez |
 | 19 | Sadece yaşayan pariteler | Delist edilenler dahil | Survivorship bias istatistikleri yukarı büker |
 | 20 | Alt-stride hizalama ince ayarı | (bağlanmadı) | Mesafe ve kosinüs takas ediyor; ölçülen net katkı yok (K-19) |
-| 21 | İmza kararlılık kapısı | (bağlanmadı) | Eğim tabanlı formasyonlarda filtre zararlı değil etkisiz — 400'de 5 fark (K-20) |
+| 21 | Yapısal filtreyi her sorguda uygulamak | (terk edildi) | Kararsız imzada gerçek formasyonları eliyor: duyarlılık %57 → %45 (K-20) |
 | 22 | Zarf (trend çizgisi) filtresi | (bağlanmadı) | Sahtekârlar imzayı zaten taşıyor: takozda ilk 50'nin 50'si. Ground truth'ta net katkı yok (K-21) |
 
 ---
@@ -1123,21 +1123,25 @@ değişirse dayanağı orada.
 
 ---
 
-## K-20 — İmza Kararlılık Kapısı: Ölçüldü, Bağlanmadı
+## K-20 — İmza Kararlılık Kapısı: Bağlandı (önce yanlış karar verildi)
 
-**Karar:** Yapısal imza filtresi **her sorguda** uygulanır. İmzanın kararlı
-olup olmadığına bakan bir kapı yazıldı, ölçüldü ve **bağlanmadı**.
+**Karar:** `STRUCTURE_STABILITY_GATE = True`. Yapısal imza filtresi yalnız
+imzanın **kararlı** olduğu sorgularda uygulanır.
+
+> ⚠️ **Bu karar bir kez yanlış verildi.** İlk hâlinde kapı "ölçüldü, net
+> katkısı yok" gerekçesiyle bağlanmamıştı. O ölçüm hatalıydı ve hatanın
+> sebebi aşağıda; hata payının kendisi de kayıtta kalıyor.
 
 ### Hipotez
 
 Yapısal imza uç *düzenini* okur. Bazı formasyonları tanımlayan şey uç düzeni
 değil **eğimdir**: yükselen üçgeni "iki tepe" değil, yatay direnç + yükselen
 dipler tanımlar. Böyle şekillerde imza kararsızdır — sorguya küçük bir
-gürültü uç sayısını değiştirir. Kararsız bir özelliği adaylarda *aynen*
-aramak, yapıya göre değil gürültüye göre elemek olmalıydı.
+gürültü uç sayısını değiştirir. Kararsız bir kuralla adayları elemek, yapıya
+göre değil gürültüye göre elemektir.
 
 Kararlılık ölçülebilir: sorguya σ = 0,10 gürültü ekle, imzanın hayatta kalma
-oranına bak (128 çekim, sabit tohum). İki küme temiz ayrışıyor ve arada
+oranına bak (128 çekim, sabit tohum). İki küme temiz ayrışıyor, arada
 %80–%91 boş bandı var:
 
 | sağlam | kararsız |
@@ -1145,45 +1149,74 @@ oranına bak (128 çekim, sabit tohum). İki küme temiz ayrışıyor ve arada
 | yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 | düşen takoz 80 · alçalan üçgen 70 |
 | boğa bayrağı 94 · ayı bayrağı 92 · ikili dip 91 · fincan 91 | simetrik üçgen 61 · yükselen takoz 59 · yükselen üçgen 33 · flama 23 |
 
-### Ölçüm
+### İlk (yanlış) ölçüm ve neden yanlıştı
 
-`tools/formation_audit --compare --top 50` (4h, 1.097 sembol, 11,6M pencere):
+`tools/formation_audit --compare` ile ölçüldü:
 
 | aile | filtre AÇIK | filtre KAPALI |
 |---|---|---|
-| dönüş (OBO, ters OBO, ikili tepe/dip) | **197/200 · %99** | 56/200 · %28 |
-| eğim (üçgen, takoz, flama, bayrak) | 195/400 · %49 | 200/400 · %50 |
+| dönüş | 197/200 · %99 | 56/200 · %28 |
+| eğim | 195/400 · %49 | 200/400 · %50 |
 
-### Neden bağlanmadı
+Eğim ailesinde fark 400'de 5 çıktı ve "filtre zararlı değil, etkisiz"
+sonucuna varıldı. **Araç yanlış soruyu yanıtlıyordu.**
 
-Eğim ailesinde filtre **zararlı değil, etkisiz** — 400 denemede 5 fark.
-Kapatmanın ölçülebilir bir kazancı yok, dolayısıyla bağlanmadı (K-19 ile
-aynı ilke: ölçülmüş, net katkısı yok, motora girmiyor).
+`formation_audit` yalnız **kesinlik** ölçer: motorun *döndürdüğü* sonuçlara
+bakar. Filtre gerçek formasyonları eliyorsa denetçi onları hiç görmez;
+geriye kalanlar tanımı aynı oranda geçtiği için filtre etkisiz görünür.
+Zarar kesinlikte değil **duyarlılıkta**ydı ve bu araç duyarlılığı yapısı
+gereği göremez.
 
-**Metodolojik not.** İlk ölçüm ilk 12 sonuçla yapıldığında alçalan üçgende
-3'e 7, yükselen takozda 7'ye 10'luk bir "zarar" görünüyordu ve kapı haklı
-çıkmış gibi duruyordu. Hücre başına 12 Bernoulli denemesinde standart hata
-~1,7 sonuçtur; yani o farklar gürültüydü ve n = 50'de kayboldular. Güç
-artırılmadan bağlansaydı gürültüye göre mimari değiştirmiş olurduk. **Bir
-"zarar" bulgusu, bir "kazanç" bulgusu kadar güç ister.**
+### Teşhis zinciri
 
-### Bağlı olan kullanım: raporlama
+Duyarlılığın neden %58'de takıldığı ayrı bir soru olarak izlendi:
 
-Kararlılık, ölçülen doğrulukla birebir örtüşüyor (sağlam aile %99, kararsız
-aile %49). Kararsız bir okumayı kesinmiş gibi göstermek fazla iddiadır;
-`SearchResponse.structure_stable` bunu taşır ve arayüz okumanın yanına
-kararsız olduğunu ve ölçülen doğruluğu yazar. Maliyet 11 ms.
+| adım | bulgu | sonuç |
+|---|---|---|
+| `limit` 24 → 100 → 400 | duyarlılık değişmedi (%58) | sıralama değil **eleme** |
+| genlik filtresi | 24/24 enjeksiyonun tüm pencereleri geçiyor | masum |
+| null eşiği | en iyi mesafeler 0,013–0,055 · eşik 0,0836 | masum |
+| aşama-1 kosinüs | en iyi pencerelerin sırası 0–293 / 2.500 | masum |
+| geriye kalan | yapısal filtre | **suçlu** |
 
-### Açık kalan
+`TGT021USDT`: kosinüs sırası **3**, DTW mesafesi eşiğin beşte biri — ve
+sonuç listesinde yok. Elenmiş.
 
-Eğim tabanlı formasyonlarda motor ~%50'de, flamada 5/50. Sebep ölçülmüş
-durumda: DTW şekli noktasal hizalar, *trend çizgisi* diye bir kavramı
-yoktur. Zarf eğimlerini aday elemesinde kullanmak bir sonraki adımın
-konusudur; `tools/formation_audit` o adımın ölçüm zeminidir.
+### Doğru ölçüm (ground truth)
+
+`tools/gt_benchmark`, 24 hedef + 120 gürültü sembolü, ilk 24:
+
+| aile | filtre AÇIK | filtre KAPALI |
+|---|---|---|
+| eğim | 93/191 · duyarlılık %45 | **119/192 · %57** |
+| dönüş | **76/96 · duyarlılık %79** | 61/96 · %64 |
+
+Eğim ailesinde filtre KAPALI 6 formasyonda daha iyi, 2'sinde eşit,
+**hiçbirinde kötü değil**. Dönüş ailesinde AÇIK 4/4'te daha iyi. Tam zıt
+iki yön — ve kararlılık ölçüsü onları birebir ayırıyor.
+
+### Kapının uçtan uca etkisi
+
+12 formasyon, aynı korpus:
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapı AÇIK (seçici) | **195/288 · %68** | **%65** |
+| kapı KAPALI (her sorguda filtre) | 169/287 · %59 | %57 |
+
+Hiçbir formasyon kötüleşmiyor. Flama 4→12 · simetrik üçgen 10→16 ·
+yükselen takoz 11→17 · alçalan üçgen 14→18. Dönüş ailesi bire bir aynı
+(kararlılık %91–97, kapı filtreyi açık tutuyor).
+
+Gerçek korpusta gerileme yok: `formation_audit` 392/600 → 397/600.
+
+### Alınan ders
+
+Bir aracın ölçmediği şey "yok" değildir. `formation_audit` iyi bir denetçi
+ama **tek yönlü**: elenen doğruyu göremez. Bir filtrenin bedeli daima
+duyarlılıkla birlikte ölçülmelidir; kesinlik tek başına filtreyi aklar.
 
 Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
-
----
 
 ## K-21 — Zarf (Trend Çizgisi) Filtresi: Ölçüldü, Bağlanmadı
 

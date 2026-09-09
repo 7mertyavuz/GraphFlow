@@ -37,11 +37,11 @@ geri getirme:
   Sahtekârlar imzayı zaten taşıyor: yükselen takoz sorgusunda ilk 50'nin
   **50'si**. `ENVELOPE_FILTER=False`. Açmadan önce
   `tools/gt_benchmark --compare-envelope` koş.
-- ❌ **İmza kararlılık kapısı** — yazıldı, ölçüldü, BAĞLANMADI (K-20).
-  Yapısal filtre eğim tabanlı formasyonlarda (üçgen, takoz, flama) zararlı
-  değil, **etkisiz**: 400 denemede 5 fark. `signature_stability` yalnız
-  raporlamaya bağlıdır. Dönüş ailesinde filtre belirleyicidir (%99 vs %28) —
-  filtreyi kapatmayı önerme.
+- ✅ **İmza kararlılık kapısı AÇIK** (K-20). Yapısal filtre yalnız imzanın
+  KARARLI olduğu sorgularda uygulanır. Ground truth: kapıyla 195/288 (%68),
+  kapısız 169/287 (%59); hiçbir formasyon kötüleşmiyor, flama 4→12.
+  Dönüş ailesinde filtre belirleyicidir (kapı onu açık tutar) — kapatmayı
+  önerme. `STRUCTURE_STABILITY_GATE=False` ile eski davranışa dönülür.
 - ⚠️ **Aşama 2 metriği K-11'de F3 ölçümüyle DEĞİŞTİ.** Artık `hybrid` =
   (normalize DDTW + normalize ham DTW) / 2. Ne yalnız DDTW, ne yalnız ham DTW.
   Ölçüm: AUC hybrid 0,9045 > dtw 0,8956 > ddtw 0,8733 (12/12 hücre). Metrik
@@ -111,6 +111,12 @@ geri getirme:
   sonuçla ölçüldüğünde yapısal filtre alçalan üçgende 3'e 7 "zarar" veriyor
   görünüyordu; hücre başına 12 denemede standart hata ~1,7 sonuçtur ve fark
   n=50'de kayboldu. Az örnekle görülen zarara göre mimari değiştirme (K-20).
+- 🚫 **Kesinlik filtreyi aklar, duyarlılık suçlar.** `formation_audit` yalnız
+  DÖNEN sonuçlara bakar; bir filtre gerçek formasyonları eliyorsa onları hiç
+  görmez ve filtre "etkisiz" görünür. K-20'de tam olarak bu oldu: eğim
+  ailesinde 400'de 5 fark okundu, oysa duyarlılık %57'den %45'e düşüyordu.
+  Bir filtrenin bedeli DAİMA `tools/gt_benchmark` ile duyarlılıkla birlikte
+  ölçülür.
 - 🚫 **Filtreyi kendi ölçütüyle ölçme.** Zarf eğimlerine dayanan bir katmanı
   `formation_audit` ile ölçmek daireseldir — filtre kendi ölçütünü optimize
   eder, tablo iyileşir, ürün iyileşmez. Böyle bir katman `tools/gt_benchmark`
@@ -143,7 +149,7 @@ geri getirme:
                                   formation_audit (12 formasyon · --cross · --compare),
                                   gt_benchmark (ground truth · dairesel olmayan ölçüm),
                                   run_outcomes, measure_amplitude, template_health
-✅ tests/                          289 test (ingest, arşiv, normalize, matrix, search,
+✅ tests/                          292 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar

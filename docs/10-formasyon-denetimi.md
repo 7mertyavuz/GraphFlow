@@ -138,10 +138,14 @@ Sorguya σ = 0,10 gürültü eklendiğinde imzanın hayatta kalma oranı (128 ç
 değil. Kararlılık, ölçülen doğrulukla birebir örtüşür: sağlam okunan aile
 %99, kararsız okunan aile %49.
 
-Bağlı olan tek kullanımı raporlamadır. Kararsız bir okumayı kesinmiş gibi
-göstermek fazla iddiadır; arayüz bu durumda okumanın yanına *"bu okuma
-kararsız — aynı şekli biraz farklı çizerseniz farklı okunabilir"* yazar.
-Maliyet 11 ms.
+> **Düzeltme (K-20).** Bu bölüm ilk yazıldığında kararlılık *kapı olarak
+> bağlanmamıştı*: `formation_audit` ile ölçüldüğünde eğim ailesinde fark
+> 400'de 5 çıkıyordu. O ölçüm yanlış soruyu yanıtlıyordu — aşağıdaki ek.
+> Kapı artık **açık**.
+
+İki kullanımı var. Birincisi raporlama: kararsız bir okumayı kesinmiş gibi
+göstermek fazla iddiadır, arayüz okumanın yanına *"bu okuma kararsız"* yazar.
+İkincisi filtre kapısı: kararsız imzayla eleme yapılmaz. Maliyet 11 ms.
 
 ---
 
@@ -214,4 +218,60 @@ skoru**dur — K-14'ün yüzdelik sıralamasına dokunacağı için ayrı bir ka
 
 ```bash
 python -m tools.gt_benchmark --family slope --noise 300 --compare-envelope
+```
+
+---
+
+## Ek 2: kesinlik filtreyi aklar, duyarlılık suçlar
+
+Yukarıdaki tablolar tek bir soruyu yanıtlıyor: *dönen sonuçların kaçı doğru?*
+Sormadıkları soru şu: *dönmeyenlerin kaçı doğruydu?*
+
+`tools/gt_benchmark` duyarlılığı ölçebildiği için bunu sordu ve cevap
+tabloları tersine çevirdi.
+
+### Teşhis: duyarlılık neden %58'de takılı
+
+| adım | bulgu | sonuç |
+|---|---|---|
+| `limit` 24 → 100 → 400 | duyarlılık değişmedi | sıralama değil **eleme** |
+| genlik filtresi | 24/24 enjeksiyonun pencereleri geçiyor | masum |
+| null eşiği | mesafeler 0,013–0,055 · eşik 0,0836 | masum |
+| aşama-1 kosinüs | sıralar 0–293 / 2.500 | masum |
+| geriye kalan | yapısal filtre | **suçlu** |
+
+`TGT021USDT`: kosinüs sırası **3**, mesafesi eşiğin beşte biri, sonuç
+listesinde yok.
+
+### Ölçüm
+
+24 hedef + 120 gürültü sembolü, ilk 24:
+
+| aile | filtre AÇIK | filtre KAPALI |
+|---|---|---|
+| eğim | 93/191 · duyarlılık %45 | **119/192 · %57** |
+| dönüş | **76/96 · duyarlılık %79** | 61/96 · %64 |
+
+Eğim ailesinde filtre KAPALI 6 formasyonda daha iyi, 2'sinde eşit, hiçbirinde
+kötü değil. Dönüş ailesinde AÇIK 4/4'te daha iyi.
+
+### Kapının uçtan uca etkisi
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapı AÇIK | **195/288 · %68** | **%65** |
+| kapı KAPALI | 169/287 · %59 | %57 |
+
+Flama 4→12 · simetrik üçgen 10→16 · yükselen takoz 11→17 · alçalan üçgen
+14→18. Dönüş ailesi bire bir aynı. Gerçek korpusta `formation_audit`
+392/600 → 397/600.
+
+### Ders
+
+Bir aracın ölçmediği şey "yok" değildir. `formation_audit` iyi bir denetçi
+ama **tek yönlü**: elenen doğruyu göremez. Bir filtrenin bedeli daima
+duyarlılıkla birlikte ölçülmelidir.
+
+```bash
+python -m tools.gt_benchmark --family all --noise 120 --compare-gate
 ```
