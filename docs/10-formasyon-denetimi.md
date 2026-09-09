@@ -275,3 +275,61 @@ duyarlılıkla birlikte ölçülmelidir.
 ```bash
 python -m tools.gt_benchmark --family all --noise 120 --compare-gate
 ```
+
+---
+
+## Ek 3: zarf filtresi kapıyla bağlandı (K-21)
+
+Ek 1'de zarf filtresi "net katkı yok" diye bağlanmamıştı. O ölçüm yapılırken
+**yapısal filtre hâlâ her sorguda açıktı** ve adaylar zaten budanmış
+geliyordu. Ek 2'deki kapı bağlanınca ölçüm bayatladı, yeniden koşuldu.
+
+### Kapı burada da zorunlu
+
+Zarf imzasının kararlılığı (σ=0,10, 300 çekim):
+
+| kararlı → filtre uygulanır | kararsız → uygulanmaz |
+|---|---|
+| simetrik üçgen 100 · yükselen takoz 100 | ayı bayrağı 78 · boğa bayrağı 76 |
+| düşen takoz 99 · yükselen üçgen 99 · alçalan üçgen 99 | **ters OBO 45 · OBO 41** |
+
+Son satır kritik: **OBO'nun zarf imzası `(0,0,0)` ile tanımlıdır ama
+yazı-turadır.** Kapısız bir zarf filtresi, motorun tek güçlü olduğu aileyi
+gürültüyle elerdi.
+
+### Ölçüm (filtrenin devreye girdiği 5 formasyon, 48 hedef)
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| zarf AÇIK | **103/120 · %86** | %41 |
+| zarf KAPALI | 94/120 · %78 | %38 |
+
+Alçalan üçgen 17→23 · düşen takoz 18→21 · yükselen üçgen 19→20 · simetrik
+üçgen eşit · yükselen takoz 22→21. İkinci korpusta (24 hedef) aynı yönde.
+
+### Güvenlik: dokuz formasyon bire bir aynı
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapılı zarf filtresi AÇIK | **199/288 · %69** | %66 |
+| KAPALI | 195/288 · %68 | %65 |
+
+Dönüş ailesi (19/24 × 4), bayraklar ve flama değişmiyor — kapı onlarda
+filtreyi hiç çalıştırmıyor. Gerçek korpusta dönüş ailesi 197/200.
+
+> **Dairesellik uyarısı.** Bu filtre `formation_audit`'in ölçütüne dayanır.
+> O yüzden eğim ailesi için o araç **kanıt olarak kullanılmadı**; karar
+> ground truth ile verildi. `formation_audit` yalnız dönüş ailesinde
+> (uç tabanlı, bu filtreden bağımsız) gerileme kontrolü olarak okundu.
+
+### Nerede duruyoruz
+
+| aile | başlangıç | şimdi |
+|---|---|---|
+| dönüş | 61/96 · %64 | **76/96 · %79** |
+| eğim | 93/191 · %49 | **123/192 · %64** |
+
+Kalan zayıflık bayrak (10/24) ve flamada (12/24) — ikisinde de zarf imzası
+kararsız olduğu için bu katman devreye girmiyor. Bayrağın zarfı direği de
+kapsıyor; gövdeyi direkten ayırmak formasyona özel kod demek olurdu (K-04).
+Doğru biçim muhtemelen sorgudan türeyen bir **bölütleme**.

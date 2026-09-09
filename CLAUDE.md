@@ -8,7 +8,7 @@ tarihsel modda o formasyondan sonra ne olduğunu istatistiksel olarak raporlar.
 
 | Belge | Ne zaman |
 |---|---|
-| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 21 karar (K-01…K-21), gerekçeleri, reddedilen 22 alternatif. Projenin anayasası. |
+| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 21 karar (K-01…K-21), gerekçeleri, reddedilen 23 alternatif. Projenin anayasası. |
 | `docs/01-mimari.md` | Kod yazmadan önce. Şemalar, algoritmalar (sözde kod), API, repo yapısı, yol haritası. |
 
 Bir kararı değiştirmen gerektiğini düşünüyorsan **önce ilgili `K-xx` bölümünü
@@ -33,10 +33,12 @@ geri getirme:
   `tools/formation_audit --freehand` koş.
 - ❌ **Alt-stride hizalama ince ayarı** — yazıldı, ölçüldü, BAĞLANMADI (K-19).
   Mesafe ve kosinüs takas ediyor; net katkı yok. `REFINE_MATCHES=False`.
-- ❌ **Zarf (trend çizgisi) filtresi** — yazıldı, ölçüldü, BAĞLANMADI (K-21).
-  Sahtekârlar imzayı zaten taşıyor: yükselen takoz sorgusunda ilk 50'nin
-  **50'si**. `ENVELOPE_FILTER=False`. Açmadan önce
-  `tools/gt_benchmark --compare-envelope` koş.
+- ✅ **Zarf (trend çizgisi) filtresi AÇIK — ama KAPIYLA** (K-21). Yalnız zarf
+  imzası kararlıyken uygulanır. Kapıyı kaldırma: OBO'nun zarf imzası
+  `(0,0,0)` ile tanımlıdır ama kararlılığı **%41** — kapısız hâli motorun tek
+  güçlü olduğu aileyi yazı-turayla elerdi. İmzanın üçüncü bileşeni
+  (yakınsama) de zorunlu: onsuz katman ölü (takozda ilk 50'nin 50'si imzayı
+  zaten taşıyor).
 - ✅ **İmza kararlılık kapısı AÇIK** (K-20). Yapısal filtre yalnız imzanın
   KARARLI olduğu sorgularda uygulanır. Ground truth: kapıyla 195/288 (%68),
   kapısız 169/287 (%59); hiçbir formasyon kötüleşmiyor, flama 4→12.
@@ -149,7 +151,7 @@ geri getirme:
                                   formation_audit (12 formasyon · --cross · --compare),
                                   gt_benchmark (ground truth · dairesel olmayan ölçüm),
                                   run_outcomes, measure_amplitude, template_health
-✅ tests/                          292 test (ingest, arşiv, normalize, matrix, search,
+✅ tests/                          294 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
