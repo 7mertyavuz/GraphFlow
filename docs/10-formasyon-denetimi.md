@@ -112,13 +112,14 @@ yapıldığında alçalan üçgende 3'e 7'lik bir "zarar" görünüyordu; hücre
 **kararlılık kapısı bağlanmadı** (K-19 emsali: ölçülmüş, net katkısı yok,
 bağlanmıyor).
 
-### 2. Eğim tabanlı formasyonlarda motor hâlâ ~%50'de
+### 2. Eğim tabanlı formasyonlarda motor ~%50'de — ama sebebi sanılan değil
 
 Bu rapor bir başarı ilanı değil. Dönüş formasyonları çözüldü; üçgen, takoz
-ve özellikle **flama (5/50)** çözülmedi. Sebebi ölçülmüş durumda: DTW şekli
-noktasal hizalar, *trend çizgisi* diye bir kavramı yoktur. Bir sonraki adımın
-konusu budur — zarf eğimlerini aday elemesinde kullanmak. Bu raporun kendisi
-o adımın ölçüm zeminidir.
+ve özellikle **flama (5/50)** çözülmedi.
+
+İlk açıklama "DTW'nin trend çizgisi diye bir kavramı yok, o hâlde zarf
+eğimlerini elemede kullanalım"dı. Ölçüldü ve **yanlış çıktı** — aşağıdaki
+bölüm.
 
 ---
 
@@ -150,4 +151,67 @@ Maliyet 11 ms.
 python -m tools.formation_audit --cross                          # denetçiyi denetle
 python -m tools.formation_audit --timeframe 4h --compare --top 50
 python -m tools.formation_audit --family envelope --freehand     # elle çizim
+```
+
+---
+
+## Ek: teşhis değişti — sorun eşleştirmede değil, sıralamada
+
+`tools/formation_audit` sonuçların yapısını **zarf eğimleriyle** denetler.
+Zarf eğimlerine dayanan bir filtreyi onunla ölçmek dairesel olurdu: filtre
+kendi ölçütünü optimize eder, tablo iyileşir, ürün iyileşmez.
+
+`tools/gt_benchmark` daireden tek bilinen yolla çıkar: **formasyonu biz
+koyarız.** Sentetik seriye bilinen bir bar aralığına enjekte edilir; dönen
+pencere o aralıkla örtüşüyorsa doğrudur. Gürültü sembollerine *başka*
+formasyonlar konur — üçgen ararken bayrak bulmak isabet değildir.
+
+### Yoğunluk deneyi
+
+24 hedef sabit, gürültü sembolü sayısı değişken:
+
+| gürültü sembolü | kesinlik | duyarlılık |
+|---|---|---|
+| 40 | %88 | %58 |
+| 120 | %65 | %58 |
+| 300 | %58 | %58 |
+
+**Duyarlılık sabit.** Motor enjekte edilen üçgenleri her yoğunlukta aynı
+oranda buluyor — eşleştirme bozuk değil. Kaybettiği yer sıralama: havuz
+büyüdükçe "DTW'ye yakın ama üçgen değil" pencereler gerçek olanların üstüne
+çıkıyor. Yukarıdaki %34, gerçek korpusun yoğunluğunda bu eğrinin devamıdır.
+
+### Kategorik filtre neden çözemedi
+
+İlk 50 sonucun kaçı sorgunun trend çizgisi imzasını **zaten** taşıyor:
+
+| sorgu | imzayı taşıyan | tanımı geçen |
+|---|---|---|
+| yükselen takoz | **50/50** | 26/50 |
+| düşen takoz | 46/50 | 32/50 |
+| simetrik üçgen | 34/50 | 33/50 |
+| yükselen üçgen | 24/50 | 17/50 |
+
+Takozlarda elenecek bir şey yok. Ayırt edici bilgi *bağıl* eğimde: takoz
+yakınsar, bayrağın kanalı paraleldir. Yakınsama bileşeni eklendi, takozları
+iyileştirdi (10→11, 8→9), **bayrakları bozdu** (16→14, 18→15) — bayrağın
+zarfı direği de kapsadığı için tam pencerede kararsız. Net sonuç:
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| zarf filtresi KAPALI | 94/192 · %49 | %48 |
+| iki bileşenli | 92/192 · %48 | %47 |
+| üç bileşenli | 91/191 · %48 | %47 |
+
+Bağlanmadı (K-21).
+
+### Bir sonraki hipotez
+
+Sorun maskeyle çözülmüyor çünkü sahtekârlar kategorik imzayı taşıyor. Ayırt
+edici bilgi süreklidir (*ne kadar* yakınsıyor, *ne kadar* yatay). Doğru biçim
+muhtemelen bir filtre değil, sıralamaya giren **sürekli bir tanım uyum
+skoru**dur — K-14'ün yüzdelik sıralamasına dokunacağı için ayrı bir karar.
+
+```bash
+python -m tools.gt_benchmark --family slope --noise 300 --compare-envelope
 ```

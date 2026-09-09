@@ -8,7 +8,7 @@ tarihsel modda o formasyondan sonra ne olduğunu istatistiksel olarak raporlar.
 
 | Belge | Ne zaman |
 |---|---|
-| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 20 karar (K-01…K-20), gerekçeleri, reddedilen 21 alternatif. Projenin anayasası. |
+| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 21 karar (K-01…K-21), gerekçeleri, reddedilen 22 alternatif. Projenin anayasası. |
 | `docs/01-mimari.md` | Kod yazmadan önce. Şemalar, algoritmalar (sözde kod), API, repo yapısı, yol haritası. |
 
 Bir kararı değiştirmen gerektiğini düşünüyorsan **önce ilgili `K-xx` bölümünü
@@ -33,6 +33,10 @@ geri getirme:
   `tools/formation_audit --freehand` koş.
 - ❌ **Alt-stride hizalama ince ayarı** — yazıldı, ölçüldü, BAĞLANMADI (K-19).
   Mesafe ve kosinüs takas ediyor; net katkı yok. `REFINE_MATCHES=False`.
+- ❌ **Zarf (trend çizgisi) filtresi** — yazıldı, ölçüldü, BAĞLANMADI (K-21).
+  Sahtekârlar imzayı zaten taşıyor: yükselen takoz sorgusunda ilk 50'nin
+  **50'si**. `ENVELOPE_FILTER=False`. Açmadan önce
+  `tools/gt_benchmark --compare-envelope` koş.
 - ❌ **İmza kararlılık kapısı** — yazıldı, ölçüldü, BAĞLANMADI (K-20).
   Yapısal filtre eğim tabanlı formasyonlarda (üçgen, takoz, flama) zararlı
   değil, **etkisiz**: 400 denemede 5 fark. `signature_stability` yalnız
@@ -107,6 +111,10 @@ geri getirme:
   sonuçla ölçüldüğünde yapısal filtre alçalan üçgende 3'e 7 "zarar" veriyor
   görünüyordu; hücre başına 12 denemede standart hata ~1,7 sonuçtur ve fark
   n=50'de kayboldu. Az örnekle görülen zarara göre mimari değiştirme (K-20).
+- 🚫 **Filtreyi kendi ölçütüyle ölçme.** Zarf eğimlerine dayanan bir katmanı
+  `formation_audit` ile ölçmek daireseldir — filtre kendi ölçütünü optimize
+  eder, tablo iyileşir, ürün iyileşmez. Böyle bir katman `tools/gt_benchmark`
+  ile (enjekte edilmiş ground truth) ölçülür (K-21).
 - 🚫 **Denetçi denetlenir.** `tools/formation_audit --cross` köşegen dışı
   kabul saymalıdır. Gevşeyen bir denetçi doğruluk oranını yükseltir ve motor
   iyileşmiş GİBİ görünür; her şeye "evet" diyen kontrol hiçbir şey ölçmez.
@@ -133,9 +141,9 @@ geri getirme:
                                   f3_measure, repair_symbol_map, backfill,
                                   verify_stage1, ci_calibration, f46_proxy_test,
                                   formation_audit (12 formasyon · --cross · --compare),
-                                  run_outcomes, measure_amplitude, template_health,
-                                  formation_audit
-✅ tests/                          282 test (ingest, arşiv, normalize, matrix, search,
+                                  gt_benchmark (ground truth · dairesel olmayan ölçüm),
+                                  run_outcomes, measure_amplitude, template_health
+✅ tests/                          289 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
@@ -217,6 +225,7 @@ python -m engine.ingest.download        # F0: Binance klines indir
 python -m engine.matrix.build           # F1: vektör matrislerini üret
 python -m tools.f46_proxy_test          # F4.6: Vekil testi ve ön-getiri eşleştirmeli gölge analizi
 python -m tools.formation_audit --cross # F4.9: denetçiyi denetle (veri gerekmez)
+python -m tools.gt_benchmark --family slope  # K-21: ground truth ile dairesel olmayan ölçüm
 pytest -q                               # testler
 uvicorn engine.api.main:app --reload    # F5: API
 ```

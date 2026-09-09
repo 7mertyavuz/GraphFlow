@@ -1032,6 +1032,7 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 19 | Sadece yaşayan pariteler | Delist edilenler dahil | Survivorship bias istatistikleri yukarı büker |
 | 20 | Alt-stride hizalama ince ayarı | (bağlanmadı) | Mesafe ve kosinüs takas ediyor; ölçülen net katkı yok (K-19) |
 | 21 | İmza kararlılık kapısı | (bağlanmadı) | Eğim tabanlı formasyonlarda filtre zararlı değil etkisiz — 400'de 5 fark (K-20) |
+| 22 | Zarf (trend çizgisi) filtresi | (bağlanmadı) | Sahtekârlar imzayı zaten taşıyor: takozda ilk 50'nin 50'si. Ground truth'ta net katkı yok (K-21) |
 
 ---
 
@@ -1179,6 +1180,93 @@ Eğim tabanlı formasyonlarda motor ~%50'de, flamada 5/50. Sebep ölçülmüş
 durumda: DTW şekli noktasal hizalar, *trend çizgisi* diye bir kavramı
 yoktur. Zarf eğimlerini aday elemesinde kullanmak bir sonraki adımın
 konusudur; `tools/formation_audit` o adımın ölçüm zeminidir.
+
+Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
+
+---
+
+## K-21 — Zarf (Trend Çizgisi) Filtresi: Ölçüldü, Bağlanmadı
+
+**Karar:** `ENVELOPE_FILTER = False`. Katman yazıldı, iki varyantı ölçüldü,
+motora bağlanmadı.
+
+### Hipotez
+
+K-20 eğim tabanlı formasyonlarda yapısal imzanın bilgi taşımadığını
+gösterdi. Doğal devam: trend çizgilerini okuyan bir imza. Dokunuş
+noktalarından üst ve alt zarfa regresyon, eğimler {düşen, yatay, yükselen}
+sınıflarına yerleştirilir. Kural yine sorgudan türer — formasyon başına kod
+yoktur (K-04).
+
+### Ölçüm zemini: dairesellikten çıkış
+
+`tools/formation_audit` sonuçların yapısını **zarf eğimleriyle** denetler.
+Zarf eğimlerine dayanan bir filtreyi onunla ölçmek, filtrenin kendi ölçütünü
+optimize etmesi demektir: tablo iyileşir, ürün iyileşmeden.
+
+`tools/gt_benchmark` bunun için yazıldı. Formasyon bilinen bir bar aralığına
+enjekte edilir; motorun döndürdüğü pencere o aralıkla örtüşüyorsa doğrudur.
+Ölçüt ne motorun ne denetçinin mekanizmasına bağlıdır.
+
+### Bulgu 1 — teşhis değişti
+
+Aynı korpusta gürültü sembolü sayısı artırıldığında (24 hedef sabit):
+
+| gürültü sembolü | kesinlik | duyarlılık |
+|---|---|---|
+| 40 | %88 | %58 |
+| 120 | %65 | %58 |
+| 300 | %58 | %58 |
+
+**Duyarlılık sabit.** Motor enjekte edilen üçgenleri her yoğunlukta aynı
+oranda buluyor; eşleştirme bozuk değil. Kaybettiği yer **sıralama**: havuz
+büyüdükçe "DTW'ye yakın ama üçgen değil" pencereler gerçek olanların üstüne
+çıkıyor. Gerçek korpusta ölçülen %34 (F4.9) bu eğrinin devamıdır, ayrı bir
+kusur değil.
+
+### Bulgu 2 — kategorik filtre bu sorunu çözemez
+
+İlk varyant (üst sınıf, alt sınıf) **ölüydü**. Ölçüldü (4h, ilk 50):
+
+| sorgu | imzayı zaten taşıyan | tanımı geçen |
+|---|---|---|
+| yükselen takoz | **50/50** | 26/50 |
+| düşen takoz | 46/50 | 32/50 |
+| simetrik üçgen | 34/50 | 33/50 |
+| yükselen üçgen | 24/50 | 17/50 |
+
+Takozlarda filtrenin eleyecek bir şeyi yok: sahtekârlar imzayı zaten
+taşıyor. Eksik bilgi *bağıl* eğimdeydi — takoz yakınsar, bayrağın kanalı
+paraleldir. Üçüncü bileşen (yakınsama sınıfı) eklendi ve gerçekten ayırdı:
+düşen takoz `(-1,-1,1)` ≠ boğa bayrağı `(-1,-1,0)`.
+
+Ground truth ölçümü (300 gürültü sembolü, ilk 24):
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| zarf filtresi KAPALI | 94/192 · %49 | %48 |
+| iki bileşenli imza | 92/192 · %48 | %47 |
+| üç bileşenli imza | 91/191 · %48 | %47 |
+
+Üçüncü bileşen takozları iyileştirdi (10→11, 8→9) ama **bayrakları bozdu**
+(16→14, 18→15): bayrağın zarfı direği de kapsadığı için tam pencerede
+kararsız, ve `|alt−üst| ≤ 0,8` koşulunu gürültülü gerçek bayraklar
+geçemiyor. Net katkı yok.
+
+### Neden bağlanmadı
+
+İki varyant da kapalı hâlden ayırt edilemiyor (192'de 2–3 fark, standart
+hata ~%3,6). K-19 ve K-20 ile aynı ilke: ölçülmüş, net katkısı yok, motora
+girmiyor. Üçüncü bir varyant aramak, aynı 192 sonuç üzerinde sayı yükselene
+kadar denemek olurdu — projenin çoklu karşılaştırma kuralının tam ihlali.
+
+### Bir sonraki hipotez (yapılmadı)
+
+Sorun *maske* ile çözülmüyor çünkü sahtekârlar kategorik imzayı taşıyor.
+Ayırt edici bilgi süreklidir (ne kadar yakınsıyor, ne kadar yatay). Doğru
+biçim muhtemelen bir filtre değil, **sıralamaya giren sürekli bir tanım
+uyum skoru**dur. Bu, K-14'ün yüzdelik sıralamasına dokunacağı için ayrı bir
+karar gerektirir; `tools/gt_benchmark` o kararın ölçüm zeminidir.
 
 Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
 
