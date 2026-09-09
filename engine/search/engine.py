@@ -54,6 +54,8 @@ from engine.config import (
     STAGE1_TOPK,
     STAGE2_METRIC,
     STAGE2_TOPK,
+    ENVELOPE_FILTER,
+    ENVELOPE_MIN_SURVIVORS,
     STRUCTURE_FILTER,
     STRUCTURE_MIN_STABILITY,
     STRUCTURE_MIN_SURVIVORS,
@@ -70,6 +72,7 @@ from engine.matrix.build import (
 from engine.matrix.npy_store import load_matrix
 from engine.search.constraints import (
     describe_signature,
+    envelope_mask,
     signature_mask,
     signature_stability,
     structural_signature,
@@ -176,6 +179,10 @@ class SearchResult:
     #: Motorun çizimden okuduğu yapı, insan diliyle. Kullanıcı motorun
     #: yorumunu göremezse yanlış yorumu da göremez.
     structure_read: str | None = None
+    #: Trend çizgisi (zarf) filtresi uygulandı mı. K-21: ölçüldü, varsayılan
+    #: KAPALI — kesinliği artırmıyor, duyarlılığı düşürüyor.
+    envelope_filtered: bool = False
+    envelope_relaxed: bool = False
     #: Okuma sağlam mı: aynı şekil biraz farklı çizilse aynı okunur muydu?
     #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır
     #: ve o kararsızlık ölçülen doğrulukla birebir örtüşür: dönüş ailesinde
@@ -373,6 +380,7 @@ class SearchEngine:
         metric: str = STAGE2_METRIC,
         null_sample: int = NULL_SAMPLE_SIZE,
         structure_filter: bool = STRUCTURE_FILTER,
+        envelope_filter: bool = ENVELOPE_FILTER,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
         # ~4-8x büyüktür (K-11, F3 kalibrasyonu).
@@ -501,6 +509,20 @@ class SearchEngine:
                     # "Yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir.
                     # Geri düşülür ama SESSİZCE değil: uyarı yanıtta taşınır.
                     result.structure_relaxed = True
+
+        # --- Zarf (trend çizgisi) filtresi --------------------------------
+        # Yapısal imza uç DÜZENİNİ okur ve eğimle tanımlı formasyonlarda bilgi
+        # taşımaz (K-20). Bu katman trend çizgilerini okur. Kural yine
+        # sorgudan türer; formasyon başına kod yoktur (K-04).
+        # Varsayılan KAPALI — gerekçe K-21'de ölçümüyle birlikte.
+        if envelope_filter and candidates.size:
+            mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
+            if mask is not None:
+                if int(mask.sum()) >= min(ENVELOPE_MIN_SURVIVORS, candidates.size):
+                    candidates = candidates[mask]
+                    result.envelope_filtered = True
+                else:
+                    result.envelope_relaxed = True
 
         # --- Post-NMS (katı) ---------------------------------------------
         # Sıralama yüzdelik dilime göre: 24 barlık pencereler 100 barlıkları

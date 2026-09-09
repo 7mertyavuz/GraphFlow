@@ -298,6 +298,193 @@ def signature_stability(
     return hits / draws
 
 
+# ---------------------------------------------------------------------------
+# Zarf imzası — eğimle tanımlı formasyonlar için
+# ---------------------------------------------------------------------------
+#
+# Yapısal imza uç DÜZENİNİ okur ve dönüş formasyonlarında belirleyicidir
+# (ilk 50'de %99 vs %28). Eğimle tanımlı formasyonlarda ise etkisizdir
+# (%49 vs %50, K-20): yükselen üçgeni "iki tepe" değil, yatay direnç +
+# yükselen dipler tanımlar.
+#
+# Ground truth ölçümü sorunun nerede olduğunu gösterdi (tools/gt_benchmark):
+# aynı sentetik korpusta gürültü sembolü 40 → 120 → 300 yapıldığında
+# DUYARLILIK sabit kaldı (%58) ama KESİNLİK %88 → %65 → %58'e düştü. Motor
+# enjekte edilen üçgenleri her yoğunlukta aynı oranda buluyor; kaybettiği
+# yer sıralama — havuz büyüdükçe "DTW'ye yakın ama üçgen değil" pencereler
+# gerçek olanların üstüne çıkıyor. Gerçek korpusun yoğunluğunda (11,6M
+# pencere) ölçülen %34 bu eğrinin devamıdır.
+#
+# Bu katman o sahtekârları eler. Kural yine SORGUDAN türer; formasyon başına
+# kod yoktur (K-04).
+
+from engine.config import (  # noqa: E402
+    ENVELOPE_DEAD_BAND,
+    ENVELOPE_SLOPE_THRESHOLD,
+    ENVELOPE_TOUCH_WIDTH,
+)
+
+
+def envelope_touches(
+    y: np.ndarray, width: int = ENVELOPE_TOUCH_WIDTH
+) -> tuple[list[int], list[int]]:
+    """Üst ve alt zarfa dokunan **iç** noktalar.
+
+    Uçlar dışlanır: pencerenin ilk ve son barı bir dönüş noktası değil,
+    verinin kesildiği yerdir. Ölçüldü — uçlar dahilken simetrik üçgenin alt
+    zarfı -0,47 (düşen dipler) okunuyor, iç noktalarla +2,18 (yükselen).
+    """
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    highs: list[int] = []
+    lows: list[int] = []
+    for i in range(1, n - 1):
+        a, b = max(0, i - width), min(n, i + width + 1)
+        if y[i] >= y[a:b].max() - 1e-12 and (y[i] > y[i - 1] or y[i] > y[i + 1]):
+            highs.append(i)
+        if y[i] <= y[a:b].min() + 1e-12 and (y[i] < y[i - 1] or y[i] < y[i + 1]):
+            lows.append(i)
+    return highs, lows
+
+
+def envelope_slopes(y: np.ndarray) -> tuple[float | None, float | None]:
+    """(üst zarf eğimi, alt zarf eğimi). İki dokunuştan az ise ``None``.
+
+    Eğim z birimi / tam pencere cinsindendir; pencere z-score'lu olduğu için
+    ölçek-değişmezdir (K-02).
+    """
+    y = np.asarray(y, dtype=np.float64)
+    highs, lows = envelope_touches(y)
+    x = np.arange(y.size, dtype=np.float64) / (y.size - 1)
+
+    def fit(idx: list[int]) -> float | None:
+        if len(idx) < 2:
+            return None
+        k = np.asarray(idx)
+        return float(np.polyfit(x[k], y[k], 1)[0])
+
+    return fit(highs), fit(lows)
+
+
+def _slope_class(slope: float | None, strict: bool = False) -> int | None:
+    """Eğimi {düşen, yatay, yükselen} = {-1, 0, +1} kümesine yerleştirir.
+
+    ``strict`` KURALIN KAYNAĞI için kullanılır: eşiğin ölü bandına düşen bir
+    eğimin sınıfı yazı-turadır, öyle bir sorgudan kural türetilmez. Adaylar
+    tek eşikle sınıflanır — onlarda karar zaten kuralın kendisi değildir.
+    """
+    if slope is None:
+        return None
+    t = ENVELOPE_SLOPE_THRESHOLD
+    if strict:
+        lo, hi = t - ENVELOPE_DEAD_BAND, t + ENVELOPE_DEAD_BAND
+        if lo < abs(slope) < hi:
+            return None
+    if abs(slope) <= t:
+        return 0
+    return 1 if slope > 0 else -1
+
+
+def envelope_signature(y: np.ndarray, strict: bool = False) -> tuple[int, int, int] | None:
+    """Trend çizgisi kimliği: (üst sınıf, alt sınıf, **yakınsama sınıfı**).
+
+    Kanonik şekillerde ölçülen ilk iki bileşen — yükselen üçgen (0, +1) ·
+    alçalan üçgen (-1, 0) · simetrik üçgen (-1, +1) · yükselen takoz (+1, +1)
+    · düşen takoz ve boğa bayrağı (-1, -1) · ayı bayrağı (+1, +1).
+
+    Üçüncü bileşen olmadan katman ÖLÜYDÜ. Ölçüldü (4h, ilk 50): yükselen
+    takoz sorgusunda sonuçların **50/50'si** ilk iki bileşeni zaten
+    taşıyordu, düşen takozda 46/50 — filtrenin eleyecek bir şeyi yoktu.
+    Oysa aynı sonuçların yalnız 26/50 ve 32/50'si formasyonun tanımını
+    geçiyordu. Eksik bilgi *bağıl* eğimdeydi: takoz yakınsar, bayrağın
+    kanalı paraleldir. ``alt - üst`` farkı tam olarak bunu ölçer ve
+    kategorik imza onu atıyordu.
+    """
+    upper, lower = envelope_slopes(y)
+    a, b = _slope_class(upper, strict), _slope_class(lower, strict)
+    if a is None or b is None:
+        return None
+    c = _slope_class(lower - upper, strict)
+    return None if c is None else (a, b, c)
+
+
+def _touch_masks(V: np.ndarray, width: int = ENVELOPE_TOUCH_WIDTH) -> tuple[np.ndarray, np.ndarray]:
+    """(m, n) bool maskeler: her satırda üst ve alt zarfa dokunan iç noktalar.
+
+    Vektörize: aday listesi üzerinde Python döngüsü yazılmaz (CLAUDE.md).
+    Kenar doldurması ±inf'tir; iç noktalar için kesilmiş pencereyle birebir
+    aynı sonucu verir, uç noktalar zaten dışlandığı için fark doğurmaz.
+    """
+    m, n = V.shape
+    pad = np.full((m, width), np.inf)
+    lo_max = np.lib.stride_tricks.sliding_window_view(
+        np.concatenate([-pad, V, -pad], axis=1), 2 * width + 1, axis=1
+    ).max(axis=2)
+    lo_min = np.lib.stride_tricks.sliding_window_view(
+        np.concatenate([pad, V, pad], axis=1), 2 * width + 1, axis=1
+    ).min(axis=2)
+
+    interior = np.zeros(n, dtype=bool)
+    interior[1 : n - 1] = True
+    left = np.empty_like(V)
+    right = np.empty_like(V)
+    left[:, 1:] = V[:, :-1]
+    left[:, 0] = V[:, 0]
+    right[:, :-1] = V[:, 1:]
+    right[:, -1] = V[:, -1]
+
+    highs = (V >= lo_max - 1e-12) & ((V > left) | (V > right)) & interior
+    lows = (V <= lo_min + 1e-12) & ((V < left) | (V < right)) & interior
+    return highs, lows
+
+
+def _masked_slope(V: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Maskelenen noktalara en küçük kareler eğimi; 2'den az nokta → NaN."""
+    n = V.shape[1]
+    x = np.arange(n, dtype=np.float64) / (n - 1)
+    w = mask.astype(np.float64)
+    k = w.sum(axis=1)
+    sx = w @ x
+    sy = (w * V).sum(axis=1)
+    sxy = (w * V * x).sum(axis=1)
+    sxx = w @ (x * x)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        denom = sxx - sx * sx / k
+        slope = (sxy - sx * sy / k) / denom
+    return np.where((k >= 2) & (np.abs(denom) > 1e-12), slope, np.nan)
+
+
+def _class_of(slope: np.ndarray) -> np.ndarray:
+    cls = np.where(np.abs(slope) <= ENVELOPE_SLOPE_THRESHOLD, 0, np.sign(slope))
+    return np.where(np.isnan(slope), -128, cls).astype(np.int8)
+
+
+def envelope_signature_batch(V: np.ndarray) -> np.ndarray:
+    """(m, 3) int8: (üst sınıf, alt sınıf, yakınsama sınıfı); tanımsız → -128."""
+    V = np.atleast_2d(np.asarray(V, dtype=np.float64))
+    highs, lows = _touch_masks(V)
+    upper = _masked_slope(V, highs)
+    lower = _masked_slope(V, lows)
+    return np.column_stack(
+        [_class_of(upper), _class_of(lower), _class_of(lower - upper)]
+    ).astype(np.int8)
+
+
+def envelope_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
+    """Sorgunun trend çizgisi kimliğini taşıyan adayların maskesi.
+
+    Sorgunun kimliği belirsizse (zarfına iki dokunuş düşmüyor ya da eğim
+    eşiğin ölü bandında) ``None`` döner ve filtre uygulanmaz — kararsız bir
+    kuraldan eleme yapmak yapıya göre değil gürültüye göre elemektir (K-20).
+    """
+    target = envelope_signature(query, strict=True)
+    if target is None:
+        return None
+    sig = envelope_signature_batch(np.asarray(vectors, dtype=np.float64))
+    return (sig == np.asarray(target, dtype=np.int8)).all(axis=1)
+
+
 def describe_signature(signature: tuple | None) -> str | None:
     """Yapısal imzayı okunur bir cümleye çevirir.
 

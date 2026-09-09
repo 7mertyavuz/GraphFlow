@@ -169,3 +169,39 @@ def test_bayrak_takozdan_ayrilir():
 
     up, low = envelope_slopes(z("falling_wedge"))[:2]
     assert low - up > 0.8, "takoz yakınsamalı"
+
+
+def test_gt_benchmark_gurultu_sembollerine_aranan_formasyonu_koymaz():
+    """Gürültü sembolleri aranan formasyonu İÇERMEMELİ.
+
+    İçerselerdi "yanlış" saydığımız sonuçların bir kısmı aslında doğru
+    olurdu ve ölçüm kendi kendini yanıltırdı. Bu nöbetçi ölçüm zemininin
+    geçerliliğini korur.
+    """
+    from tools.gt_benchmark import FAMILIES
+
+    for pattern in FAMILIES["all"]:
+        others = tuple(p for p in FAMILIES["all"] if p != pattern)
+        assert pattern not in others
+        assert len(others) == len(FAMILIES["all"]) - 1
+
+
+def test_gt_benchmark_skor_ground_truth_ile_esler():
+    """Skorlayıcı örtüşen pencereyi doğru, örtüşmeyeni yanlış saymalı."""
+    from types import SimpleNamespace
+
+    from tools.gen_synthetic import Injection
+    from tools.gt_benchmark import score
+
+    truth = [Injection("AAAUSDT", "bull_flag", 100, 160, 61, 0.2, 0.03)]
+    result = SimpleNamespace(
+        total=2,
+        results=[
+            SimpleNamespace(symbol="AAAUSDT", start_idx=105, end_idx=165),  # örtüşür
+            SimpleNamespace(symbol="AAAUSDT", start_idx=400, end_idx=460),  # örtüşmez
+            SimpleNamespace(symbol="BBBUSDT", start_idx=100, end_idx=160),  # başka sembol
+        ],
+    )
+    s = score(result, truth)
+    assert s["correct"] == 1 and s["shown"] == 3
+    assert s["recall"] == 1.0

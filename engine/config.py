@@ -461,6 +461,37 @@ STRUCTURE_MIN_STABILITY: Final[float] = 0.85
 #: bunu uyarı olarak taşır — sessizce filtresiz sonuç döndürmek yalan olurdu.
 STRUCTURE_MIN_SURVIVORS: Final[int] = 12
 
+#: --- Zarf imzası (trend çizgisi katmanı) -----------------------------------
+#:
+#: Yapısal imza uç DÜZENİNİ okur; eğimle tanımlı formasyonlarda (üçgen,
+#: takoz, flama, bayrak) bilgi taşımaz (K-20). Bu katman trend çizgilerini
+#: okur: dokunuş noktalarından üst ve alt zarfa regresyon, eğim sınıfı.
+#:
+#: Ölçüldü (tools/gt_benchmark, ground truth): aynı korpusta gürültü
+#: sembolü 40 → 120 → 300 yapıldığında duyarlılık sabit (%58), kesinlik
+#: %88 → %65 → %58. Motor enjekte edilen üçgenleri her yoğunlukta buluyor;
+#: kaybettiği yer sıralama. Gerçek korpusta ölçülen %34 bu eğrinin devamı.
+
+#: Zarf dokunuşu için yerel pencere yarıçapı (bar). 2 → 5 barlık pencere.
+ENVELOPE_TOUCH_WIDTH: Final[int] = 2
+
+#: Eğimin "yatay" ile "eğimli" arasındaki sınırı (z birimi / tam pencere).
+#: Kanonik ölçümlerin ortasına konur: yatay zarflar 0,01-0,03 · eğimli
+#: zarflar 0,89-4,32. Aradaki bant tamamen boş.
+ENVELOPE_SLOPE_THRESHOLD: Final[float] = 0.8
+
+#: Kuralın KAYNAĞI için ölü bant: sorgunun eğimi eşiğe bu kadar yakınsa
+#: sınıfı yazı-turadır ve o sorgudan kural türetilmez. Adaylar tek eşikle
+#: sınıflanır — onlarda karar zaten kuralın kendisi değildir.
+ENVELOPE_DEAD_BAND: Final[float] = 0.2
+
+#: Zarf filtresi açık mı. Ölçüm sonucu için bkz. K-21.
+ENVELOPE_FILTER: Final[bool] = False
+
+#: Zarf filtresi sonrası bu sayının altında aday kalırsa UYGULANMAZ —
+#: yapısal filtredeki gerekçenin aynısı.
+ENVELOPE_MIN_SURVIVORS: Final[int] = 12
+
 #: Yapısal benzerlik uyarısı.
 #:
 #: ``null_medyan / null_p01`` oranı, korpusta sorguya *yapısal olarak* benzeyen

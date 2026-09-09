@@ -1193,3 +1193,72 @@ def test_imzasiz_sekil_kararliligi_sifir():
     ramp = np.linspace(-1.5, 1.5, 32)
     assert structural_signature(ramp) is None
     assert signature_stability(ramp) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Zarf imzası — K-21 (yazıldı, ölçüldü, bağlanmadı)
+# ---------------------------------------------------------------------------
+
+
+def test_zarf_imzasi_kanonik_sekilleri_dogru_okur():
+    """Trend çizgisi sınıfları ders kitabı tanımına uymalı."""
+    from engine.search.constraints import envelope_signature
+
+    assert envelope_signature(_canonical("ascending_triangle"), strict=True) == (0, 1, 1)
+    assert envelope_signature(_canonical("descending_triangle"), strict=True) == (-1, 0, 1)
+    assert envelope_signature(_canonical("symmetrical_triangle"), strict=True) == (-1, 1, 1)
+
+
+def test_zarf_imzasi_takozu_bayraktan_ayirir():
+    """Yakınsama bileşeni olmadan bu ikisi ayırt edilemez.
+
+    Ölçüldü: üçüncü bileşen yokken yükselen takoz sorgusunda ilk 50'nin
+    50'si imzayı taşıyordu — filtrenin eleyecek bir şeyi yoktu. Takoz
+    yakınsar (sınıf 1), bayrağın kanalı paraleldir (sınıf 0).
+    """
+    from engine.search.constraints import envelope_signature
+
+    fw = envelope_signature(_canonical("falling_wedge"), strict=True)
+    bf = envelope_signature(_canonical("bull_flag"), strict=True)
+    assert fw[:2] == bf[:2], "ilk iki bileşen zaten aynıydı"
+    assert fw != bf, "yakınsama bileşeni ikisini ayırmalı"
+
+
+def test_zarf_imzasi_belirsiz_sorgudan_kural_turetmez():
+    """Eğimi ölü banda düşen sorgudan kural çıkarılmaz.
+
+    Flamanın zarf eğimleri -0,90/+0,89 ile eşiğin (0,8) hemen yanında;
+    sınıfı yazı-turadır. Böyle bir sorgudan eleme yapmak yapıya göre değil
+    gürültüye göre elemektir (K-20 ile aynı ilke).
+    """
+    from engine.search.constraints import envelope_mask, envelope_signature
+
+    assert envelope_signature(_canonical("pennant"), strict=True) is None
+    assert envelope_mask(_canonical("pennant"), np.zeros((5, 32))) is None
+
+
+def test_zarf_imzasi_vektorize_hal_tekil_halle_ayni():
+    """Sıcak yol vektörize; iki yol ayrışırsa ölçüm de ayrışır."""
+    from engine.search.constraints import envelope_signature, envelope_signature_batch
+
+    V = np.random.default_rng(11).normal(size=(200, 32))
+    batch = envelope_signature_batch(V)
+    for i in range(V.shape[0]):
+        one = envelope_signature(V[i])
+        if one is None:
+            assert -128 in batch[i]
+        else:
+            assert tuple(int(v) for v in batch[i]) == one
+
+
+def test_zarf_filtresi_varsayilan_kapali():
+    """K-21: ölçüldü, net katkısı yok, bağlanmadı.
+
+    Bu nöbetçi sabitin kendisini korur: ground truth ölçümünde kesinlik
+    91/191 (açık) ile 94/192 (kapalı) arasında ayırt edilemiyordu ve
+    bayraklarda belirgin biçimde kötüleşiyordu. Açmadan önce
+    ``tools/gt_benchmark --compare-envelope`` yeniden koşulmalı.
+    """
+    from engine.config import ENVELOPE_FILTER
+
+    assert ENVELOPE_FILTER is False
