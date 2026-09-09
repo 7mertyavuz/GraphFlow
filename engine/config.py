@@ -413,35 +413,38 @@ STRUCTURE_EQUAL_TOL: Final[float] = 0.8
 #: Filtre açık mı. Kapatıldığında motor F4.7 öncesi davranışa döner.
 STRUCTURE_FILTER: Final[bool] = True
 
-#: --- İmza kararlılığı ------------------------------------------------------
+#: --- İmza kararlılık kapısı (K-20, Eylül düzeltmesi) -----------------------
 #:
 #: İmza uç DÜZENİNİ okur. Bazı formasyonları tanımlayan şey uç düzeni değil
 #: EĞİMDİR: yükselen üçgeni "iki tepe" değil, yatay direnç + yükselen dipler
 #: tanımlar. Böyle şekillerde imza kararsızdır — sorguya küçük bir gürültü
-#: eklemek uç sayısını değiştirir.
+#: uç sayısını değiştirir. Kararsız bir kuralla adayları elemek, yapıya göre
+#: değil gürültüye göre elemektir.
 #:
-#: Kararlılık = sorguya σ gürültü eklendiğinde imzanın hayatta kalma oranı.
-#: Ölçüldü (σ=0,10, 128 çekim) — iki küme arasında %80-%91 bandı boş:
+#: Kararlılık = sorguya σ gürültü eklendiğinde imzanın hayatta kalma oranı
+#: (128 çekim, sabit tohum). İki küme arasında %80-%91 bandı boş:
 #:
 #:   yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 · boğa bayrağı 94
 #:   ayı bayrağı 92 · ikili dip 91 · fincan 91
 #:   ‖ düşen takoz 80 · alçalan üçgen 70 · simetrik üçgen 61 · yükselen takoz
 #:   59 · yükselen üçgen 33 · flama 23
 #:
-#: **Kapı olarak BAĞLANMADI (K-19 emsali).** Hipotez şuydu: kararsız imzayı
-#: adaylarda aramak gürültüye göre elemektir, o hâlde filtre kapatılmalı.
-#: Ölçüldü (4h, ilk 50, tools/formation_audit --compare):
+#: **Kapı AÇIK.** İlk kararda (K-20) kapatılmıştı; o karar YANLIŞTI ve
+#: gerekçesi ölçüm aracının kör noktasıydı. `tools/formation_audit` yalnız
+#: KESİNLİK ölçer — motorun döndürdüğü sonuçlara bakar. Filtre gerçek
+#: formasyonları eliyorsa denetçi onları hiç görmez; kalanlar tanımı aynı
+#: oranda geçtiği için filtre "etkisiz" görünür. Zarar duyarlılıktaydı.
 #:
-#:   dönüş ailesi   filtre AÇIK 197/200 (%99)  ·  KAPALI  56/200 (%28)
-#:   eğim ailesi    filtre AÇIK 195/400 (%49)  ·  KAPALI 200/400 (%50)
+#: Ground truth ölçümü (tools/gt_benchmark, enjekte edilmiş formasyon):
 #:
-#: Eğim ailesinde filtre ZARARLI değil, ETKİSİZ (400'de 5 fark). Kapatmanın
-#: ölçülebilir bir kazancı yok; bağlanmadı. İlk ölçüm ilk 12 sonuçla
-#: yapıldığında alçalan üçgende 3'e 7'lik bir "zarar" görünüyordu — hücre
-#: başına 12 denemede beklenen gürültü buydu, n 50'ye çıkınca kayboldu.
+#:   eğim ailesi    filtre AÇIK  93/191 · duyarlılık %45
+#:                  filtre KAPALI 119/192 · duyarlılık %57   ← 6 formasyonda
+#:                  daha iyi, 2'sinde eşit, HİÇBİRİNDE kötü değil
+#:   dönüş ailesi   filtre AÇIK  76/96 · duyarlılık %79
+#:                  filtre KAPALI 61/96 · duyarlılık %64     ← 4/4'te daha kötü
 #:
-#: Bağlı olan tek kullanımı **raporlamadır**: kararsız bir okumayı kesinmiş
-#: gibi göstermek fazla iddiadır (bkz. docs/10-formasyon-denetimi.md).
+#: Kapı tam da bu iki kümeyi ayırır: kararlı imzada filtre uygulanır,
+#: kararsızda uygulanmaz.
 STRUCTURE_NOISE_SIGMA: Final[float] = 0.10
 
 #: Kararlılık tahmininin çekim sayısı. 128 → standart hata ~0,03; eşiğin
@@ -454,6 +457,10 @@ STRUCTURE_STABILITY_SEED: Final[int] = 0
 #: Okumanın "sağlam" sayılacağı kararlılık. Ölçülen boş bandın (%80-%91)
 #: ortasına konur, kenarına değil.
 STRUCTURE_MIN_STABILITY: Final[float] = 0.85
+
+#: Kapı açık mı. Kapatıldığında filtre her sorguda uygulanır (K-20 öncesi
+#: davranış) — eğim tabanlı formasyonlarda duyarlılığı düşürür.
+STRUCTURE_STABILITY_GATE: Final[bool] = True
 
 #: Filtre sonrası bu sayının altında aday kalırsa filtre UYGULANMAZ.
 #: Gerekçe: "yapıya uyan yok" ile "hiç sonuç yok" farklı şeylerdir; ikincisi

@@ -193,12 +193,19 @@ def main(argv: list[str] | None = None) -> int:
                    help="Yapısal filtre AÇIK/KAPALI karşılaştırması")
     p.add_argument("--compare-envelope", action="store_true",
                    help="Zarf (trend çizgisi) filtresi AÇIK/KAPALI karşılaştırması")
+    p.add_argument("--compare-gate", action="store_true",
+                   help="Kararlılık kapısı AÇIK (seçici) / KAPALI (her sorguda filtre)")
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     patterns = tuple(args.pattern or FAMILIES[args.family])
     if args.compare_structure:
         variants = {"on": {"structure_filter": True}, "off": {"structure_filter": False}}
+    elif args.compare_gate:
+        variants = {
+            "kapı": {"structure_filter": True, "structure_gate": True},
+            "hep": {"structure_filter": True, "structure_gate": False},
+        }
     elif args.compare_envelope:
         variants = {"on": {"envelope_filter": True}, "off": {"envelope_filter": False}}
     else:

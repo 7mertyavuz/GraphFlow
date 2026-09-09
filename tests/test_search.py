@@ -1262,3 +1262,59 @@ def test_zarf_filtresi_varsayilan_kapali():
     from engine.config import ENVELOPE_FILTER
 
     assert ENVELOPE_FILTER is False
+
+
+# ---------------------------------------------------------------------------
+# Kararlılık kapısı — K-20'nin Eylül düzeltmesi
+# ---------------------------------------------------------------------------
+
+
+def test_kapi_varsayilan_acik():
+    """K-20 düzeltmesi: kapı bağlandı.
+
+    İlk karar kapıyı KAPATMIŞTI ve gerekçesi ölçüm aracının kör noktasıydı:
+    ``formation_audit`` yalnız kesinlik ölçer, filtre gerçek formasyonları
+    eliyorsa onları hiç görmez. Zarar duyarlılıktaydı ve ground truth'la
+    ölçüldüğünde ortaya çıktı.
+    """
+    from engine.config import STRUCTURE_STABILITY_GATE
+
+    assert STRUCTURE_STABILITY_GATE is True
+
+
+def test_kapi_kararsiz_sorguda_filtreyi_uygulamaz(obo_dataset):
+    """Kararsız imzalı sorguda eleme yapılmamalı; kararlıda yapılmalı.
+
+    Kapının tüm işi bu ayrımdır. İki yön de ground truth'la ölçüldü:
+    kararlı imzada filtre 4/4 formasyonda iyileştiriyor (76/96 vs 61/96),
+    kararsızda 6/8'inde kötüleştiriyor ve hiçbirinde iyileştirmiyor
+    (93/191 vs 119/192).
+    """
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+
+    kararsiz = engine.search(
+        _canonical("ascending_triangle"), timeframe=TF, tolerance="flexible", limit=12
+    )
+    assert kararsiz.structure_stable is False
+    assert kararsiz.structure_filtered is False, "kararsız imzayla eleme yapılmamalı"
+
+    kararli = engine.search(
+        _canonical("head_and_shoulders"), timeframe=TF, tolerance="flexible", limit=12
+    )
+    assert kararli.structure_stable is True
+    assert kararli.structure_filtered is True, "kararlı imzada filtre uygulanmalı"
+
+
+def test_kapi_kapatilinca_eski_davranisa_donulur(obo_dataset):
+    """``structure_gate=False`` K-20 öncesi davranışı geri vermeli.
+
+    Kapıyı kapatmak bir hata ayıklama yolu; ölçümlerin karşılaştırılabilir
+    kalması için davranışın aynen geri gelmesi gerekir.
+    """
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    q = _canonical("ascending_triangle")
+
+    kapali = engine.search(q, timeframe=TF, tolerance="flexible", limit=12, structure_gate=False)
+    assert kapali.structure_filtered or kapali.structure_relaxed

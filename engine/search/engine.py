@@ -59,6 +59,7 @@ from engine.config import (
     STRUCTURE_FILTER,
     STRUCTURE_MIN_STABILITY,
     STRUCTURE_MIN_SURVIVORS,
+    STRUCTURE_STABILITY_GATE,
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
@@ -380,6 +381,7 @@ class SearchEngine:
         metric: str = STAGE2_METRIC,
         null_sample: int = NULL_SAMPLE_SIZE,
         structure_filter: bool = STRUCTURE_FILTER,
+        structure_gate: bool = STRUCTURE_STABILITY_GATE,
         envelope_filter: bool = ENVELOPE_FILTER,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
@@ -499,6 +501,16 @@ class SearchEngine:
             result.structure_stable = (
                 signature_stability(q) >= STRUCTURE_MIN_STABILITY
             )
+
+        # Kararsız imzayla eleme yapma (K-20 Eylül düzeltmesi). Kararlılık
+        # ölçülen faydayla birebir örtüşüyor: ground truth'ta kararlı imzada
+        # filtre 4/4 formasyonda iyileştiriyor (76/96 vs 61/96), kararsızda
+        # 6/8'inde kötüleştiriyor ve hiçbirinde iyileştirmiyor (93/191 vs
+        # 119/192). Zarar KESİNLİKTE değil DUYARLILIKTA olduğu için
+        # formation_audit onu göremiyordu.
+        if structure_gate and not result.structure_stable:
+            structure_filter = False
+
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
