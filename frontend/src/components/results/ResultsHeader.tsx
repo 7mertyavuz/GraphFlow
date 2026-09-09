@@ -19,10 +19,11 @@ interface ResultsHeaderProps {
   structureRead?: string | null;
   structureFiltered?: boolean;
   /**
-   * Okuma sağlam mı. Eğimle tanımlı formasyonlarda (üçgen, takoz, flama)
-   * uç düzeni kararsızdır: ölçüldü — dönüş ailesinde ilk 50'nin %99'u aranan
-   * formasyonken eğim ailesinde %49. Kararsız okumayı kesinmiş gibi
-   * göstermek fazla iddia olur.
+   * Okuma sağlam mı. Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) uç
+   * düzeni kararsızdır. Motor bu durumda yapısal filtreyi UYGULAMAZ (K-20):
+   * kararsız imzayla elemek gerçek formasyonları da siliyordu — ground
+   * truth'ta yakalama oranı %45'ten %57'ye çıktı. Arayüz hem okumayı hem
+   * kararsız olduğunu hem de elemenin yapılmadığını söyler.
    */
   structureStable?: boolean;
 }
@@ -61,9 +62,14 @@ export function ResultsHeader({
             <span>
               Bu okuma kararsız: aynı şekli biraz farklı çizerseniz farklı
               okunabilir. Üçgen, takoz ve flama gibi formasyonları tanımlayan
-              şey tepe sayısı değil trend çizgilerinin eğimidir; motor bunları
-              ilk 50 sonuçta ~%49 doğrulukla buluyor (dönüş formasyonlarında
-              %99).
+              şey tepe sayısı değil trend çizgilerinin eğimidir.{" "}
+              <span className="text-foreground">
+                Bu yüzden sonuçlar bu okumaya göre daraltılmadı
+              </span>{" "}
+              — kararsız bir okumayla eleme yapmak gerçek formasyonları da
+              siliyordu (ölçüldü: yakalama oranı %45 → %57). Yine de bu
+              ailede motorun doğruluğu ~%50 civarında; dönüş formasyonlarında
+              %99.
             </span>
           </p>
         )}
