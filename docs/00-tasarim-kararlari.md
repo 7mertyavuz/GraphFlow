@@ -1142,13 +1142,13 @@ gürültü uç sayısını değiştirir. Kararsız bir kuralla adayları elemek,
 göre değil gürültüye göre elemektir.
 
 Kararlılık ölçülebilir: sorguya σ = 0,10 gürültü ekle, imzanın hayatta kalma
-oranına bak (128 çekim, sabit tohum). İki küme temiz ayrışıyor, arada
-%80–%91 boş bandı var:
+oranına bak (128 çekim, sabit tohum). Ölçülen (ayna hatası düzeltildikten
+sonra):
 
-| sağlam | kararsız |
+| kapıyı geçer | geçmez |
 |---|---|
-| yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 | düşen takoz 80 · alçalan üçgen 70 |
-| boğa bayrağı 94 · ayı bayrağı 92 · ikili dip 91 · fincan 91 | simetrik üçgen 61 · yükselen takoz 59 · yükselen üçgen 33 · flama 23 |
+| OBO 100 · fincan 100 · yuvarlak dip 100 · ters OBO 99 | düşen takoz 88 · alçalan üçgen 81 |
+| ikili tepe 98 · ikili dip 98 · simetrik üçgen 95 | yükselen takoz 73 · yükselen üçgen 36 · flama 25 |
 
 ### İlk (yanlış) ölçüm ve neden yanlıştı
 
@@ -1198,18 +1198,30 @@ iki yön — ve kararlılık ölçüsü onları birebir ayırıyor.
 
 ### Kapının uçtan uca etkisi
 
-12 formasyon, aynı korpus:
+12 formasyon, aynı korpus (`tools/gt_benchmark`):
 
 | | kesinlik | duyarlılık |
 |---|---|---|
-| kapı AÇIK (seçici) | **195/288 · %68** | **%65** |
-| kapı KAPALI (her sorguda filtre) | 169/287 · %59 | %57 |
+| kapılı filtre | **202/288 · %70** | **%67** |
+| filtresiz | 184/288 · %64 | %61 |
 
-Hiçbir formasyon kötüleşmiyor. Flama 4→12 · simetrik üçgen 10→16 ·
-yükselen takoz 11→17 · alçalan üçgen 14→18. Dönüş ailesi bire bir aynı
-(kararlılık %91–97, kapı filtreyi açık tutuyor).
+Kazanç dönüş ailesinde yoğunlaşıyor: OBO 16→21 · ters OBO 15→22 · ikili tepe
+14→18 · ikili dip 16→19. Eğim ailesinde kapı filtreyi zaten çoğunlukla
+kapatıyor, dolayısıyla o satırlar aynı kalıyor.
 
-Gerçek korpusta gerileme yok: `formation_audit` 392/600 → 397/600.
+### Gerçek piyasa zemininde replikasyon
+
+Sentetik korpusun dış geçerlilik sınırı vardı: enjekte edilen formasyon temiz
+bir GBM zemininde duruyordu. `tools/gt_benchmark --real` hedefleri **gerçek
+parite** verisine enjekte eder ve dağıtıcı olarak **dokunulmamış** gerçek
+veri kullanır — yani sahtekârlar da gerçek.
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapılı filtre | **210/288 · %73** | **%69** |
+| her sorguda filtre | 183/267 · %69 | %61 |
+
+Karar iki zeminde de aynı yönde (CLAUDE.md replikasyon kuralı).
 
 ### Alınan ders
 

@@ -422,12 +422,12 @@ STRUCTURE_FILTER: Final[bool] = True
 #: değil gürültüye göre elemektir.
 #:
 #: Kararlılık = sorguya σ gürültü eklendiğinde imzanın hayatta kalma oranı
-#: (128 çekim, sabit tohum). İki küme arasında %80-%91 bandı boş:
+#: (128 çekim, sabit tohum). Ölçülen (ayna hatası düzeltildikten sonra):
 #:
-#:   yuvarlak dip 100 · OBO 97 · ikili tepe 97 · ters OBO 96 · boğa bayrağı 94
-#:   ayı bayrağı 92 · ikili dip 91 · fincan 91
-#:   ‖ düşen takoz 80 · alçalan üçgen 70 · simetrik üçgen 61 · yükselen takoz
-#:   59 · yükselen üçgen 33 · flama 23
+#:   OBO 100 · fincan 100 · yuvarlak dip 100 · ters OBO 99 · ikili tepe 98
+#:   ikili dip 98 · simetrik üçgen 95 · boğa bayrağı 94 · ayı bayrağı 92
+#:   ‖ düşen takoz 88 · alçalan üçgen 81 · yükselen takoz 73
+#:   ‖ yükselen üçgen 36 · flama 25
 #:
 #: **Kapı AÇIK.** İlk kararda (K-20) kapatılmıştı; o karar YANLIŞTI ve
 #: gerekçesi ölçüm aracının kör noktasıydı. `tools/formation_audit` yalnız
@@ -437,14 +437,15 @@ STRUCTURE_FILTER: Final[bool] = True
 #:
 #: Ground truth ölçümü (tools/gt_benchmark, enjekte edilmiş formasyon):
 #:
-#:   eğim ailesi    filtre AÇIK  93/191 · duyarlılık %45
-#:                  filtre KAPALI 119/192 · duyarlılık %57   ← 6 formasyonda
-#:                  daha iyi, 2'sinde eşit, HİÇBİRİNDE kötü değil
-#:   dönüş ailesi   filtre AÇIK  76/96 · duyarlılık %79
-#:                  filtre KAPALI 61/96 · duyarlılık %64     ← 4/4'te daha kötü
+#:   kapılı filtre  202/288 · duyarlılık %67
+#:   filtresiz      184/288 · duyarlılık %61
 #:
-#: Kapı tam da bu iki kümeyi ayırır: kararlı imzada filtre uygulanır,
-#: kararsızda uygulanmaz.
+#: Kazanç dönüş ailesinde yoğunlaşır (OBO 16→21 · ters OBO 15→22 · ikili
+#: tepe 14→18 · ikili dip 16→19); eğim ailesinde kapı filtreyi zaten
+#: çoğunlukla kapatır.
+#:
+#: Gerçek piyasa zemininde de replike edildi (dağıtıcılar gerçek veri):
+#: kapılı 210/288 · %69 duyarlılık ‖ her sorguda filtre 183/267 · %61.
 STRUCTURE_NOISE_SIGMA: Final[float] = 0.10
 
 #: Kararlılık tahmininin çekim sayısı. 128 → standart hata ~0,03; eşiğin
