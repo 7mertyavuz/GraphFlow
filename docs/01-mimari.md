@@ -871,7 +871,7 @@ geçersiz kaldı). Her ölçümün bir aracı vardır:
 | İşlem | Hedef | Not |
 |---|---|---|
 | Aşama 1 (kosinüs, 12M pencere) | < 300 ms | NumPy/BLAS matris çarpımı |
-| — *ölçülen*, 4h **sıcak** | **306–333 ms** | motor içi; yapısal filtre vektörize edildikten sonra |
+| — *ölçülen*, 4h **sıcak** | **294–325 ms** | API üzerinden uçtan uca; yapısal filtre vektörize edildikten sonra |
 | — *ölçülen*, 4h **soğuk** | **537–595 ms** | ilk çağrı: sorgunun null dağılımı hesaplanıyor |
 | — *ölçülen*, 1d sıcak | ~211 ms (medyan) | |
 
@@ -904,6 +904,10 @@ bölünür, yoksa `(m, 32, 32)` float64 dizileri 20 MB'ı aşar. Her iki toplu
 yolun tekil yolla **birebir** eşdeğerliği testle tutulur — ayrışırlarsa
 filtre sessizce başka bir şey elemeye başlar ve bunu hiçbir doğruluk ölçümü
 göstermez.
+
+> Bu ölçüm **boşta** alınmalıdır. Açılış ısıtması sürerken aynı sorgular
+> 388–583 ms veriyordu; ısıtma bittikten sonra 294–325 ms. Isıtma bitişi
+> loglarda görünür (`null önbelleği ısıtıldı: 28 sorgu, 25 sn`).
 | Pre-NMS | < 20 ms | 5.000 aday |
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |
