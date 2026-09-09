@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Database, RefreshCw, ScanEye, TriangleAlert } from "lucide-react";
+import { Clock, Database, RefreshCw, ScanEye, TrendingUp, TriangleAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatCount, formatDate, formatDecimal, formatRelative } from "@/utils/formatters";
@@ -26,6 +26,14 @@ interface ResultsHeaderProps {
    * kararsız olduğunu hem de elemenin yapılmadığını söyler.
    */
   structureStable?: boolean;
+  /**
+   * Motorun okuduğu trend çizgisi düzeni ve sonuçların buna göre daraltılıp
+   * daraltılmadığı. Eğimle tanımlı formasyonlarda daralmayı YAPAN okuma
+   * budur (K-21); yalnız uç düzeni okumasını göstermek motorun gerçek
+   * gerekçesini gizlerdi.
+   */
+  envelopeRead?: string | null;
+  envelopeFiltered?: boolean;
 }
 
 export function ResultsHeader({
@@ -40,6 +48,8 @@ export function ResultsHeader({
   structureRead = null,
   structureFiltered = false,
   structureStable = true,
+  envelopeRead = null,
+  envelopeFiltered = false,
 }: ResultsHeaderProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -56,20 +66,30 @@ export function ResultsHeader({
             </span>
           </p>
         )}
+        {hasSearched && envelopeRead && envelopeFiltered && (
+          <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <TrendingUp className="size-3.5 shrink-0 text-brand" />
+            <span>
+              Trend çizgileri:{" "}
+              <span className="text-foreground">{envelopeRead}</span>
+              {" — sonuçlar bu düzenle sınırlı"}
+            </span>
+          </p>
+        )}
         {hasSearched && structureRead && !structureStable && (
           <p className="mt-1 inline-flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
             <TriangleAlert className="mt-px size-3.5 shrink-0" />
             <span>
-              Bu okuma kararsız: aynı şekli biraz farklı çizerseniz farklı
-              okunabilir. Üçgen, takoz ve flama gibi formasyonları tanımlayan
-              şey tepe sayısı değil trend çizgilerinin eğimidir.{" "}
+              Tepe/dip okuması kararsız: aynı şekli biraz farklı çizerseniz
+              farklı okunabilir. Üçgen, takoz ve flama gibi formasyonları
+              tanımlayan şey tepe sayısı değil trend çizgilerinin eğimidir.{" "}
               <span className="text-foreground">
-                Bu yüzden sonuçlar bu okumaya göre daraltılmadı
+                {envelopeFiltered
+                  ? "Bu yüzden eleme tepe/dip düzenine göre değil, yukarıdaki trend çizgilerine göre yapıldı"
+                  : "Bu yüzden sonuçlar bu okumaya göre daraltılmadı"}
               </span>{" "}
               — kararsız bir okumayla eleme yapmak gerçek formasyonları da
-              siliyordu (ölçüldü: yakalama oranı %45 → %57). Yine de bu
-              ailede motorun doğruluğu ~%50 civarında; dönüş formasyonlarında
-              %99.
+              siliyordu (ölçüldü: yakalama oranı %45 → %57).
             </span>
           </p>
         )}

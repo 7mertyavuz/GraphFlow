@@ -1042,6 +1042,22 @@
             "title": "Structure Filtered",
             "default": false
           },
+          "envelope_read": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Envelope Read"
+          },
+          "envelope_filtered": {
+            "type": "boolean",
+            "title": "Envelope Filtered",
+            "default": false
+          },
           "structure_stable": {
             "type": "boolean",
             "title": "Structure Stable",

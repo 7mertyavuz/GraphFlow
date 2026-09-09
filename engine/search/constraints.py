@@ -512,6 +512,23 @@ def envelope_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
     return (sig == np.asarray(target, dtype=np.int8)).all(axis=1)
 
 
+def describe_envelope(signature: tuple[int, int, int] | None) -> str | None:
+    """Trend çizgisi imzasını okunur bir cümleye çevirir.
+
+    Uç düzeni okuması eğimle tanımlı formasyonlarda kararsızdır ve motor onu
+    eleme için kullanmaz (K-20). Kullanıcıya yalnız o okumayı göstermek,
+    motorun aslında NEYE göre daralttığını gizlemek olurdu.
+    """
+    if signature is None:
+        return None
+
+    upper, lower, converge = signature
+    ust = {-1: "alçalan tepeler", 0: "yatay direnç", 1: "yükselen tepeler"}[upper]
+    alt = {-1: "alçalan dipler", 0: "yatay destek", 1: "yükselen dipler"}[lower]
+    yon = {-1: "genişleyen", 0: "paralel", 1: "daralan"}[converge]
+    return f"{ust} · {alt} · {yon}"
+
+
 def describe_signature(signature: tuple | None) -> str | None:
     """Yapısal imzayı okunur bir cümleye çevirir.
 

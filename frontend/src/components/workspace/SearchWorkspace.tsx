@@ -126,6 +126,8 @@ export function SearchWorkspace({
           structureRead={page.structureRead}
           structureFiltered={page.structureFiltered}
           structureStable={page.structureStable}
+          envelopeRead={page.envelopeRead}
+          envelopeFiltered={page.envelopeFiltered}
         />
 
         {hasSearched && page.staleWarning && (

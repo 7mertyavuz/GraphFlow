@@ -1032,7 +1032,8 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 19 | Sadece yaşayan pariteler | Delist edilenler dahil | Survivorship bias istatistikleri yukarı büker |
 | 20 | Alt-stride hizalama ince ayarı | (bağlanmadı) | Mesafe ve kosinüs takas ediyor; ölçülen net katkı yok (K-19) |
 | 21 | Yapısal filtreyi her sorguda uygulamak | (terk edildi) | Kararsız imzada gerçek formasyonları eliyor: duyarlılık %57 → %45 (K-20) |
-| 22 | Zarf (trend çizgisi) filtresi | (bağlanmadı) | Sahtekârlar imzayı zaten taşıyor: takozda ilk 50'nin 50'si. Ground truth'ta net katkı yok (K-21) |
+| 22 | Zarf filtresini kapısız uygulamak | (terk edildi) | OBO'nun zarf imzası tanımlı ama kararlılığı %41 — dönüş ailesini yazı-turayla elerdi (K-21) |
+| 23 | İki bileşenli zarf imzası (yakınsamasız) | (terk edildi) | Ölü: takoz sorgusunda ilk 50'nin 50'si imzayı zaten taşıyor (K-21) |
 
 ---
 
@@ -1218,88 +1219,91 @@ duyarlılıkla birlikte ölçülmelidir; kesinlik tek başına filtreyi aklar.
 
 Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
 
-## K-21 — Zarf (Trend Çizgisi) Filtresi: Ölçüldü, Bağlanmadı
+## K-21 — Zarf (Trend Çizgisi) Filtresi: Kapıyla Bağlandı
 
-**Karar:** `ENVELOPE_FILTER = False`. Katman yazıldı, iki varyantı ölçüldü,
-motora bağlanmadı.
+**Karar:** `ENVELOPE_FILTER = True`, `ENVELOPE_MIN_STABILITY = 0.90`. Trend
+çizgisi filtresi yalnız zarf imzasının **kararlı** olduğu sorgularda
+uygulanır.
 
-### Hipotez
+> ⚠️ Bu karar da bir kez "bağlanmadı" olarak verildi. Sebebi K-20'nin hâlâ
+> yanlış olmasıydı: ölçüm yapılırken yapısal filtre her sorguda açıktı ve
+> adaylar zaten budanmış geliyordu. K-20 düzeltilince bu ölçüm bayatladı ve
+> yeniden koşuldu.
 
-K-20 eğim tabanlı formasyonlarda yapısal imzanın bilgi taşımadığını
-gösterdi. Doğal devam: trend çizgilerini okuyan bir imza. Dokunuş
-noktalarından üst ve alt zarfa regresyon, eğimler {düşen, yatay, yükselen}
-sınıflarına yerleştirilir. Kural yine sorgudan türer — formasyon başına kod
-yoktur (K-04).
+### Katman
+
+Dokunuş noktalarından üst ve alt zarfa regresyon; eğimler {düşen, yatay,
+yükselen} sınıflarına yerleştirilir. Üçüncü bileşen **yakınsama**dır
+(`alt eğim − üst eğim`): takoz yakınsar, bayrağın kanalı paraleldir. Kural
+sorgudan türer — formasyon başına kod yoktur (K-04). Sıcak yol vektörize:
+2.500 aday 160 ms → **4,8 ms**; tekil yolla eşdeğerliği testle tutuluyor.
+
+Kanonik imzalar: yükselen üçgen `(0,+1,+1)` · alçalan üçgen `(-1,0,+1)` ·
+simetrik üçgen `(-1,+1,+1)` · yükselen takoz `(+1,+1,+1)` · düşen takoz
+`(-1,-1,+1)` · boğa bayrağı `(-1,-1,0)` · ayı bayrağı `(+1,+1,0)`.
+
+Üçüncü bileşen olmadan katman **ölüydü**. Ölçüldü (4h, ilk 50): yükselen
+takoz sorgusunda sonuçların **50/50'si** ilk iki bileşeni zaten taşıyordu,
+düşen takozda 46/50 — filtrenin eleyecek bir şeyi yoktu.
+
+### Kapı: neden zorunlu
+
+K-20'nin dersi bu katmana da uygulandı. Zarf imzasının kararlılığı
+(σ=0,10, 300 çekim):
+
+| kararlı (filtre uygulanır) | kararsız (uygulanmaz) |
+|---|---|
+| simetrik üçgen 100 · yükselen takoz 100 | ayı bayrağı 78 · boğa bayrağı 76 |
+| düşen takoz 99 · yükselen üçgen 99 · alçalan üçgen 99 | **ters OBO 45 · OBO 41** |
+
+Son satır kapının asıl gerekçesi: **OBO'nun zarf imzası `(0,0,0)` ile
+tanımlıdır ama yazı-turadır.** Kapısız bir zarf filtresi, motorun tek güçlü
+olduğu aileyi gürültüyle elerdi. Eşik boş bandın (%78–%99) ortasına konur.
+
+### Ölçüm
+
+Filtrenin gerçekten devreye girdiği 5 formasyon, 48 hedef + 120 gürültü
+sembolü (`tools/gt_benchmark`):
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| zarf AÇIK | **103/120 · %86** | %41 |
+| zarf KAPALI | 94/120 · %78 | %38 |
+
+Alçalan üçgen 17→23 · düşen takoz 18→21 · yükselen üçgen 19→20 · simetrik
+üçgen eşit · yükselen takoz 22→21. Bağımsız ikinci korpusta (24 hedef) aynı
+yönde: 80/120 → 76/120.
+
+### Güvenlik özelliği ölçüldü
+
+12 formasyonluk koşuda **dokuzu bire bir aynı** — dönüş ailesi (19/24 × 4),
+bayraklar, flama. Kapı onlarda filtreyi hiç çalıştırmıyor. Hiçbir formasyon
+kötüleşmiyor:
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapılı zarf filtresi AÇIK | **199/288 · %69** | %66 |
+| KAPALI | 195/288 · %68 | %65 |
+
+Gerçek korpusta dönüş ailesi gerilemedi: 197/200.
 
 ### Ölçüm zemini: dairesellikten çıkış
 
 `tools/formation_audit` sonuçların yapısını **zarf eğimleriyle** denetler.
-Zarf eğimlerine dayanan bir filtreyi onunla ölçmek, filtrenin kendi ölçütünü
-optimize etmesi demektir: tablo iyileşir, ürün iyileşmeden.
-
-`tools/gt_benchmark` bunun için yazıldı. Formasyon bilinen bir bar aralığına
-enjekte edilir; motorun döndürdüğü pencere o aralıkla örtüşüyorsa doğrudur.
-Ölçüt ne motorun ne denetçinin mekanizmasına bağlıdır.
-
-### Bulgu 1 — teşhis değişti
-
-Aynı korpusta gürültü sembolü sayısı artırıldığında (24 hedef sabit):
-
-| gürültü sembolü | kesinlik | duyarlılık |
-|---|---|---|
-| 40 | %88 | %58 |
-| 120 | %65 | %58 |
-| 300 | %58 | %58 |
-
-**Duyarlılık sabit.** Motor enjekte edilen üçgenleri her yoğunlukta aynı
-oranda buluyor; eşleştirme bozuk değil. Kaybettiği yer **sıralama**: havuz
-büyüdükçe "DTW'ye yakın ama üçgen değil" pencereler gerçek olanların üstüne
-çıkıyor. Gerçek korpusta ölçülen %34 (F4.9) bu eğrinin devamıdır, ayrı bir
-kusur değil.
-
-### Bulgu 2 — kategorik filtre bu sorunu çözemez
-
-İlk varyant (üst sınıf, alt sınıf) **ölüydü**. Ölçüldü (4h, ilk 50):
-
-| sorgu | imzayı zaten taşıyan | tanımı geçen |
-|---|---|---|
-| yükselen takoz | **50/50** | 26/50 |
-| düşen takoz | 46/50 | 32/50 |
-| simetrik üçgen | 34/50 | 33/50 |
-| yükselen üçgen | 24/50 | 17/50 |
-
-Takozlarda filtrenin eleyecek bir şeyi yok: sahtekârlar imzayı zaten
-taşıyor. Eksik bilgi *bağıl* eğimdeydi — takoz yakınsar, bayrağın kanalı
-paraleldir. Üçüncü bileşen (yakınsama sınıfı) eklendi ve gerçekten ayırdı:
-düşen takoz `(-1,-1,1)` ≠ boğa bayrağı `(-1,-1,0)`.
-
-Ground truth ölçümü (300 gürültü sembolü, ilk 24):
-
-| | kesinlik | duyarlılık |
-|---|---|---|
-| zarf filtresi KAPALI | 94/192 · %49 | %48 |
-| iki bileşenli imza | 92/192 · %48 | %47 |
-| üç bileşenli imza | 91/191 · %48 | %47 |
-
-Üçüncü bileşen takozları iyileştirdi (10→11, 8→9) ama **bayrakları bozdu**
-(16→14, 18→15): bayrağın zarfı direği de kapsadığı için tam pencerede
-kararsız, ve `|alt−üst| ≤ 0,8` koşulunu gürültülü gerçek bayraklar
-geçemiyor. Net katkı yok.
-
-### Neden bağlanmadı
-
-İki varyant da kapalı hâlden ayırt edilemiyor (192'de 2–3 fark, standart
-hata ~%3,6). K-19 ve K-20 ile aynı ilke: ölçülmüş, net katkısı yok, motora
-girmiyor. Üçüncü bir varyant aramak, aynı 192 sonuç üzerinde sayı yükselene
-kadar denemek olurdu — projenin çoklu karşılaştırma kuralının tam ihlali.
+Bu filtreyi onunla ölçmek, filtrenin kendi ölçütünü optimize etmesi demektir:
+tablo iyileşir, ürün iyileşmeden. Bu yüzden eğim ailesi için o araç **kanıt
+olarak kullanılmadı**; karar ground truth ile verildi. `formation_audit`
+yalnız dönüş ailesinde (uç tabanlı, bu filtreden bağımsız) gerileme
+kontrolü olarak okundu.
 
 ### Bir sonraki hipotez (yapılmadı)
 
-Sorun *maske* ile çözülmüyor çünkü sahtekârlar kategorik imzayı taşıyor.
-Ayırt edici bilgi süreklidir (ne kadar yakınsıyor, ne kadar yatay). Doğru
-biçim muhtemelen bir filtre değil, **sıralamaya giren sürekli bir tanım
-uyum skoru**dur. Bu, K-14'ün yüzdelik sıralamasına dokunacağı için ayrı bir
-karar gerektirir; `tools/gt_benchmark` o kararın ölçüm zeminidir.
+Kalan zayıflık artık bayraklarda ve flamada (10/24 ve 12/24), ve orada zarf
+imzası kararsız olduğu için bu katman devreye girmiyor. Bayrağın zarfı
+direği de kapsadığı için tam pencerede kararsız; gövdeyi direkten ayırmak
+ise formasyona özel kod demektir (K-04 ihlali). Doğru biçim muhtemelen
+sorgudan türeyen bir **bölütleme** — nerede rejim değiştiğini sorgunun
+kendisinden okumak.
 
 Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
 

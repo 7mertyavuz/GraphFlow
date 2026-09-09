@@ -407,6 +407,13 @@ export interface components {
              * @default false
              */
             structure_filtered: boolean;
+            /** Envelope Read */
+            envelope_read?: string | null;
+            /**
+             * Envelope Filtered
+             * @default false
+             */
+            envelope_filtered: boolean;
             /**
              * Structure Stable
              * @default true

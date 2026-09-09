@@ -470,6 +470,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                     structure_read=stored.get("structure_read"),
                     structure_filtered=stored.get("structure_filtered", False),
                     structure_stable=stored.get("structure_stable", True),
+                    envelope_read=stored.get("envelope_read"),
+                    envelope_filtered=stored.get("envelope_filtered", False),
                     results=[MatchResponse(**m) for m in page],
                     session=session_info,
                 )
@@ -523,6 +525,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                 "structure_read": result.structure_read,
                 "structure_filtered": result.structure_filtered,
                 "structure_stable": result.structure_stable,
+                "envelope_read": result.envelope_read,
+                "envelope_filtered": result.envelope_filtered,
                 "query_vector": [float(v) for v in query_vector],
                 "matches": matches,
             }
@@ -546,6 +550,8 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
         structure_read=result.structure_read,
         structure_filtered=result.structure_filtered,
         structure_stable=result.structure_stable,
+        envelope_read=result.envelope_read,
+        envelope_filtered=result.envelope_filtered,
         results=[MatchResponse(**m) for m in matches[: request.limit]],
         session=session_info,
     )
@@ -578,6 +584,8 @@ async def get_search(
         structure_read=parsed.get("structure_read"),
         structure_filtered=parsed.get("structure_filtered", False),
         structure_stable=parsed.get("structure_stable", True),
+        envelope_read=parsed.get("envelope_read"),
+        envelope_filtered=parsed.get("envelope_filtered", False),
         results=[MatchResponse(**m) for m in page],
         session=session_info,
     )

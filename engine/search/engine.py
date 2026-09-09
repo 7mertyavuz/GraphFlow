@@ -73,8 +73,10 @@ from engine.matrix.build import (
 )
 from engine.matrix.npy_store import load_matrix
 from engine.search.constraints import (
+    describe_envelope,
     describe_signature,
     envelope_mask,
+    envelope_signature,
     envelope_stability,
     signature_mask,
     signature_stability,
@@ -186,6 +188,10 @@ class SearchResult:
     #: KAPALI — kesinliği artırmıyor, duyarlılığı düşürüyor.
     envelope_filtered: bool = False
     envelope_relaxed: bool = False
+    #: Motorun çizimden okuduğu trend çizgisi düzeni, insan diliyle.
+    #: Eğimle tanımlı formasyonlarda daralmayı YAPAN okuma budur; yalnız uç
+    #: düzeni okumasını göstermek motorun gerçek gerekçesini gizlerdi.
+    envelope_read: str | None = None
     #: Okuma sağlam mı: aynı şekil biraz farklı çizilse aynı okunur muydu?
     #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır
     #: ve o kararsızlık ölçülen doğrulukla birebir örtüşür: dönüş ailesinde
@@ -534,6 +540,8 @@ class SearchEngine:
         # yazı-turayla elerdi.
         if envelope_filter and envelope_stability(q) < ENVELOPE_MIN_STABILITY:
             envelope_filter = False
+        if envelope_filter:
+            result.envelope_read = describe_envelope(envelope_signature(q, strict=True))
 
         if envelope_filter and candidates.size:
             mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
