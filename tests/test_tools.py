@@ -205,3 +205,74 @@ def test_gt_benchmark_skor_ground_truth_ile_esler():
     s = score(result, truth)
     assert s["correct"] == 1 and s["shown"] == 3
     assert s["recall"] == 1.0
+
+
+def test_gercek_veri_enjeksiyonu_bar_ici_tutarliligi_bozmaz():
+    """O/H/L bar başına aynı oranla ölçeklenmeli — high >= max(o,c) kalmalı.
+
+    Kapanışı değiştirip diğerlerini bırakmak, motorun ATR ve genlik
+    hesaplarına sessizce bozuk bar verirdi; enjeksiyon zemini bozmamalı.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from tools.gen_synthetic import inject
+    from tools.gt_benchmark import _inject_into_real
+
+    n = 400
+    rng = np.random.default_rng(5)
+    close = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.02, n)))
+    df = pd.DataFrame({
+        "open_time": np.arange(n, dtype=np.int64) * 14_400_000,
+        "open": close * 0.99,
+        "high": close * 1.02,
+        "low": close * 0.97,
+        "close": close,
+        "volume": np.full(n, 1000.0),
+        "quote_volume": np.full(n, 100000.0),
+        "trades": np.full(n, 50, dtype=np.int32),
+    })
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = Path(tmp) / "src.parquet", Path(tmp) / "TGT000USDT.parquet"
+        df.to_parquet(src)
+        inj = _inject_into_real(src, dst, "double_top", rng, n,
+                                (40, 90), (0.18, 0.40), (0.01, 0.05))
+        out = pd.read_parquet(dst)
+
+    assert inj is not None and inj.pattern == "double_top"
+    o, h, l, c = (out[k].to_numpy() for k in ("open", "high", "low", "close"))
+    assert np.all(h >= np.maximum(o, c) - 1e-9), "high bar içi tavanın altında"
+    assert np.all(l <= np.minimum(o, c) + 1e-9), "low bar içi tabanın üstünde"
+    assert np.all(c > 0)
+    # Hacim dokunulmamış olmalı: enjeksiyon fiyat yapısıdır, likidite değil.
+    assert np.allclose(out["volume"].to_numpy(), 1000.0)
+
+
+def test_gercek_veri_dagiticilari_dokunulmamis_kalir():
+    """``pattern=None`` verilen dosya birebir kopyalanmalı."""
+    import numpy as np
+    import pandas as pd
+    import tempfile
+    from pathlib import Path
+
+    from tools.gt_benchmark import _inject_into_real
+
+    n = 300
+    rng = np.random.default_rng(9)
+    close = 50.0 * np.exp(np.cumsum(rng.normal(0, 0.015, n)))
+    df = pd.DataFrame({
+        "open_time": np.arange(n, dtype=np.int64) * 14_400_000,
+        "open": close, "high": close * 1.01, "low": close * 0.99, "close": close,
+        "volume": np.full(n, 7.0), "quote_volume": np.full(n, 70.0),
+        "trades": np.full(n, 3, dtype=np.int32),
+    })
+    with tempfile.TemporaryDirectory() as tmp:
+        src, dst = Path(tmp) / "s.parquet", Path(tmp) / "NOI000USDT.parquet"
+        df.to_parquet(src)
+        assert _inject_into_real(src, dst, None, rng, n, (0, 0), (0, 0), (0, 0)) is None
+        out = pd.read_parquet(dst)
+    assert np.allclose(out["close"].to_numpy(), close)

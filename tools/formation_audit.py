@@ -65,33 +65,40 @@ DEFAULT_PROMINENCE = 0.5
 DEFAULT_EQUAL_TOL = 0.8
 
 
+def _nearest_left(flags: np.ndarray) -> int:
+    """Solda koşulu sağlayan **en yakın** indeks; yoksa 0. Bkz. motordaki eşi."""
+    hits = np.flatnonzero(flags)
+    return int(hits[-1]) if hits.size else 0
+
+
 def _extrema(y: np.ndarray, prominence: float) -> tuple[list[int], list[int]]:
     """Belirginliği eşiği aşan yerel tepe ve dip indeksleri.
 
-    Belirginlik: tepeden, kendisinden daha yüksek bir noktaya ulaşana kadar
-    iki yönde inilen en küçük derinlik. scipy'siz, ~20 satır.
+    Belirginlik: uçtan, kendisinden daha uç **en yakın** noktaya ulaşana
+    kadar iki yönde inilen en küçük derinlik. scipy'siz, ~20 satır.
+
+    Bu, motordaki ``prominent_extrema``nın kasıtlı ikinci uygulamasıdır:
+    denetçi motorun kodunu çağırırsa motoru kendisiyle sınamış oluruz.
+    İkisinde de aynı ayna hatası vardı (sol taban en UZAK yüksek noktayı
+    kullanıyordu) ve ikisinde de düzeltildi — ölçüldü, rastgele pencerelerin
+    %83'ünde şekil ile aynası farklı uç kümesi veriyordu.
     """
     peaks: list[int] = []
     troughs: list[int] = []
     n = y.size
 
     for i in range(1, n - 1):
+        left, right = y[:i], y[i + 1 :]
         if y[i] >= y[i - 1] and y[i] > y[i + 1]:
-            left = y[:i]
-            right = y[i + 1 :]
-            hl = left[left > y[i]]
-            hr = right[right > y[i]]
-            base_l = left[np.argmax(left > y[i]) :].min() if hl.size else left.min()
-            base_r = right[: np.argmax(right > y[i]) + 1].min() if hr.size else right.min()
+            hl, hr = left > y[i], right > y[i]
+            base_l = left[_nearest_left(hl) :].min() if hl.any() else left.min()
+            base_r = right[: int(np.argmax(hr)) + 1].min() if hr.any() else right.min()
             if y[i] - max(base_l, base_r) >= prominence:
                 peaks.append(i)
         elif y[i] <= y[i - 1] and y[i] < y[i + 1]:
-            left = y[:i]
-            right = y[i + 1 :]
-            ll = left[left < y[i]]
-            lr = right[right < y[i]]
-            base_l = left[np.argmax(left < y[i]) :].max() if ll.size else left.max()
-            base_r = right[: np.argmax(right < y[i]) + 1].max() if lr.size else right.max()
+            ll, lr = left < y[i], right < y[i]
+            base_l = left[_nearest_left(ll) :].max() if ll.any() else left.max()
+            base_r = right[: int(np.argmax(lr)) + 1].max() if lr.any() else right.max()
             if min(base_l, base_r) - y[i] >= prominence:
                 troughs.append(i)
 

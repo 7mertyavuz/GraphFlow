@@ -1153,25 +1153,29 @@ def _canonical(name: str) -> np.ndarray:
     return (y - y.mean()) / y.std()
 
 
-def test_kararlilik_donusleri_egimlilerden_ayirir():
-    """Kararlılık, filtrenin işe yaradığı aileyi yaramadığından ayırmalı.
+def test_kararlilik_donus_ailesini_kapinin_icinde_tutar():
+    """Dönüş ailesi kapıyı geçmeli — filtrenin kazancı orada ölçülü.
 
-    Ölçülen doğrulukla birebir örtüşüyor: dönüş ailesinde ilk 50'nin %99'u
-    aranan formasyon, eğim ailesinde %49 (docs/10-formasyon-denetimi.md).
-    Bu testin koruduğu şey eşiğin kendisi değil, **ayrımın var olması**:
-    iki küme çakışırsa kararlılık artık bir şey söylemiyor demektir.
+    Ground truth: kararlı imzada filtre OBO'da 16→21, ters OBO'da 15→22,
+    ikili tepede 14→18, ikili dipte 16→19 getiriyor. Bu dört şablon eşiğin
+    altına düşerse motorun en güçlü olduğu yeteneği sessizce kaybederiz.
+
+    Belirgin biçimde kararsız iki şablon da kontrol edilir. Testin iddiası
+    "eğim ailesinin tamamı kararsızdır" DEĞİLDİR: ayna hatası düzeltildikten
+    sonra simetrik üçgen %95'e çıktı ve orada filtre zararsız çıktı
+    (16/24 ↔ 16/24, duyarlılık %62 → %67).
     """
     from engine.config import STRUCTURE_MIN_STABILITY
     from engine.search.constraints import signature_stability
 
-    saglam = ["head_and_shoulders", "inverse_head_and_shoulders", "double_top", "double_bottom"]
-    kararsiz = ["ascending_triangle", "pennant", "rising_wedge", "symmetrical_triangle"]
+    for name in ("head_and_shoulders", "inverse_head_and_shoulders",
+                 "double_top", "double_bottom"):
+        s = signature_stability(_canonical(name))
+        assert s >= STRUCTURE_MIN_STABILITY, f"{name} kapıyı geçemedi: {s:.0%}"
 
-    a = [signature_stability(_canonical(n)) for n in saglam]
-    b = [signature_stability(_canonical(n)) for n in kararsiz]
-
-    assert min(a) >= STRUCTURE_MIN_STABILITY, f"dönüş ailesi kararsız çıktı: {a}"
-    assert max(b) < STRUCTURE_MIN_STABILITY, f"eğim ailesi sağlam çıktı: {b}"
+    for name in ("ascending_triangle", "pennant"):
+        s = signature_stability(_canonical(name))
+        assert s < STRUCTURE_MIN_STABILITY, f"{name} kararsız olmalıydı: {s:.0%}"
 
 
 def test_kararlilik_yeniden_uretilebilir():
@@ -1352,3 +1356,41 @@ def test_kapi_kapatilinca_eski_davranisa_donulur(obo_dataset):
 
     kapali = engine.search(q, timeframe=TF, tolerance="flexible", limit=12, structure_gate=False)
     assert kapali.structure_filtered or kapali.structure_relaxed
+
+
+def test_belirginlik_aynaya_gore_degismez():
+    """Şekil ile ayna görüntüsü aynı uç kümesini vermeli.
+
+    Bulunan hata: sol taban en SOLDAKİ (en uzak) yüksek noktayı, sağ taban
+    en yakınını kullanıyordu. Ders kitabı tanımı ikisinde de en yakındır.
+    Ölçüldü — düzeltmeden önce 32 noktalık rastgele pencerelerin **%83'ü**
+    aynasıyla farklı uç kümesi veriyordu. Şekil eşleştiren bir motorda bu
+    savunulamaz: aynı formasyonun sağa ve sola bakan hâli aynı yapıdır.
+    """
+    from engine.search.constraints import prominent_extrema
+
+    rng = np.random.default_rng(3)
+    n = 32
+    for _ in range(500):
+        y = rng.normal(size=n)
+        peaks, troughs = prominent_extrema(y, 0.5)
+        mp, mt = prominent_extrema(y[::-1], 0.5)
+        assert sorted((n - 1 - np.asarray(mp)).tolist()) == peaks
+        assert sorted((n - 1 - np.asarray(mt)).tolist()) == troughs
+
+
+def test_denetci_belirginligi_motorunkiyle_ayni_sonucu_verir():
+    """Denetçinin ayrı uygulaması motorunkiyle aynı uçları bulmalı.
+
+    İkisi bilerek ayrı yazılmıştır (denetçi motoru çağırsaydı motoru
+    kendisiyle sınardık) ama **tanımları** aynı olmak zorunda: ayrışırlarsa
+    denetim başka bir şeyi ölçmeye başlar. Aynı ayna hatası ikisinde de
+    vardı ve ikisinde de düzeltildi.
+    """
+    from engine.search.constraints import prominent_extrema
+    from tools.formation_audit import _extrema
+
+    rng = np.random.default_rng(17)
+    for _ in range(300):
+        y = rng.normal(size=32)
+        assert prominent_extrema(y, 0.5) == _extrema(y, 0.5)

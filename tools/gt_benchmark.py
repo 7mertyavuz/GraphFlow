@@ -28,12 +28,15 @@ from pathlib import Path
 
 import numpy as np
 
+import pandas as pd
+
+from engine.config import KLINES_DIR
 from engine.matrix.build import build_all
 from engine.ingest.store import write_atomic
 from engine.search.engine import SearchEngine
 from engine.search.nms import iou_1d
 from engine.templates import get as get_template
-from tools.gen_synthetic import Injection, make_symbol
+from tools.gen_synthetic import Injection, inject, make_symbol
 
 log = logging.getLogger("tools.gt_benchmark")
 
@@ -117,6 +120,101 @@ def build_corpus(
     return truth
 
 
+def _real_symbols(timeframe: str, min_bars: int, limit: int) -> list[Path]:
+    """Yeterince uzun gerçek parite dosyaları, ada göre deterministik sırayla."""
+    root = KLINES_DIR / timeframe
+    files = sorted(root.glob("*.parquet"))
+    out: list[Path] = []
+    for f in files:
+        try:
+            n = pd.read_parquet(f, columns=["close"]).shape[0]
+        except Exception:  # bozuk/eksik dosya ölçümü durdurmaz
+            continue
+        if n >= min_bars:
+            out.append(f)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _inject_into_real(
+    src: Path, dst: Path, pattern: str | None, rng: np.random.Generator,
+    n_bars: int, length_range: tuple[int, int],
+    amplitude_range: tuple[float, float], noise_range: tuple[float, float],
+) -> Injection | None:
+    """Gerçek OHLCV'ye formasyon yazar; O/H/L bar başına oranla ölçeklenir.
+
+    Kapanışı log uzayında değiştirip diğer üç fiyatı **aynı oranla** çarpmak,
+    ``high >= max(open, close)`` gibi bar içi tutarlılığı bozmaz ve hacmi
+    olduğu gibi bırakır. Sentetik GBM'in aksine dağıtıcılar gerçek piyasa
+    gürültüsüdür: oynaklık kümelenmesi, trend, şişman kuyruk.
+    """
+    df = pd.read_parquet(src).tail(n_bars).reset_index(drop=True)
+    if pattern is None:
+        write_atomic(df, dst)
+        return None
+
+    close = df["close"].to_numpy(dtype=np.float64)
+    if not np.all(np.isfinite(close)) or close.min() <= 0:
+        return None
+
+    log_price = np.log(close)
+    before = log_price.copy()
+
+    length = int(rng.integers(*length_range))
+    start = int(rng.integers(50, max(51, log_price.size - length - 50)))
+    amplitude = float(rng.uniform(*amplitude_range))
+    noise = float(rng.uniform(*noise_range))
+    inject(log_price, start, pattern, length, amplitude, noise, rng)
+
+    ratio = np.exp(log_price - before)
+    for col in ("open", "high", "low", "close"):
+        df[col] = df[col].to_numpy(dtype=np.float64) * ratio
+    write_atomic(df, dst)
+    return Injection(dst.stem, pattern, start, start + length - 1, length, amplitude, noise)
+
+
+def build_real_corpus(
+    pattern: str,
+    root: Path,
+    timeframe: str = TF,
+    n_targets: int = 24,
+    n_noise: int = 120,
+    n_bars: int = 900,
+    seed: int = 2026,
+) -> list[Injection]:
+    """Hedefler gerçek pariteye enjekte edilir; dağıtıcılar **dokunulmamış**
+    gerçek veridir.
+
+    Sentetik korpusun dış geçerlilik sınırı buydu: enjekte edilen formasyon
+    temiz bir GBM zemininde duruyordu. Gerçek piyasada sahtekârlar da gerçek;
+    kararların orada da ayakta kalması gerekir (CLAUDE.md replikasyon kuralı).
+    """
+    rng = np.random.default_rng(seed)
+    files = _real_symbols(timeframe, n_bars, n_targets + n_noise)
+    if len(files) < n_targets + n_noise:
+        raise RuntimeError(
+            f"{timeframe} için yeterli parite yok: {len(files)} < {n_targets + n_noise}"
+        )
+
+    truth: list[Injection] = []
+    out = root / "klines" / timeframe
+    for i, src in enumerate(files[:n_targets]):
+        inj = _inject_into_real(
+            src, out / f"TGT{i:03d}USDT.parquet", pattern, rng, n_bars,
+            (40, 90), (0.18, 0.40), (0.01, 0.05),
+        )
+        if inj is not None:
+            truth.append(inj)
+    for i, src in enumerate(files[n_targets:]):
+        _inject_into_real(src, out / f"NOI{i:03d}USDT.parquet", None, rng, n_bars,
+                          (0, 0), (0, 0), (0, 0))
+
+    build_all(timeframes=[timeframe], klines_root=root / "klines",
+              out_root=root / "matrix", use_liquidity=False)
+    return truth
+
+
 def score(result, truth: list[Injection], min_iou: float = MIN_IOU) -> dict:
     """Kesinlik (ilk k'nin kaçı doğru) ve duyarlılık (enjeksiyonların kaçı bulundu)."""
     by_symbol: dict[str, list[Injection]] = {}
@@ -150,6 +248,7 @@ def benchmark(
     seed: int = 2026,
     tolerance: str = "flexible",
     variants: dict[str, dict] | None = None,
+    real: bool = False,
 ) -> list[dict]:
     """Formasyon başına: enjekte edilenleri bulabiliyor mu?
 
@@ -162,7 +261,11 @@ def benchmark(
     for pattern in patterns:
         with tempfile.TemporaryDirectory(prefix=f"gt-{pattern}-") as tmp:
             root = Path(tmp)
-            truth = build_corpus(pattern, root, n_targets, n_noise, seed)
+            truth = (
+                build_real_corpus(pattern, root, TF, n_targets, n_noise, seed=seed)
+                if real
+                else build_corpus(pattern, root, n_targets, n_noise, seed)
+            )
             engine = SearchEngine(root / "matrix")
             query = np.asarray(get_template(pattern).vector, dtype=np.float64)
 
@@ -188,6 +291,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--targets", type=int, default=24)
     p.add_argument("--noise", type=int, default=40)
     p.add_argument("--seed", type=int, default=2026)
+    p.add_argument("--real", action="store_true",
+                   help="Dağıtıcılar sentetik GBM değil GERÇEK piyasa verisi olsun")
     p.add_argument("--tolerance", default="flexible")
     p.add_argument("--compare-structure", action="store_true",
                    help="Yapısal filtre AÇIK/KAPALI karşılaştırması")
@@ -212,11 +317,12 @@ def main(argv: list[str] | None = None) -> int:
         variants = {"": {}}
 
     rows = benchmark(patterns, args.limit, args.targets, args.noise,
-                     args.seed, args.tolerance, variants)
+                     args.seed, args.tolerance, variants, args.real)
 
     print()
-    print(f"ground truth · {TF} · {args.targets} hedef + {args.noise} gürültü sembolü"
-          f" · ilk {args.limit} · IoU ≥ {MIN_IOU}")
+    zemin = "GERÇEK piyasa" if args.real else "sentetik GBM"
+    print(f"ground truth · {TF} · {zemin} zemini · {args.targets} hedef + "
+          f"{args.noise} dağıtıcı · ilk {args.limit} · IoU ≥ {MIN_IOU}")
     print()
     labels = [k for k in variants]
     header = f"{'formasyon':<26}"

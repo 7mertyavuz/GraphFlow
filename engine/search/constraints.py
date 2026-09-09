@@ -144,13 +144,30 @@ from engine.config import (  # noqa: E402
 )
 
 
+def _nearest_left(flags: np.ndarray) -> int:
+    """Solda koşulu sağlayan **en yakın** indeks; yoksa 0.
+
+    Bu satır bir hatanın kaydıdır. Eskiden ``np.argmax(flags)`` yazıyordu ve
+    o, en soldaki (en UZAK) noktayı veriyordu — sağ taraf ise en yakını
+    kullanıyordu. Sonuç: belirginlik aynaya göre değişiyordu. Ölçüldü, 32
+    noktalık rastgele pencerelerin **%83'ünde** şekil ile ayna görüntüsü
+    farklı uç kümesi veriyordu. Şekil eşleştiren bir motor için bu
+    savunulamaz; ders kitabı tanımı iki tarafta da en yakın noktadır.
+    """
+    hits = np.flatnonzero(flags)
+    return int(hits[-1]) if hits.size else 0
+
+
 def prominent_extrema(y: np.ndarray, prominence: float) -> tuple[list[int], list[int]]:
     """Belirginliği eşiği aşan yerel tepe ve dip indeksleri.
 
-    Belirginlik: uçtan, kendisinden daha uç bir noktaya varana kadar iki
-    yönde kat edilen en küçük mesafe. Eşik olarak *sayı* değil *belirginlik*
+    Belirginlik: uçtan, **kendisinden daha uç en yakın noktaya** varana kadar
+    iki yönde inilen en küçük derinlik. Eşik olarak *sayı* değil *belirginlik*
     kullanılır: 32 noktalık z-score'lu pencerede onlarca minik salınım vardır,
     hepsini saymak her pencereyi "çok tepeli" ilan ederdi.
+
+    Simetriktir: ``prominent_extrema(y)`` ile ``prominent_extrema(y[::-1])``
+    birbirinin aynası olmak zorundadır ve bunu bir test tutar.
     """
     y = np.asarray(y, dtype=np.float64)
     peaks: list[int] = []
@@ -159,15 +176,15 @@ def prominent_extrema(y: np.ndarray, prominence: float) -> tuple[list[int], list
     for i in range(1, y.size - 1):
         left, right = y[:i], y[i + 1 :]
         if y[i] >= y[i - 1] and y[i] > y[i + 1]:
-            higher_l, higher_r = left[left > y[i]], right[right > y[i]]
-            base_l = left[np.argmax(left > y[i]) :].min() if higher_l.size else left.min()
-            base_r = right[: np.argmax(right > y[i]) + 1].min() if higher_r.size else right.min()
+            hl, hr = left > y[i], right > y[i]
+            base_l = left[_nearest_left(hl) :].min() if hl.any() else left.min()
+            base_r = right[: int(np.argmax(hr)) + 1].min() if hr.any() else right.min()
             if y[i] - max(base_l, base_r) >= prominence:
                 peaks.append(i)
         elif y[i] <= y[i - 1] and y[i] < y[i + 1]:
-            lower_l, lower_r = left[left < y[i]], right[right < y[i]]
-            base_l = left[np.argmax(left < y[i]) :].max() if lower_l.size else left.max()
-            base_r = right[: np.argmax(right < y[i]) + 1].max() if lower_r.size else right.max()
+            ll, lr = left < y[i], right < y[i]
+            base_l = left[_nearest_left(ll) :].max() if ll.any() else left.max()
+            base_r = right[: int(np.argmax(lr)) + 1].max() if lr.any() else right.max()
             if min(base_l, base_r) - y[i] >= prominence:
                 troughs.append(i)
 
