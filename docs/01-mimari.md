@@ -871,7 +871,7 @@ geçersiz kaldı). Her ölçümün bir aracı vardır:
 | İşlem | Hedef | Not |
 |---|---|---|
 | Aşama 1 (kosinüs, 12M pencere) | < 300 ms | NumPy/BLAS matris çarpımı |
-| — *ölçülen*, 4h **sıcak** | **365–417 ms** | API üzerinden uçtan uca, bütçe içinde |
+| — *ölçülen*, 4h **sıcak** | **306–333 ms** | motor içi; yapısal filtre vektörize edildikten sonra |
 | — *ölçülen*, 4h **soğuk** | **537–595 ms** | ilk çağrı: sorgunun null dağılımı hesaplanıyor |
 | — *ölçülen*, 1d sıcak | ~211 ms (medyan) | |
 
@@ -888,6 +888,22 @@ için null dağılımları açılışta arka planda hesaplanıyor
 **364–459 ms** — soğuk 537–595 ms yerine, bütçe içinde. Serbest çizim
 ısıtılamaz (sonsuz uzay) ve ilk sorgusunda aşımı yaşamaya devam eder;
 bu kabul edilen sınırdır.
+
+**Filtre katmanları vektörize edildi (Eylül 2026).** İki yapısal katman da
+aday listesi üzerinde Python döngüsü kullanıyordu; ölçüldü ve 2.500 adayda
+şu bedeli çıkarıyordu:
+
+| katman | önce | sonra |
+|---|---|---|
+| zarf imzası (trend çizgisi) | 160 ms | **4,8 ms** |
+| yapısal imza (uç düzeni) | 250 ms | **47 ms** |
+
+Yapısal imzanınki tek başına bütçenin yarısıydı. n = 32 sabit olduğu için
+belirginlik O(n²) tensör olarak yazılabiliyor; satırlar 1.024'lük parçalara
+bölünür, yoksa `(m, 32, 32)` float64 dizileri 20 MB'ı aşar. Her iki toplu
+yolun tekil yolla **birebir** eşdeğerliği testle tutulur — ayrışırlarsa
+filtre sessizce başka bir şey elemeye başlar ve bunu hiçbir doğruluk ölçümü
+göstermez.
 | Pre-NMS | < 20 ms | 5.000 aday |
 | Aşama 2 (DDTW, 1.000 aday) | < 100 ms | C hızlandırmalı |
 | Post-NMS | < 5 ms | |

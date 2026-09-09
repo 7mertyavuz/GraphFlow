@@ -1394,3 +1394,46 @@ def test_denetci_belirginligi_motorunkiyle_ayni_sonucu_verir():
     for _ in range(300):
         y = rng.normal(size=32)
         assert prominent_extrema(y, 0.5) == _extrema(y, 0.5)
+
+
+def test_toplu_uc_tespiti_tekil_yolla_ayni():
+    """Vektörize yol tekil yolla birebir aynı sonucu vermeli.
+
+    Sıcak yol vektörize edildi (2.500 aday 250 ms → 47 ms) ama iki yol
+    ayrışırsa filtre sessizce başka bir şey elemeye başlar — ve bunu hiçbir
+    doğruluk ölçümü göstermez.
+    """
+    from engine.search.constraints import prominent_extrema, prominent_extrema_batch
+
+    V = np.random.default_rng(1).normal(size=(400, 32))
+    peaks, troughs = prominent_extrema_batch(V, 0.5)
+    for i in range(V.shape[0]):
+        p, t = prominent_extrema(V[i], 0.5)
+        assert np.flatnonzero(peaks[i]).tolist() == p
+        assert np.flatnonzero(troughs[i]).tolist() == t
+
+
+def test_toplu_imza_tekil_yolla_ayni():
+    """``side_signature_batch`` ile ``side_signature`` ayrışmamalı."""
+    from engine.search.constraints import side_signature, side_signature_batch
+
+    V = np.random.default_rng(2).normal(size=(400, 32))
+    for side in (1, -1):
+        batch = side_signature_batch(V, side)
+        for i in range(V.shape[0]):
+            one = side_signature(V[i], side)
+            row = tuple(int(x) for x in batch[i])
+            if one is None:
+                assert row == (-1, -1, -1, -1)
+            else:
+                assert tuple(int(x) for x in one) == row
+
+
+def test_toplu_uc_tespiti_parcalama_sinirinda_tutarli():
+    """Parçalama (chunk) sınırı sonucu değiştirmemeli."""
+    from engine.search.constraints import prominent_extrema_batch
+
+    V = np.random.default_rng(4).normal(size=(70, 32))
+    a = prominent_extrema_batch(V, 0.5, chunk=1024)
+    b = prominent_extrema_batch(V, 0.5, chunk=7)
+    assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
