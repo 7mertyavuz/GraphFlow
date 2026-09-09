@@ -1251,17 +1251,51 @@ def test_zarf_imzasi_vektorize_hal_tekil_halle_ayni():
             assert tuple(int(v) for v in batch[i]) == one
 
 
-def test_zarf_filtresi_varsayilan_kapali():
-    """K-21: ölçüldü, net katkısı yok, bağlanmadı.
+def test_zarf_filtresi_kapiyla_acik():
+    """K-21: kapıyla birlikte bağlandı.
 
-    Bu nöbetçi sabitin kendisini korur: ground truth ölçümünde kesinlik
-    91/191 (açık) ile 94/192 (kapalı) arasında ayırt edilemiyordu ve
-    bayraklarda belirgin biçimde kötüleşiyordu. Açmadan önce
-    ``tools/gt_benchmark --compare-envelope`` yeniden koşulmalı.
+    İlk ölçümde ("net katkı yok") yapısal filtre hâlâ her sorguda açıktı;
+    adaylar zaten budanmış geliyordu ve ölçüm bayattı. Kapı bağlandıktan
+    sonra yeniden ölçüldü.
     """
-    from engine.config import ENVELOPE_FILTER
+    from engine.config import ENVELOPE_FILTER, ENVELOPE_MIN_STABILITY
 
-    assert ENVELOPE_FILTER is False
+    assert ENVELOPE_FILTER is True
+    assert 0.80 < ENVELOPE_MIN_STABILITY < 0.99
+
+
+def test_zarf_kapisi_donus_ailesini_korur():
+    """OBO'nun zarf imzası TANIMLI ama kararsız — filtre ona dokunmamalı.
+
+    Kapının asıl gerekçesi bu. OBO'nun zarf imzası ``(0, 0, 0)`` ile
+    tanımlıdır ama kararlılığı %34: kapısız bir zarf filtresi motorun tek
+    güçlü olduğu aileyi yazı-turayla elerdi. Ground truth'ta dönüş ailesi
+    zarf filtresi açıkken de kapalıyken de bire bir aynı (19/24 × 4).
+    """
+    from engine.config import ENVELOPE_MIN_STABILITY
+    from engine.search.constraints import envelope_signature, envelope_stability
+
+    for name in ("head_and_shoulders", "inverse_head_and_shoulders"):
+        y = _canonical(name)
+        assert envelope_signature(y, strict=True) is not None, "imza tanımlı olmalı"
+        assert envelope_stability(y) < ENVELOPE_MIN_STABILITY, "ama kararsız olmalı"
+
+    for name in ("ascending_triangle", "symmetrical_triangle", "falling_wedge"):
+        assert envelope_stability(_canonical(name)) >= ENVELOPE_MIN_STABILITY
+
+
+def test_zarf_kapisi_motorda_uygulaniyor(obo_dataset):
+    """Kararsız zarf imzasında motor eleme yapmamalı."""
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+
+    obo = engine.search(_canonical("head_and_shoulders"), timeframe=TF,
+                        tolerance="flexible", limit=12)
+    assert obo.envelope_filtered is False, "OBO'da zarf filtresi uygulanmamalı"
+
+    ucgen = engine.search(_canonical("symmetrical_triangle"), timeframe=TF,
+                          tolerance="flexible", limit=12)
+    assert ucgen.envelope_filtered or ucgen.envelope_relaxed
 
 
 # ---------------------------------------------------------------------------

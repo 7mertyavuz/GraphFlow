@@ -55,6 +55,7 @@ from engine.config import (
     STAGE2_METRIC,
     STAGE2_TOPK,
     ENVELOPE_FILTER,
+    ENVELOPE_MIN_STABILITY,
     ENVELOPE_MIN_SURVIVORS,
     STRUCTURE_FILTER,
     STRUCTURE_MIN_STABILITY,
@@ -74,6 +75,7 @@ from engine.matrix.npy_store import load_matrix
 from engine.search.constraints import (
     describe_signature,
     envelope_mask,
+    envelope_stability,
     signature_mask,
     signature_stability,
     structural_signature,
@@ -527,6 +529,12 @@ class SearchEngine:
         # taşımaz (K-20). Bu katman trend çizgilerini okur. Kural yine
         # sorgudan türer; formasyon başına kod yoktur (K-04).
         # Varsayılan KAPALI — gerekçe K-21'de ölçümüyle birlikte.
+        # Kapı burada da geçerli (K-20 dersi): OBO'nun zarf imzası tanımlıdır
+        # ama kararlılığı %41 — kapısız bir zarf filtresi dönüş ailesini
+        # yazı-turayla elerdi.
+        if envelope_filter and envelope_stability(q) < ENVELOPE_MIN_STABILITY:
+            envelope_filter = False
+
         if envelope_filter and candidates.size:
             mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:

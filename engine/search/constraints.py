@@ -471,6 +471,33 @@ def envelope_signature_batch(V: np.ndarray) -> np.ndarray:
     ).astype(np.int8)
 
 
+def envelope_stability(
+    y: np.ndarray,
+    sigma: float = STRUCTURE_NOISE_SIGMA,
+    draws: int = STRUCTURE_STABILITY_DRAWS,
+) -> float:
+    """Zarf imzası, sorguya eklenen gürültüye ne kadar dayanıyor (0–1).
+
+    K-20'nin dersi ikinci katmana da uygulanır: kararsız bir kuralla eleme
+    yapmak yapıya göre değil gürültüye göre elemektir. Ölçüldü (σ=0,10,
+    300 çekim) — simetrik üçgen 100 · yükselen takoz 100 · düşen takoz 99 ·
+    yükselen üçgen 99 · alçalan üçgen 99 ‖ ayı bayrağı 78 · boğa bayrağı 76
+    ‖ **ters OBO 45 · OBO 41**.
+
+    Son satır kapının asıl gerekçesi: OBO'nun zarf imzası ``(0, 0, 0)``
+    ile *tanımlıdır* ama yazı-turadır. Kapısız bir zarf filtresi dönüş
+    ailesini — motorun tek güçlü olduğu aileyi — gürültüyle elerdi.
+    """
+    y = np.asarray(y, dtype=np.float64)
+    base = envelope_signature(y, strict=True)
+    if base is None:
+        return 0.0
+    rng = np.random.default_rng(STRUCTURE_STABILITY_SEED)
+    noise = rng.normal(scale=sigma, size=(draws, y.size))
+    sig = envelope_signature_batch(y + noise)
+    return float((sig == np.asarray(base, dtype=np.int8)).all(axis=1).mean())
+
+
 def envelope_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
     """Sorgunun trend çizgisi kimliğini taşıyan adayların maskesi.
 

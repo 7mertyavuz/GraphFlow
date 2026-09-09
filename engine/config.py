@@ -492,8 +492,18 @@ ENVELOPE_SLOPE_THRESHOLD: Final[float] = 0.8
 #: sınıflanır — onlarda karar zaten kuralın kendisi değildir.
 ENVELOPE_DEAD_BAND: Final[float] = 0.2
 
+#: Zarf imzasının "sağlam" sayılacağı kararlılık. Ölçülen (σ=0,10, 300
+#: çekim) boş bandın ortasına konur: simetrik üçgen 100 · yükselen takoz
+#: 100 · düşen takoz 99 · yükselen üçgen 99 · alçalan üçgen 99 ‖ ayı
+#: bayrağı 78 · boğa bayrağı 76 ‖ ters OBO 45 · OBO 41.
+#:
+#: Son çift kapının asıl gerekçesi: OBO'nun zarf imzası (0,0,0) ile
+#: TANIMLIDIR ama yazı-turadır. Kapısız bir zarf filtresi dönüş ailesini —
+#: motorun tek güçlü olduğu aileyi — gürültüyle elerdi.
+ENVELOPE_MIN_STABILITY: Final[float] = 0.90
+
 #: Zarf filtresi açık mı. Ölçüm sonucu için bkz. K-21.
-ENVELOPE_FILTER: Final[bool] = False
+ENVELOPE_FILTER: Final[bool] = True
 
 #: Zarf filtresi sonrası bu sayının altında aday kalırsa UYGULANMAZ —
 #: yapısal filtredeki gerekçenin aynısı.
