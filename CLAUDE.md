@@ -113,6 +113,11 @@ geri getirme:
   sonuçla ölçüldüğünde yapısal filtre alçalan üçgende 3'e 7 "zarar" veriyor
   görünüyordu; hücre başına 12 denemede standart hata ~1,7 sonuçtur ve fark
   n=50'de kayboldu. Az örnekle görülen zarara göre mimari değiştirme (K-20).
+- 🚫 **Değişmezlik testi yazılmadan doğruluk ölçümüne güvenme.** Belirginlik
+  hesabı aynaya göre değişiyordu (rastgele pencerelerin %83'ü) ve iki
+  katmanın çekirdeğinde aylarca durdu — hiçbir doğruluk ölçümü göstermedi,
+  çünkü hiçbiri "aynı girdi aynı cevabı veriyor mu" diye sormuyordu. Şekil
+  eşleştiren her fonksiyon için ayna/ölçek/seviye değişmezliği testi olmalı.
 - 🚫 **Kesinlik filtreyi aklar, duyarlılık suçlar.** `formation_audit` yalnız
   DÖNEN sonuçlara bakar; bir filtre gerçek formasyonları eliyorsa onları hiç
   görmez ve filtre "etkisiz" görünür. K-20'de tam olarak bu oldu: eğim
@@ -151,7 +156,7 @@ geri getirme:
                                   formation_audit (12 formasyon · --cross · --compare),
                                   gt_benchmark (ground truth · dairesel olmayan ölçüm),
                                   run_outcomes, measure_amplitude, template_health
-✅ tests/                          294 test (ingest, arşiv, normalize, matrix, search,
+✅ tests/                          298 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar
@@ -234,6 +239,7 @@ python -m engine.matrix.build           # F1: vektör matrislerini üret
 python -m tools.f46_proxy_test          # F4.6: Vekil testi ve ön-getiri eşleştirmeli gölge analizi
 python -m tools.formation_audit --cross # F4.9: denetçiyi denetle (veri gerekmez)
 python -m tools.gt_benchmark --family slope  # K-21: ground truth ile dairesel olmayan ölçüm
+python -m tools.gt_benchmark --real --family all # replikasyon: gerçek piyasa zemininde
 pytest -q                               # testler
 uvicorn engine.api.main:app --reload    # F5: API
 ```

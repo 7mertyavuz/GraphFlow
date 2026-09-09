@@ -333,3 +333,60 @@ Kalan zayıflık bayrak (10/24) ve flamada (12/24) — ikisinde de zarf imzası
 kararsız olduğu için bu katman devreye girmiyor. Bayrağın zarfı direği de
 kapsıyor; gövdeyi direkten ayırmak formasyona özel kod demek olurdu (K-04).
 Doğru biçim muhtemelen sorgudan türeyen bir **bölütleme**.
+
+---
+
+## Ek 4: belirginlik aynaya göre değişiyordu
+
+Uç tespitinin çekirdeğinde bir simetri hatası vardı. Sol taban en **soldaki**
+(en uzak) yüksek noktayı kullanıyordu, sağ taban en yakınını:
+
+```python
+base_l = left[np.argmax(left > y[i]):].min()      # ilk = EN UZAK
+base_r = right[:np.argmax(right > y[i]) + 1].min() # ilk = EN YAKIN
+```
+
+Sonuç: bir şekil ile ayna görüntüsü farklı uç kümesi veriyordu. Ölçüldü —
+32 noktalık rastgele pencerelerin **%83'ü** uyuşmuyordu.
+
+Sebep izole edildi, tahmin edilmedi:
+
+| katman | ayna tutarsızlığı |
+|---|---|
+| ham yerel uç tespiti | %0 |
+| belirginlik eşiği 0,0 | %0 |
+| belirginlik eşiği 0,5 | **%83** |
+
+Yani `>=` / `>` eşitlik kuralı masum; hata yalnız belirginlik hesabındaydı.
+Ders kitabı tanımı iki tarafta da **en yakın** daha uç noktadır.
+
+Aynı hata denetçide de vardı (`tools/formation_audit._extrema`, bilerek ayrı
+yazılmış ikinci uygulama). İkisi de düzeltildi ve bir test artık ikisinin
+aynı sonucu verdiğini tutuyor: ayrışırlarsa denetim başka bir şeyi ölçmeye
+başlar.
+
+### Etkisi
+
+Kararlılık tablosu değişti — dönüş ailesi %91–97'den **%98–100**'e çıktı,
+simetrik üçgen %61'den %95'e. Ground truth'ta motor iyileşti:
+
+| | kesinlik | duyarlılık |
+|---|---|---|
+| kapılı filtre, düzeltmeden önce | 195/288 · %68 | %65 |
+| kapılı filtre, düzeltmeden sonra | **202/288 · %70** | **%67** |
+
+Dönüş ailesi gerçek korpusta gerilemedi: 197/200.
+
+> **Dairesellik uyarısı.** Aynı koşuda `formation_audit` geneli 397/600'den
+> 493/600'e çıkıyor. Bu rakam **kanıt değildir**: eğim ailesinde zarf filtresi
+> denetçinin kendi ölçütünü optimize ediyor, yani tautoloji. Yalnız dönüş
+> ailesi (uç tabanlı) gerileme kontrolü olarak okunur; kalite iddiası ground
+> truth'tan gelir.
+
+### Ders
+
+Bu hata iki katmanın *çekirdeğinde* aylarca durdu ve hiçbir ölçüm onu
+göstermedi — çünkü hiçbir ölçüm **değişmezlik** sormuyordu. Doğruluk
+ölçümleri "sonuç iyi mi" diye sorar; değişmezlik testleri "aynı girdi aynı
+cevabı veriyor mu" diye. İkincisi olmadan birincisi bozuk bir tanımı
+kusursuz biçimde optimize edebilir.
