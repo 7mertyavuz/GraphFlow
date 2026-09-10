@@ -1100,6 +1100,7 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 22 | Zarf filtresini kapısız uygulamak | (terk edildi) | OBO'nun zarf imzası tanımlı ama kararlılığı %41 — dönüş ailesini yazı-turayla elerdi (K-21) |
 | 23 | İki bileşenli zarf imzası (yakınsamasız) | (terk edildi) | Ölü: takoz sorgusunda ilk 50'nin 50'si imzayı zaten taşıyor (K-21) |
 | 24 | Merkezi fark türevi (`hybrid_central`) | (bağlanmadı) | Aynaya simetrik ama AUC'de 108 hücrenin 105'inde geride; ground truth'ta 610/864 vs 614/864 (K-11) |
+| 25 | Yapısal ve zarf filtresini üst üste uygulamak | (terk edildi) | Düşen takozda gerçek formasyonların üçte birini eliyordu; 2.000 derinlikte duyarlılık %67 vs %96 (K-21 eki) |
 
 ---
 
@@ -1384,6 +1385,57 @@ sorgudan türeyen bir **bölütleme** — nerede rejim değiştiğini sorgunun
 kendisinden okumak.
 
 Ayrıntı: [10-formasyon-denetimi.md](10-formasyon-denetimi.md).
+
+---
+
+### K-21 eki (Eylül 2026): iki filtre üst üste değil, birbirinin alternatifi
+
+**Karar:** `STRUCTURE_YIELDS_TO_ENVELOPE = True`. Sorgunun trend çizgisi
+okuması kararlıysa (zarf filtresi devredeyse) yapısal filtre çekilir.
+
+**Bulgu.** Düşen takoz her korpusta en zayıf formasyondu (%38–46). Teşhis
+zinciri, K-20'yi düzelten zincirin aynısı:
+
+| yapılandırma | ilk 24 | 2.000 derinlikte duyarlılık |
+|---|---|---|
+| varsayılan (iki filtre) | 9/24 | %67 |
+| yapısal filtre kapalı | 10/24 | **%96** |
+| zarf filtresi kapalı | 8/24 | %67 |
+
+Derinlikte bile enjekte edilen takozların üçte biri hiç dönmüyordu ve onları
+eleyen yapısal filtreydi. Takozun yapısal imzası ("2 belirgin tepe · ilki en
+yüksek") sorguya eklenen gürültüye karşı kararlı (%88, kapıyı geçiyor), ama
+gerçek takozlar 2 ya da 3 kez dokunur. **Kararlılık kapısı eklenen gürültüye
+karşı kararlılığı ölçer, formasyonun doğal çeşitliliğine karşı ölçmez.**
+Zarf filtresi ise aynı derinlikte 140 sahtekârı 1 doğru kaybıyla eliyordu.
+
+**Kural** formasyon başına kod içermez: trend çizgisi okuması kararlıysa
+formasyon eğimle tanımlıdır ve uç sayısı sorulmaz. Kanonik şablonlarda yalnız
+düşen takoza dokunur (iki okuması birden kararlı olan tek şablon).
+
+**Ölçüm** (`tools/gt_benchmark --compare-yield`, alternatif / yığın):
+
+| zemin | düşen takoz | genel |
+|---|---|---|
+| sentetik, ilk 24 | 10 / 9 | 203 / 202 |
+| sentetik, havuz 2.000 | duyarlılık %96 / %67 | — |
+| gerçek piyasa, ilk 24 | 14 / 11 | 209 / 206 |
+| elle çizim (6/formasyon) | 63 / 61 | 1171 / 1169 |
+| sentetik, 2. tohum | 12 / 9 | 209 / 206 |
+
+Beş ölçümün hiçbirinde bir formasyon kötüleşmiyor.
+
+**Yan bulgu — motor parmak izinde kapsama deliği.** Kural bağlandığında
+varsayılan davranış değişti ama parmak izi aynı kaldı: sonda filtrelerin
+yapı taşlarını sınıyordu, "hangisi uygulanacak" kararını değil; sabitler de
+yalnız raporlanıyordu. Karar tek bir saf fonksiyona (`filter_plan`) taşındı —
+motor ve parmak izi aynı kodu çağırır — ve 34 sabit özete girdi. Yeniden
+yazımın davranışı koruduğu gerçek korpusta 10 aramayla doğrulandı.
+
+**Bulgulara etkisi.** Parmak izi onarıldıktan sonra dört tablo "farklı motor"
+olarak işaretlendi ve yeniden üretildi. Düşen takozun istatistik örneklemi
+1d'de 73 → 251, 4h'de 133 → 492 olay; anlamlı hücre kümeleri ve Bulgular
+sayfasındaki bütün aşama sayıları değişmedi.
 
 ---
 

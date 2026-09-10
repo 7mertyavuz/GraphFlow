@@ -15,6 +15,7 @@ Bunlar eksik özellik değil, gerekçesiyle verilmiş kararlardır.
 - **Kafka, Rust/Go worker, TimescaleDB/InfluxDB, WebSocket akış.** Motor Python + NumPy; darboğaz dil değil veri yerleşimi (K-01).
 - **Formasyon başına `if-else` kural motoru.** Her formasyon aynı boru hattından geçen 32 noktalık kanonik vektördür (K-04). Yapısal ve trend çizgisi filtreleri kuralı *sorgudan* türetir, formasyona özel koddan asla.
 - **Kararlılık kapılarını kaldırmak.** Yapısal filtre yalnız sorgunun tepe/dip okuması kararlıyken (K-20), trend çizgisi filtresi yalnız eğim okuması kararlıyken (K-21) çalışır. Kapılar olmadan ground truth doğruluğu %70'ten %59'a düşer; kapısız bir trend çizgisi filtresi omuz-baş-omuz sorgularında yazı-tura atar (kararlılık %41).
+- **İki filtreyi üst üste uygulamak.** Trend çizgisi filtresi devredeyken yapısal filtre çekilir: bir takoz çizgilerine iki *ya da* üç kez dokunur ve kesin bir tepe sayısı istemek gerçek düşen takozların üçte birini eliyordu (duyarlılık %67 vs %96).
 - **Alt-stride hizalama ince ayarı** (K-19) ve **merkezi fark türevi** (K-11 eki) — ikisi de yazıldı, ölçüldü, bağlanmadı. Hiçbiri doğruluğu artırmadı.
 - **Yeniden kalibre etmeden Aşama 2 metriğini değiştirmek.** Eşikler metrik başınadır (`TOLERANCE_THRESHOLDS_BY_METRIC`); yanlış eşiklerle metrik değiştirmek sonuçları sessizce boşaltır.
 - **Tek geçişli NMS.** Pre-NMS (IoU 0,70) ve post-NMS (IoU 0,50, sembol başına en çok 3) ayrı ayrı zorunludur (K-09).

@@ -15,6 +15,7 @@ These are not missing features; they were chosen against, with reasons.
 - **Kafka, Rust/Go workers, TimescaleDB/InfluxDB, WebSocket streaming.** The engine is Python + NumPy; the bottleneck is data layout, not language (K-01).
 - **An `if-else` rule engine per formation.** Every formation is a 32-point canonical vector through the same pipeline (K-04). The structural and trend-line filters derive their rule *from the query*, never from per-formation code.
 - **Removing the stability gates.** The structural filter runs only when the query's peak/trough reading is stable (K-20), the trend-line filter only when its slope reading is stable (K-21). Without the gates, ground-truth accuracy drops from 70% to 59%; an ungated trend-line filter would gamble on head-and-shoulders queries (stability 41%).
+- **Stacking the two filters.** When the trend-line filter applies, the structural filter steps aside: a wedge touches its lines two *or* three times, and demanding an exact peak count removed a third of real falling wedges (recall 67% vs 96%).
 - **Sub-stride alignment refinement** (K-19) and **the central-difference derivative** (K-11 addendum) — both implemented, measured, and not connected. Neither improved accuracy.
 - **Changing the Stage 2 metric without re-calibrating.** Thresholds are per metric (`TOLERANCE_THRESHOLDS_BY_METRIC`); switching metrics with the wrong thresholds silently empties the results.
 - **Single-pass NMS.** Pre-NMS (IoU 0.70) and post-NMS (IoU 0.50, max 3 per symbol) are both required (K-09).
