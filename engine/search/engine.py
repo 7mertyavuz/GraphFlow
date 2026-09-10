@@ -40,7 +40,6 @@ from engine.config import (
     MATRIX_DIR,
     MAX_RESULTS_PER_SYMBOL,
     N_POINTS,
-    NULL_ABSOLUTE_CAP,
     NULL_CACHE_SIZE,
     NULL_DISCRIMINATIVE_RATIO,
     NULL_MIN_SAMPLES,
@@ -640,7 +639,13 @@ class SearchEngine:
             median=float(np.median(null)),
             # İki koşul birlikte: yüzdelik dilim VE mutlak akıl sağlığı tavanı.
             # Yalnız yüzdelik kalsaydı motor her sorguya sonuç döndürürdü.
-            threshold=min(relative, NULL_ABSOLUTE_CAP),
+            #
+            # Tavan ÇAĞRININ metriğinden okunur. Eskiden aktif metriğin
+            # (NULL_ABSOLUTE_CAP) sabitiydi: çağrı başına başka bir metrik
+            # verildiğinde o metriğin ölçeğine ait olmayan bir tavan
+            # uygulanıyordu (merkezi fark hybrid'den ~%20 küçük mesafe verir).
+            # Varsayılan metrikte ikisi aynı sayıdır.
+            threshold=min(relative, absolute["flexible"]),
         )
 
     @staticmethod

@@ -48,6 +48,10 @@ AB_PATTERNS: tuple[str, ...] = (
 
 METRICS: tuple[str, ...] = ("ddtw", "dtw", "hybrid")
 
+#: K-11 kararının dışında ölçülen adaylar (--metrics ile). Varsayılan koşuya
+#: girmez: K-11'in kanıt dosyası (data/f3/ab_stage2.json) aynı kalmalı.
+EXTRA_METRICS: tuple[str, ...] = ("hybrid_central",)
+
 #: Bar başına log-getiri standart sapması. %2 gerçek 4H/1D kripto ölçeğidir;
 #: %1 sakin, %4 çalkantılı rejimi temsil eder.
 NOISE_LEVELS: tuple[float, ...] = (0.01, 0.02, 0.04)
@@ -192,7 +196,9 @@ def summarize(result: dict) -> str:
     rows = result["rows"]
     lengths = sorted({r["length"] for r in rows})
     noises = sorted({r["noise"] for r in rows})
-    metrics = sorted({r["metric"] for r in rows}, key=lambda m: METRICS.index(m))
+    seen = {r["metric"] for r in rows}
+    order = list(METRICS) + [m for m in EXTRA_METRICS if m not in METRICS]
+    metrics = [m for m in order if m in seen]
 
     lines = ["| gürültü | uzunluk | " + " | ".join(metrics) + " | kazanan |", "|---|---|" + "---|" * (len(metrics) + 1)]
     for noise in noises:
@@ -217,9 +223,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI
     p.add_argument("--samples", type=int, default=300)
     p.add_argument("--out", default="data/f3/ab_stage2.json")
     p.add_argument("--skip-recall", action="store_true")
+    p.add_argument("--metrics", nargs="+", default=list(METRICS))
     args = p.parse_args(argv)
 
-    result = run(samples=args.samples)
+    result = run(samples=args.samples, metrics=tuple(args.metrics))
     if not args.skip_recall:
         result["stage1_recall"] = stage1_recall(samples=args.samples)
 

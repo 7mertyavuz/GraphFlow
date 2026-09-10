@@ -298,6 +298,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Yapısal filtre AÇIK/KAPALI karşılaştırması")
     p.add_argument("--compare-envelope", action="store_true",
                    help="Zarf (trend çizgisi) filtresi AÇIK/KAPALI karşılaştırması")
+    p.add_argument("--compare-metric", action="store_true",
+                   help="Aşama 2: hybrid (Keogh türevi) / hybrid_central (merkezi fark) — K-11 açık sorusu")
     p.add_argument("--compare-gate", action="store_true",
                    help="Kararlılık kapısı AÇIK (seçici) / KAPALI (her sorguda filtre)")
     args = p.parse_args(argv)
@@ -306,6 +308,8 @@ def main(argv: list[str] | None = None) -> int:
     patterns = tuple(args.pattern or FAMILIES[args.family])
     if args.compare_structure:
         variants = {"on": {"structure_filter": True}, "off": {"structure_filter": False}}
+    elif args.compare_metric:
+        variants = {"hybrid": {"metric": "hybrid"}, "merkezi": {"metric": "hybrid_central"}}
     elif args.compare_gate:
         variants = {
             "kapı": {"structure_filter": True, "structure_gate": True},

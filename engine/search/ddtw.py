@@ -53,6 +53,24 @@ def derivative_batch(X: np.ndarray) -> np.ndarray:
     return (left + span) / 2.0
 
 
+def derivative_central_batch(X: np.ndarray) -> np.ndarray:
+    """Merkezi fark türevi. (n, N) → (n, N-2) — Keogh-Pazzani ile aynı şekil.
+
+    ``D[i] = (x[i+1] − x[i−1]) / 2``. Zamanda **antisimetriktir**: dizi
+    ters çevrilince türev işaret değiştirip ters döner, başka hiçbir şey
+    değişmez. Keogh-Pazzani tahmincisi öyle değildir — geriye dönük farkı
+    ağırlıklandırdığı için yarım adım geriye kaymıştır (x = i² için gerçek
+    türev 2i, Keogh 2i − 0,5). K-11'deki açık sorunun ölçüm adayıdır;
+    varsayılan metrik DEĞİLDİR.
+    """
+    X = np.asarray(X, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError("derivative_central_batch iki boyutlu dizi bekler")
+    if X.shape[1] < 3:
+        raise ValueError("türev için en az 3 nokta gerekir")
+    return (X[:, 2:] - X[:, :-2]) / 2.0
+
+
 def banded_dtw_batch(
     query: np.ndarray,
     candidates: np.ndarray,
@@ -136,7 +154,7 @@ def warping_path(
     query: np.ndarray,
     candidate: np.ndarray,
     radius: int = SAKOE_CHIBA_RADIUS,
-    use_derivative: bool = True,
+    use_derivative: bool | str = True,
 ) -> np.ndarray:
     """Tek bir aday için hizalama yolu: ``(k, 2)`` — (sorgu_i, aday_j) çiftleri.
 
@@ -196,10 +214,13 @@ def normalized_scores(
     query: np.ndarray,
     candidates: np.ndarray,
     radius: int = SAKOE_CHIBA_RADIUS,
-    use_derivative: bool = True,
+    use_derivative: bool | str = True,
 ) -> np.ndarray:
     """``dtw_distance / path_length`` (K-14). Küçük = benzer."""
-    if use_derivative:
+    if use_derivative == "central":
+        q = derivative_central_batch(np.asarray(query, dtype=np.float64)[None, :])[0]
+        C = derivative_central_batch(np.atleast_2d(candidates))
+    elif use_derivative:
         q = derivative(query)
         C = derivative_batch(np.atleast_2d(candidates))
     else:
@@ -214,6 +235,13 @@ def normalized_scores(
 def ddtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_CHIBA_RADIUS) -> np.ndarray:
     """Üretim yolu: türev DTW, yol uzunluğuna normalize (K-11 + K-14)."""
     return normalized_scores(query, candidates, radius, use_derivative=True)
+
+
+def ddtw_central_scores(
+    query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_CHIBA_RADIUS
+) -> np.ndarray:
+    """Merkezi fark türevli DTW — K-11 açık sorusunun ölçüm adayı."""
+    return normalized_scores(query, candidates, radius, use_derivative="central")
 
 
 def dtw_scores(query: np.ndarray, candidates: np.ndarray, radius: int = SAKOE_CHIBA_RADIUS) -> np.ndarray:
@@ -247,5 +275,13 @@ def stage2_scores(
         # ağırlıklıdır; bu, F3 raporunda açıkça belirtilir.
         return 0.5 * (
             ddtw_scores(query, candidates, radius) + dtw_scores(query, candidates, radius)
+        )
+    if metric == "ddtw_central":
+        return ddtw_central_scores(query, candidates, radius)
+    if metric == "hybrid_central":
+        # hybrid ile tek fark türev tahmincisi (K-11 açık sorusu). Ölçülmeden
+        # varsayılan yapılmaz; eşikleri aynı seçicilik ilkesiyle türetilir.
+        return 0.5 * (
+            ddtw_central_scores(query, candidates, radius) + dtw_scores(query, candidates, radius)
         )
     raise ValueError(f"bilinmeyen Aşama 2 metriği: {metric}")

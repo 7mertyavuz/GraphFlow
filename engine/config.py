@@ -288,7 +288,7 @@ Tolerance = Literal["strict", "medium", "flexible"]
 # Bkz. docs/03-f3-dogrulama-raporu.md ve K-11 "Karara bağlandı (F3)".
 # ---------------------------------------------------------------------------
 
-Stage2Metric = Literal["ddtw", "dtw", "hybrid"]
+Stage2Metric = Literal["ddtw", "dtw", "hybrid", "hybrid_central"]
 
 #: hybrid = (normalize DDTW mesafesi + normalize ham DTW mesafesi) / 2
 STAGE2_METRIC: Final[str] = "hybrid"
@@ -316,6 +316,16 @@ TOLERANCE_THRESHOLDS_BY_METRIC: Final[dict[str, dict[str, float]]] = {
     "ddtw": {"strict": 0.0118, "medium": 0.0162, "flexible": 0.0456},
     "dtw": {"strict": 0.0184, "medium": 0.0337, "flexible": 0.1097},
     "hybrid": {"strict": 0.0172, "medium": 0.0273, "flexible": 0.0836},
+    # K-11 açık sorusunun ölçüm adayı — VARSAYILAN DEĞİL. F3 prosedürüyle
+    # değil, hybrid ile AYNI SEÇİCİLİK ilkesiyle türetildi
+    # (tools/calibrate_metric): gerçek 1d verisinde 40.000 pencere × 4 uzunluk
+    # × 14 şablon, hybrid ile sıra korelasyonu 0,999. İyi belirlenen tek çapa
+    # esnek kademe (seçicilik %1,16 → 0,0773, oran 0,9246); katı/orta o oranla
+    # ölçeklendi — rastgele pencerelerin neredeyse hiçbiri o eşiklerin altında
+    # olmadığı için doğrudan tahminleri gürültülü ve yalnız yedek yolda
+    # kullanılıyorlar. Yöntem doğrulaması: aynı araç F3'te bağımsız kalibre
+    # edilmiş dtw eşiklerini %5 içinde yeniden üretiyor.
+    "hybrid_central": {"strict": 0.0159, "medium": 0.0252, "flexible": 0.0773},
 }
 
 #: Aktif metriğin **mutlak** eşikleri. F3.5'ten itibaren yalnızca yedek yoldur

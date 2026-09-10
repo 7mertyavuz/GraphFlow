@@ -8,7 +8,7 @@ tarihsel modda o formasyondan sonra ne olduğunu istatistiksel olarak raporlar.
 
 | Belge | Ne zaman |
 |---|---|
-| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 21 karar (K-01…K-21), gerekçeleri, reddedilen 23 alternatif. Projenin anayasası. |
+| `docs/00-tasarim-kararlari.md` | **Her mimari soruda.** 21 karar (K-01…K-21), gerekçeleri, reddedilen 24 alternatif. Projenin anayasası. |
 | `docs/01-mimari.md` | Kod yazmadan önce. Şemalar, algoritmalar (sözde kod), API, repo yapısı, yol haritası. |
 
 Bir kararı değiştirmen gerektiğini düşünüyorsan **önce ilgili `K-xx` bölümünü
@@ -50,6 +50,11 @@ geri getirme:
   `config.STAGE2_METRIC` ile seçilir; eşikler metrik başına ayrıdır
   (`TOLERANCE_THRESHOLDS_BY_METRIC`) — tek eşik setiyle metrik çevirmek motoru
   sessizce susturur. Gerekçe: docs/03-f3-dogrulama-raporu.md.
+- ❌ **Merkezi fark türevi** (`hybrid_central`) — yazıldı, ölçüldü,
+  BAĞLANMADI (K-11 Eylül eki). Keogh–Pazzani tahmincisi zamanda simetrik
+  değil (yarım adım geriye kaymış) ama AUC'de 108 hücrenin 105'inde merkezi
+  farktan iyi; ground truth'ta 614/864 vs 610/864, gerçek piyasa zemininde
+  206 vs 193. Ayna simetrisi uğruna metrik değiştirme.
 - ❌ **Tek geçişli NMS** — pre-NMS (IoU 0.70) *ve* post-NMS (IoU 0.50 +
   max 3/sembol) ayrı ayrı zorunlu (K-09).
 - ❌ **Statik yüzde bariyerler** (%5 TP / %3 SL) — daima ATR tabanlı. Statik
@@ -163,8 +168,9 @@ geri getirme:
                                   verify_stage1, ci_calibration, f46_proxy_test,
                                   formation_audit (12 formasyon · --cross · --compare),
                                   gt_benchmark (ground truth · dairesel olmayan ölçüm),
-                                  run_outcomes, measure_amplitude, template_health
-✅ tests/                          310 test (ingest, arşiv, normalize, matrix, search,
+                                  run_outcomes, measure_amplitude, template_health,
+                                  calibrate_metric (aynı seçicilikle eşik türetme)
+✅ tests/                          319 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar

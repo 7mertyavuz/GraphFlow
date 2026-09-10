@@ -616,41 +616,68 @@ F2 uygulamasında sentetik veriyle yapılan ölçüm, bu kararın **gerekçesini
 
 ---
 
-### Açık soru (Eylül 2026): türev tahmincisi zamanda simetrik değil
+### Eylül 2026: türev tahmincisi zamanda simetrik değil — ölçüldü, değiştirilmedi
 
-Değişmezlik taramasında bulundu (docs/11, Ek). Ham DTW, sorgu ve aday
-birlikte aynalandığında aynı mesafeyi verir (azami fark 3e-16). DDTW
+**Soru.** Değişmezlik taramasında bulundu (docs/11, Ek). Ham DTW, sorgu ve
+aday birlikte aynalandığında aynı mesafeyi verir (azami fark 3e-16). DDTW
 vermez: Keogh–Pazzani tahmincisi
 
 ```
 D_i = ((x_i − x_{i−1}) + (x_{i+1} − x_{i−1}) / 2) / 2
 ```
 
-yarım adım **geriye kaymıştır** — x = i² için gerçek türev 2i, tahmin
-2i − 0,5. Aynada kayma ileriye döner. Ölçülen etki (4.000 aday):
+yarım adım **geriye kaymıştır** (x = i² için gerçek türev 2i, tahmin
+2i − 0,5). Aynada sıra korelasyonu 0,92–0,97, ilk 50'nin 11–18'i değişiyor.
+Aday: merkezi fark `(x_{i+1} − x_{i−1}) / 2` — tam doğru ve zamanda
+antisimetrik. Kullanıcı onayıyla ölçüldü; varsayılan değiştirilmedi.
 
-| sorgu | sıra korelasyonu (normal ↔ ayna) | ilk 50 ortak |
+**Eşikler — aynı seçicilik ilkesiyle** (`tools/calibrate_metric`). F3
+prosedürü bugünkü filtrelerden önceki motorla koşulmuştu; yeniden koşmak iki
+metriği iki farklı motorda karşılaştırmak olurdu. Bunun yerine hybrid'in
+eşiği her sorgunun null dağılımında hangi yüzdeliğe denk geliyorsa, yeni
+metriğinki de aynı pencerelerdeki kendi dağılımında oraya konur (gerçek 1d,
+40.000 pencere × 4 uzunluk × 14 şablon). Yöntem doğrulaması: aynı araç F3'te
+**bağımsız** kalibre edilmiş `dtw` eşiklerini %5 içinde yeniden üretiyor
+(0,1113 vs 0,1097); yalnız iki metrik pencereleri benzer sıralıyorsa geçerli
+(hybrid ↔ hybrid_central sıra korelasyonu 0,999). Negatif kontrol: beyaz
+gürültü ve testere dişi iki dilimde de 0 sonuç.
+
+**Ölçüm 1 — K-11'in kendi ölçütü (AUC, `tools/ab_stage2`):**
+
+| | hybrid (Keogh) | hybrid_central |
 |---|---|---|
-| OBO | 0,957 | 39/50 |
-| fincan-kulp | 0,915 | 32/50 |
-| yükselen üçgen | 0,961 | 37/50 |
-| boğa bayrağı | 0,966 | 39/50 |
-| çanak dip | 0,930 | 38/50 |
+| genel AUC | **0,9059** | 0,9039 |
+| 108 hücrenin kaçında daha iyi | **105** | 2 (1 eşit) |
+| fark | — | medyan −0,0016 · en kötü −0,0072 |
 
-**Hata değil, özellik.** İleri yönde sorgu ve aday aynı kaymayı yer; ölçüm
-tutarlıdır. Ama bir formasyon ile zaman-aynası (ör. fincan-kulp ile
-"kulp-fincan") hafifçe farklı bir metrikle puanlanıyor ve bu bilinçli bir
-tercih olarak hiç kaydedilmemişti.
+Küçük ama son derece tutarlı: dokuz formasyonun hiçbirinde merkezi fark
+ortalamada kazanmıyor.
 
-**Değiştirilmedi.** Merkezi fark `(x_{i+1} − x_{i−1}) / 2` zamanda
-antisimetriktir ve muhtemelen daha doğrudur, ama bu (a) Aşama 2
-metriğini, (b) metrik başına kalibre edilmiş eşikleri
-(`TOLERANCE_THRESHOLDS_BY_METRIC`) ve (c) F3'ün AUC karşılaştırmasını
-değiştirir. Karar ölçümle verilmeli: yeni metrik adı altında
-(`hybrid_central`) yazılır, `tools/ab_stage2` ve `tools/gt_benchmark` ile
-ölçülür, kazanırsa eşikleri F3 yöntemiyle yeniden kalibre edilir.
-`tests/test_search.py::test_asama2_ham_dtw_aynaya_degismez_ddtw_degil`
-tahmincinin sessizce değişmesini engeller.
+**Ölçüm 2 — ground truth (`tools/gt_benchmark --compare-metric`, 12 formasyon):**
+
+| zemin | hybrid | hybrid_central |
+|---|---|---|
+| sentetik, tohum 2026 | 202/288 | 205/288 |
+| sentetik, tohum 7 | 206/288 | 212/288 |
+| **gerçek piyasa** | **206/288** | **193/288** |
+| toplam | 614/864 | 610/864 |
+
+Tek tek hiçbiri anlamlı değil (288 denemede fark için standart hata ~%3,8);
+sentetik zeminler merkezi farkı, en gerçekçi zemin Keogh'u gösteriyor.
+
+**Karar: Keogh–Pazzani kalır.** Ayna simetrisi bir *özellik*; eksikliği
+bir *hata* değil — ileri yönde sorgu ve aday aynı kaymayı yer, eşleştirme
+tutarlıdır. Onu kazanmanın bedeli K-11'in ölçütünde küçük ama sistematik bir
+kayıp, ground truth'ta ise kazanç yok. K-19/K-20/K-21 ilkesi: ölçülmüş, net
+katkısı yok, bağlanmıyor. Olası açıklama: Keogh tahmincisi `x_i`'yi de
+kullanır (merkezi fark onu tamamen atlar), yani daha çok yüksek frekanslı
+şekil bilgisi taşır; gürültü varyansı daha yüksek olsa da ayırt edicilik
+ondan geliyor.
+
+`hybrid_central` metrik olarak durur (`TOLERANCE_THRESHOLDS_BY_METRIC`),
+varsayılan değildir. Bir yan düzeltme bağlandı: mutlak akıl sağlığı tavanı
+artık **çağrının** metriğinden okunur (eskiden aktif metriğin sabitiydi);
+varsayılan metrikte davranış aynı, parmak izi değişmedi.
 
 ---
 
@@ -1072,6 +1099,7 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 21 | Yapısal filtreyi her sorguda uygulamak | (terk edildi) | Kararsız imzada gerçek formasyonları eliyor: duyarlılık %57 → %45 (K-20) |
 | 22 | Zarf filtresini kapısız uygulamak | (terk edildi) | OBO'nun zarf imzası tanımlı ama kararlılığı %41 — dönüş ailesini yazı-turayla elerdi (K-21) |
 | 23 | İki bileşenli zarf imzası (yakınsamasız) | (terk edildi) | Ölü: takoz sorgusunda ilk 50'nin 50'si imzayı zaten taşıyor (K-21) |
+| 24 | Merkezi fark türevi (`hybrid_central`) | (bağlanmadı) | Aynaya simetrik ama AUC'de 108 hücrenin 105'inde geride; ground truth'ta 610/864 vs 614/864 (K-11) |
 
 ---
 

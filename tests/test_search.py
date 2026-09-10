@@ -1538,3 +1538,62 @@ def test_asama2_ham_dtw_aynaya_degismez_ddtw_degil():
 
     x = np.arange(8.0) ** 2
     assert np.allclose(derivative(x), 2 * np.arange(1, 7) - 0.5), "tahminci değiştiyse K-11'i oku"
+
+
+# ---------------------------------------------------------------------------
+# K-11 açık sorusu — merkezi fark: ölçüldü, bağlanmadı
+# ---------------------------------------------------------------------------
+
+
+def test_merkezi_fark_turevi_dogru_ve_zamanda_antisimetrik():
+    """Merkezi fark x = i² için tam 2i verir ve ters çevrilince yalnız işaret değiştirir."""
+    from engine.search.ddtw import derivative_central_batch
+
+    x = np.arange(8.0) ** 2
+    assert np.allclose(derivative_central_batch(x[None])[0], 2 * np.arange(1, 7))
+
+    V = _random_windows(46, 50)
+    assert np.allclose(
+        derivative_central_batch(V[:, ::-1]), -derivative_central_batch(V)[:, ::-1]
+    )
+
+
+def test_hybrid_central_aynaya_degismez():
+    """Aday metriğin tek vaadi buydu ve tutuyor: sorgu+aday aynası aynı mesafe."""
+    from engine.config import SAKOE_CHIBA_RADIUS as R
+    from engine.search.ddtw import stage2_scores
+
+    V = _random_windows(47, 101)
+    q, C = V[0], V[1:]
+    a = stage2_scores(q, C, R, "hybrid_central")
+    b = stage2_scores(q[::-1].copy(), C[:, ::-1].copy(), R, "hybrid_central")
+    assert np.allclose(a, b)
+
+
+def test_varsayilan_metrik_hybrid_kalir():
+    """K-11: merkezi fark ölçüldü ve BAĞLANMADI.
+
+    AUC'de 108 hücrenin 105'inde Keogh daha iyi (fark küçük ama tutarlı);
+    ground truth'ta üç korpusta toplam 614/864 (Keogh) ile 610/864 (merkezi)
+    ayırt edilemez, en gerçekçi zemin (gerçek piyasa) merkezi farkın
+    aleyhine (206 vs 193). Değiştirmeden önce docs/00 K-11'i oku.
+    """
+    from engine.config import STAGE2_METRIC, TOLERANCE_THRESHOLDS_BY_METRIC
+
+    assert STAGE2_METRIC == "hybrid"
+    assert "hybrid_central" in TOLERANCE_THRESHOLDS_BY_METRIC
+
+
+def test_mutlak_tavan_cagrinin_metriginden_okunur():
+    """Tavan çağrının metriğine ait olmalı; eskiden aktif metriğin sabitiydi.
+
+    Merkezi fark hybrid'den ~%8 küçük mesafe verir: hybrid'in tavanını ona
+    uygulamak onu farklı bir seçicilikte ölçmek olurdu.
+    """
+    from engine.config import TOLERANCE_THRESHOLDS_BY_METRIC as T
+
+    engine = SearchEngine.__new__(SearchEngine)
+    null = np.linspace(0.5, 1.0, 5000)  # %1,5 dilimi ~0,51: tavan bağlayıcı olsun
+    for metric in ("hybrid", "hybrid_central"):
+        stats = engine._null_stats(40, null, "flexible", T[metric])
+        assert stats.threshold == pytest.approx(T[metric]["flexible"])
