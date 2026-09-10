@@ -119,6 +119,7 @@ python -m tools.measure_amplitude              # genlik eşiğini korpustan öl�
 | [F4.8](docs/09-yapisal-filtre-ve-istatistik.md) | Yapısal filtre ve istatistik | ✅ Bitti — örneklem artık gerçekten o formasyon |
 | [F4.9](docs/10-formasyon-denetimi.md) | Formasyon denetimi (12 formasyon) | ✅ Bitti — ground truth ölçüm zemini, K-20/K-21 |
 | [F4.10](docs/11-yeniden-olcum.md) | Bulgular yeni motorla yeniden ölçüldü | ✅ **Yeni** — iki dilimde sağ çıkan şekil etkisi yok; köken kaydı |
+| [Rapor](docs/12-oturum-raporu.md) | 24 Ağu – 10 Eyl geliştirme raporu | 64 commit: ne, neden, hangi ölçümle; geri alınan kararlar |
 | [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
 | [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
 | [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti** |
