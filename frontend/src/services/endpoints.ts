@@ -16,6 +16,8 @@ export type ChartResponse = components["schemas"]["ChartResponse"];
 export type FindingsResponse = components["schemas"]["FindingsResponse"];
 export type HealthResponse = components["schemas"]["HealthResponse"];
 export type SessionInfo = components["schemas"]["SessionInfo"];
+export type ChartSource = components["schemas"]["ChartSource"];
+export type SourceInfo = components["schemas"]["SourceInfo"];
 
 export type Mode = SearchRequest["mode"];
 export type Timeframe = SearchRequest["timeframe"];
@@ -50,6 +52,11 @@ export async function getSearchStats(
 
 export async function getTemplates(): Promise<Template[]> {
   const { data } = await apiClient.get<Template[]>("/templates");
+  return data;
+}
+
+export async function getSymbols(timeframe: Timeframe): Promise<string[]> {
+  const { data } = await apiClient.get<string[]>("/symbols", { params: { timeframe } });
   return data;
 }
 

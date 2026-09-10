@@ -104,6 +104,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
               ? errorMessage(createSearch.error, t.workspace.searchFailed, t.errors.network)
               : null
           }
+          lastSource={page.source}
           onSubmit={run}
         />
         <SessionNotice session={session} />

@@ -79,6 +79,7 @@ from engine.search.constraints import (
 )
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
+from engine.search.source import ChartWindow, excluded
 from engine.search.stage1_cosine import prepare_query, top_k
 
 log = logging.getLogger(__name__)
@@ -167,6 +168,9 @@ class SearchResult:
     metric: str = STAGE2_METRIC  # F3 kalibrasyonunda hangi metrikle üretildiği
     stage1_candidates: int = 0
     stage2_candidates: int = 0
+    #: Sorgu gerçek bir grafikten geldiyse, onunla örtüştüğü için dışlanan
+    #: Aşama 1 adayı sayısı (engine/search/source.py).
+    excluded_overlap: int = 0
     null_stats: dict[int, "NullStats"] = field(default_factory=dict)
     #: Sıralı null skor dizileri (uzunluk başına). İnce ayar katmanı (F8)
     #: yüzdelik dilimi yeniden hesaplayabilsin diye taşınır — özet
@@ -408,6 +412,7 @@ class SearchEngine:
         structure_gate: bool = STRUCTURE_STABILITY_GATE,
         envelope_filter: bool = ENVELOPE_FILTER,
         structure_yields: bool = STRUCTURE_YIELDS_TO_ENVELOPE,
+        exclude: ChartWindow | None = None,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
         # ~4-8x büyüktür (K-11, F3 kalibrasyonu).
@@ -478,6 +483,21 @@ class SearchEngine:
             return result
 
         candidates = np.concatenate(blocks)
+
+        # --- Sorgu gerçek bir grafikten geldiyse: kendisi dışlanır --------
+        # Pre-NMS'ten ÖNCE: kopyalar Aşama 2 bütçesini yemesin. Kural
+        # (tarihselde aynı dönem, radarda aynı sembol) source.excluded'da.
+        if exclude is not None:
+            step = TIMEFRAME_MS[timeframe]
+            drop = excluded(
+                candidates["symbol_id"],
+                candidates["end_time"] - (candidates["length"].astype(np.int64) - 1) * step,
+                candidates["end_time"],
+                exclude,
+                same_period=mode == "historical",
+            )
+            result.excluded_overlap = int(drop.sum())
+            candidates = candidates[~drop]
         result.stage1_candidates = candidates.size
 
         # --- Pre-NMS (gevşek) --------------------------------------------

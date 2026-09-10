@@ -101,6 +101,7 @@ def _mock_result(n: int):
     result.structure_signature = None
     result.envelope_signature = None
     result.null_dist = {}
+    result.excluded_overlap = 0
     return result
 
 
@@ -404,6 +405,123 @@ def test_stats_use_the_matches_the_user_sees():
         events = run.call_args[0][0]
         assert events.size == 4
         assert list(events["t0"]) == [123] * 4  # eşleşmelerin bitiş barı
+
+
+# ---------------------------------------------------------------------------
+# Gerçek grafikten sorgu
+# ---------------------------------------------------------------------------
+
+_STEP_4H = 14_400_000
+
+
+def _source_store(n_bars: int = 300) -> BarStore:
+    x = np.linspace(0, 6 * np.pi, n_bars)
+    close = 30_000.0 * np.exp(0.1 * np.sin(x))
+    return BarStore.from_arrays(
+        {
+            7: {
+                "close": close,
+                "high": close * 1.01,
+                "low": close * 0.99,
+                "open_time": 1_600_000_000_000 + np.arange(n_bars, dtype=np.int64) * _STEP_4H,
+                "symbol": "BTCUSDT",
+            }
+        }
+    )
+
+
+def test_grafik_kaynagi_sunucuda_normalize_edilir_ve_kendini_dislar():
+    from engine.normalize.pipeline import normalize_window
+
+    store = _source_store()
+    with patch("engine.api.main.get_engine") as mock_engine, patch(
+        "engine.api.main.get_store", return_value=store
+    ):
+        engine = mock_engine.return_value
+        engine.symbol_id_of.return_value = 7
+        engine.symbol_name.return_value = "BTCUSDT"
+        result = _mock_result(2)
+        result.excluded_overlap = 5
+        engine.search.return_value = result
+        engine.compute_warp_paths.return_value = []
+        response = client.post(
+            "/api/search", json={"source": {"symbol": " btcusdt ", "length": 64}}
+        )
+
+    assert response.status_code == 200, response.text
+    engine.symbol_id_of.assert_called_with("BTCUSDT", "4h")
+
+    # Sorgu, matris pencereleriyle aynı normalizasyondan (K-02) — son 64 bar.
+    query = engine.search.call_args[0][0]
+    np.testing.assert_allclose(query, normalize_window(store.close[-64:]))
+    # Motor, kendisiyle eşleşmemesi için pencereyi dışlama olarak alır.
+    window = engine.search.call_args.kwargs["exclude"]
+    assert (window.symbol_id, window.start_idx, window.end_idx) == (7, 236, 299)
+
+    source = response.json()["source"]
+    assert source["symbol"] == "BTCUSDT"
+    assert source["length"] == 64
+    assert source["end_time"] == int(store.open_time[-1])
+    assert source["start_time"] == int(store.open_time[-64])
+    assert len(source["query_vector"]) == N_POINTS
+    assert source["excluded_overlap"] == 5
+
+    # Sayfalama kaynağı önbellekten taşır.
+    page = client.get(f"/api/search/{response.json()['search_id']}?offset=0&limit=1")
+    assert page.json()["source"] == source
+
+
+def test_grafik_kaynagi_hatalari_istenen_dilde():
+    with patch("engine.api.main.get_engine") as mock_engine, patch(
+        "engine.api.main.get_store", return_value=_source_store(n_bars=50)
+    ):
+        mock_engine.return_value.symbol_id_of.return_value = None
+        unknown = client.post(
+            "/api/search",
+            json={"source": {"symbol": "NOPEUSDT"}},
+            headers={"Accept-Language": "en"},
+        )
+        mock_engine.return_value.symbol_id_of.return_value = 7
+        short = client.post(
+            "/api/search",
+            json={"source": {"symbol": "BTCUSDT", "length": 64}},
+            headers={"Accept-Language": "tr"},
+        )
+        mock_engine.return_value.search.assert_not_called()
+
+    assert unknown.status_code == 400
+    assert unknown.json()["detail"] == "No such symbol in this timeframe: NOPEUSDT"
+    assert short.status_code == 400
+    assert short.json()["detail"] == "Seçilen noktadan geriye 64 bar yok"
+
+    # Uzunluk sınırı şemada: motor hiç çağrılmaz.
+    too_long = client.post("/api/search", json={"source": {"symbol": "BTCUSDT", "length": 5000}})
+    assert too_long.status_code == 422
+
+
+def test_sembol_listesi_zaman_dilimi_basina():
+    with patch("engine.api.main.get_engine") as mock_engine:
+        mock_engine.return_value.symbols_for.return_value = {2: "ETHUSDT", 1: "BTCUSDT"}
+        response = client.get("/api/symbols?timeframe=1d")
+    assert response.json() == ["BTCUSDT", "ETHUSDT"]
+    mock_engine.return_value.symbols_for.assert_called_with("1d")
+
+
+def test_cizim_ya_da_sablon_varsa_kaynak_yok_sayilir():
+    """Arayüz bir anda tek kaynak yollar; ikisi birden gelirse şekil kazanır."""
+    with patch("engine.api.main.get_engine") as mock_engine, patch(
+        "engine.api.main.get_store"
+    ) as store:
+        mock_engine.return_value.search.return_value = _mock_result(1)
+        mock_engine.return_value.compute_warp_paths.return_value = []
+        response = client.post(
+            "/api/search",
+            json={"points": _query_points(), "source": {"symbol": "BTCUSDT"}},
+        )
+    assert response.status_code == 200
+    assert response.json()["source"] is None
+    assert mock_engine.return_value.search.call_args.kwargs["exclude"] is None
+    store.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

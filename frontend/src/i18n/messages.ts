@@ -108,6 +108,27 @@ export const tr = {
     scanning: "Taranıyor…",
     drawToSearch: "Aramak için bir şekil çizin.",
     pickToSearch: "Aramak için kütüphaneden bir formasyon seçin.",
+    chart: "Grafik",
+    pickChartToSearch: "Aramak için bir sembol seçin.",
+  },
+  chartSource: {
+    symbol: "Sembol",
+    symbolHint: (n: string) => `${n} sembol — evren zaman dilimi başınadır.`,
+    unknownSymbol: "Bu zaman diliminde böyle bir sembol yok.",
+    length: "Parça uzunluğu",
+    lengthValue: (n: number) => `${n} bar`,
+    lengthHint:
+      "Şekil ölçekten bağımsız aranır: 64 barlık bir parça 24 ya da 100 barlık pencerelerle de eşleşebilir.",
+    end: "Bitiş tarihi",
+    endHint: "Boş bırakılırsa son kapanmış bar. Geçmiş bir tarih, grafiğin o gün neye benzediğini sorar.",
+    endLive: "Radar'da parça daima son kapanmış barda biter.",
+    clearEnd: "Son bar",
+    read: "Motorun okuduğu parça",
+    range: (symbol: string, from: string, to: string, n: number) =>
+      `${symbol} · ${from} – ${to} · ${n} bar`,
+    excludedHistorical: (n: string) =>
+      `${n} aday dışlandı: bu dönemle örtüşen pencereler, hangi sembolde olursa olsun. Aynı piyasa hareketi tarihsel bir benzer değildir.`,
+    excludedLive: (n: string) => `${n} aday dışlandı: sorgunun kendi penceresi ve kaymış kopyaları.`,
   },
   drawpad: {
     placeholderTitle: "Formasyonu buraya çizin",
@@ -132,7 +153,7 @@ export const tr = {
     trendLines: "Trend çizgileri:",
     limitedByTrend: " — sonuçlar bu düzenle sınırlı",
     unstableStart:
-      "Tepe/dip okuması kararsız: aynı şekli biraz farklı çizerseniz farklı okunabilir. Üçgen, takoz ve flama gibi formasyonları tanımlayan şey tepe sayısı değil trend çizgilerinin eğimidir.",
+      "Tepe/dip okuması kararsız: aynı şeklin biraz farklı bir hâli farklı okunabilir. Üçgen, takoz ve flama gibi formasyonları tanımlayan şey tepe sayısı değil trend çizgilerinin eğimidir.",
     unstableByTrend:
       "Bu yüzden eleme tepe/dip düzenine göre değil, yukarıdaki trend çizgilerine göre yapıldı",
     unstableNoNarrow: "Bu yüzden sonuçlar bu okumaya göre daraltılmadı",
@@ -399,6 +420,27 @@ export const en: Messages = {
     scanning: "Scanning…",
     drawToSearch: "Draw a shape to search.",
     pickToSearch: "Pick a pattern from the library to search.",
+    chart: "Chart",
+    pickChartToSearch: "Pick a symbol to search.",
+  },
+  chartSource: {
+    symbol: "Symbol",
+    symbolHint: (n: string) => `${n} symbols — the universe is per timeframe.`,
+    unknownSymbol: "No such symbol in this timeframe.",
+    length: "Segment length",
+    lengthValue: (n: number) => `${n} bars`,
+    lengthHint:
+      "Shapes are searched scale-free: a 64-bar segment can also match 24- or 100-bar windows.",
+    end: "End date",
+    endHint: "Leave empty for the last closed bar. A past date asks what the chart looked like that day.",
+    endLive: "In Radar the segment always ends at the last closed bar.",
+    clearEnd: "Last bar",
+    read: "Segment the engine read",
+    range: (symbol: string, from: string, to: string, n: number) =>
+      `${symbol} · ${from} – ${to} · ${n} bars`,
+    excludedHistorical: (n: string) =>
+      `${n} candidates excluded: windows overlapping this period, in any symbol. The same market move is not a historical analog.`,
+    excludedLive: (n: string) => `${n} candidates excluded: the query's own window and its shifted copies.`,
   },
   drawpad: {
     placeholderTitle: "Draw the pattern here",
@@ -423,7 +465,7 @@ export const en: Messages = {
     trendLines: "Trend lines:",
     limitedByTrend: " — results are limited to this layout",
     unstableStart:
-      "The peak/trough reading is unstable: drawing the same shape slightly differently could read differently. Triangles, wedges and pennants are defined by the slope of their trend lines, not by a peak count.",
+      "The peak/trough reading is unstable: a slightly different version of the same shape could read differently. Triangles, wedges and pennants are defined by the slope of their trend lines, not by a peak count.",
     unstableByTrend:
       "So results were narrowed by the trend lines above, not by the peak/trough pattern",
     unstableNoNarrow: "So results were not narrowed by this reading",

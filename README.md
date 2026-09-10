@@ -21,7 +21,7 @@
 
 ## What it does
 
-You sketch a pattern with your mouse — or pick one of 14 classic formations — and GraphFlow searches **11.6 million** historical windows of real crypto price data for places where the market drew the same shape. In historical mode it then reports what happened *after* those formations, next to a baseline of what the market was doing anyway.
+You sketch a pattern with your mouse — pick one of 14 classic formations, or point at a piece of a real chart (*"what do BTCUSDT's last 64 bars look like?"*) — and GraphFlow searches **11.6 million** historical windows of real crypto price data for places where the market drew the same shape. In historical mode it then reports what happened *after* those formations, next to a baseline of what the market was doing anyway.
 
 | Mode | Question it answers |
 |---|---|
@@ -99,7 +99,7 @@ To try it quickly on a subset, add `--limit-symbols 50` to the download step. Th
 
 The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
 
-1. **Draw** a shape on the canvas — left to right; going back overwrites — or open **Library** and pick a formation.
+1. **Draw** a shape on the canvas — left to right; going back overwrites — or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. A chart segment is cut and normalized on the server exactly like the search windows; windows overlapping it are excluded — in Backtest across *all* symbols, since the same market move in another coin is not a historical analog.
 2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a percentile of the query's own null distribution, not a fake "% similarity".
 3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
 4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the shadow baseline and the edge with a confidence interval. Small samples are flagged instead of shown as headline numbers. Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan — a fan without a control group would credit the pattern with whatever the market was doing anyway.

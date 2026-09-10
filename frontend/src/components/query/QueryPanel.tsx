@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Library, Loader2, Pencil, Search } from "lucide-react";
+import { CandlestickChart, Library, Loader2, Pencil, Search } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +10,11 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { useDraw } from "@/hooks/useDraw";
+import { useSymbols } from "@/hooks/useGraphFlowApi";
 import { useI18n } from "@/i18n/LanguageProvider";
 import {
   type SearchRequest,
+  type SourceInfo,
   type Template,
   type Timeframe,
   type Tolerance,
@@ -20,6 +22,12 @@ import {
 import { formatAmplitude } from "@/utils/formatters";
 import { isFlat } from "@/utils/shape";
 
+import {
+  ChartSourcePicker,
+  SOURCE_DEFAULT_BARS,
+  endOfDayMs,
+  type ChartSourceValue,
+} from "./ChartSourcePicker";
 import { DrawPad } from "./DrawPad";
 import { ShapeThumb } from "./ShapeThumb";
 import { TemplatePicker } from "./TemplatePicker";
@@ -29,6 +37,8 @@ interface QueryPanelProps {
   submitLabel: string;
   isPending: boolean;
   errorMessage?: string | null;
+  /** Son aramanın grafik parçası (varsa) — motorun okuduğu şekil. */
+  lastSource?: SourceInfo | null;
   onSubmit: (payload: SearchRequest) => void;
 }
 
@@ -37,9 +47,15 @@ export function QueryPanel({
   submitLabel,
   isPending,
   errorMessage,
+  lastSource = null,
   onSubmit,
 }: QueryPanelProps) {
-  const [source, setSource] = useState<"draw" | "template">("draw");
+  const [source, setSource] = useState<"draw" | "template" | "chart">("draw");
+  const [chart, setChart] = useState<ChartSourceValue>({
+    symbol: "",
+    length: SOURCE_DEFAULT_BARS,
+    endDate: "",
+  });
   const [template, setTemplate] = useState<Template | null>(null);
   const [timeframe, setTimeframe] = useState<Timeframe>("4h");
   const [tolerance, setTolerance] = useState<Tolerance>("medium");
@@ -47,6 +63,7 @@ export function QueryPanel({
 
   const draw = useDraw();
   const { t } = useI18n();
+  const symbols = useSymbols(timeframe, source === "chart");
 
   const timeframes = [
     { value: "4h" as Timeframe, label: t.query.tf4h, hint: t.query.tf4hHint },
@@ -61,11 +78,19 @@ export function QueryPanel({
   const sources = [
     { value: "draw" as const, label: t.query.draw, icon: Pencil },
     { value: "template" as const, label: t.query.library, icon: Library },
+    { value: "chart" as const, label: t.query.chart, icon: CandlestickChart },
   ];
 
   const usingTemplate = source === "template" && template !== null;
   const drawnFlat = source === "draw" && draw.series.length > 1 && isFlat(draw.series);
-  const ready = usingTemplate || (source === "draw" && draw.series.length > 1 && !drawnFlat);
+  // Liste yüklenmediyse sunucu doğrular; yüklendiyse bilinmeyen sembol
+  // istek atmadan söylenir.
+  const chartSymbol = chart.symbol.trim();
+  const chartUnknown =
+    chartSymbol.length > 0 && Boolean(symbols.data) && !symbols.data!.includes(chartSymbol);
+  const usingChart = source === "chart" && chartSymbol.length > 0 && !chartUnknown;
+  const ready =
+    usingTemplate || usingChart || (source === "draw" && draw.series.length > 1 && !drawnFlat);
 
   const preview = usingTemplate ? template.vector : draw.series;
 
@@ -80,8 +105,16 @@ export function QueryPanel({
       window_lengths: [24, 40, 64, 100],
       // Ham (x, y) noktaları gider; 32'ye indirgeme, aliasing filtresi ve
       // z-score sunucuda (K-02). İstemci kendi ızgarasını dayatmaz.
-      points: usingTemplate ? null : draw.queryPoints,
+      points: source === "draw" ? draw.queryPoints : null,
       template_id: usingTemplate ? template.id : null,
+      // Parçayı sunucu keser ve normalize eder (engine/search/source.py).
+      source: usingChart
+        ? {
+            symbol: chartSymbol,
+            length: chart.length,
+            end_time: mode === "historical" ? endOfDayMs(chart.endDate) : null,
+          }
+        : null,
     });
   };
 
@@ -105,7 +138,7 @@ export function QueryPanel({
               if (value === "draw") setTemplate(null);
             }}
             size="sm"
-            className="w-[168px]"
+            className="w-[240px]"
             ariaLabel={t.query.sourceAria}
           />
         </CardHeader>
@@ -122,8 +155,17 @@ export function QueryPanel({
                 setTemplate(null);
               }}
             />
-          ) : (
+          ) : source === "template" ? (
             <TemplatePicker selectedId={template?.id ?? null} onSelect={handleTemplateSelect} />
+          ) : (
+            <ChartSourcePicker
+              mode={mode}
+              value={chart}
+              onChange={setChart}
+              symbols={symbols.data}
+              unknown={chartUnknown}
+              lastSource={lastSource}
+            />
           )}
 
           {drawnFlat && (
@@ -192,7 +234,11 @@ export function QueryPanel({
 
           {!ready && !isPending && (
             <p className="text-center text-[11px] text-muted-foreground">
-              {source === "draw" ? t.query.drawToSearch : t.query.pickToSearch}
+              {source === "draw"
+                ? t.query.drawToSearch
+                : source === "template"
+                  ? t.query.pickToSearch
+                  : t.query.pickChartToSearch}
             </p>
           )}
 

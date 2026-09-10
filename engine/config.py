@@ -56,6 +56,15 @@ WINDOW_LENGTHS: Final[tuple[int, ...]] = (24, 40, 64, 100)
 #: Kayan pencere adımı. Stride 1'de komşu pencereler ~%99 aynı olur.
 STRIDE: Final[int] = 3
 
+#: Gerçek grafikten sorgu (engine/search/source.py): kullanıcının seçtiği
+#: parçanın bar sayısı. Alt sınır en kısa matris penceresi — daha kısa bir
+#: parça 32 noktaya çıkarken şekil değil ara değerleme taşır. Üst sınır en
+#: uzun pencerenin iki katı; şekil ölçekten bağımsız aranır (K-02), daha
+#: uzun bir parça 32 noktada ayrıntısını kaybeder.
+SOURCE_MIN_BARS: Final[int] = 24
+SOURCE_MAX_BARS: Final[int] = 200
+SOURCE_DEFAULT_BARS: Final[int] = 64
+
 #: Radar popülasyonu (K-15): her sembolün son penceresi — ama yalnız o
 #: pencere matrisin en yeni penceresine bu kadar bar yakınsa. Izgara 0'dan
 #: STRIDE ile hizalandığı için güncel bir sembolün son penceresi en fazla

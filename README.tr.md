@@ -21,7 +21,7 @@
 
 ## Ne yapar
 
-Fareyle bir desen çizersiniz — ya da 14 klasik formasyondan birini seçersiniz — ve GraphFlow gerçek kripto fiyat verisinin **11,6 milyon** tarihsel penceresinde piyasanın aynı şekli çizdiği yerleri arar. Tarihsel modda o formasyonlardan *sonra* ne olduğunu, piyasanın zaten yaptığı şeyin baseline'ı ile yan yana raporlar.
+Fareyle bir desen çizersiniz — 14 klasik formasyondan birini seçersiniz ya da gerçek bir grafiğin bir parçasını gösterirsiniz (*"BTCUSDT'nin son 64 barı neye benziyor?"*) — ve GraphFlow gerçek kripto fiyat verisinin **11,6 milyon** tarihsel penceresinde piyasanın aynı şekli çizdiği yerleri arar. Tarihsel modda o formasyonlardan *sonra* ne olduğunu, piyasanın zaten yaptığı şeyin baseline'ı ile yan yana raporlar.
 
 | Mod | Yanıtladığı soru |
 |---|---|
@@ -99,7 +99,7 @@ Hızlıca bir alt kümeyle denemek için indirme adımına `--limit-symbols 50` 
 
 Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle değiştirilir (ilk ziyarette tarayıcı dilini izler).
 
-1. **Çiz** sekmesinde kanvasa bir şekil çizin — soldan sağa; geri dönmek o bölgenin üstüne yazar — ya da **Kütüphane**'den bir formasyon seçin.
+1. **Çiz** sekmesinde kanvasa bir şekil çizin — soldan sağa; geri dönmek o bölgenin üstüne yazar — ya da **Kütüphane**'den bir formasyon seçin, ya da **Grafik** sekmesinde bir sembol, parça uzunluğu ve (Backtest'te) bitiş tarihi seçin. Grafik parçası sunucuda arama pencereleriyle birebir aynı biçimde kesilip normalize edilir; onunla örtüşen pencereler dışlanır — Backtest'te *tüm* sembollerde, çünkü başka bir coindeki aynı piyasa hareketi tarihsel bir benzer değildir.
 2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
 4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, gölge baseline'ı ve güven aralığıyla edge'i gösterir. Küçük örneklemler başlık sayısı olarak değil, uyarıyla gösterilir. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını gösterir (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) — gölge örneklemin fanıyla aynı eksende. Kontrol grubu olmayan bir fan, piyasanın o dönemde zaten yaptığını formasyonun eseri sayar.

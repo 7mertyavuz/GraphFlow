@@ -36,7 +36,7 @@ The API is expected at `http://localhost:8000/api`; override with `NEXT_PUBLIC_A
 src/app/           pages: / · /radar · /backtest · /bulgular (findings)
 src/components/
   layout/          header (live data-freshness badge), footer
-  query/           DrawPad, TemplatePicker, ShapeThumb, QueryPanel
+  query/           DrawPad, TemplatePicker, ChartSourcePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
   outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
   workspace/       SearchWorkspace — shared body of Radar and Backtest
@@ -102,7 +102,7 @@ API `http://localhost:8000/api` adresinde beklenir; `NEXT_PUBLIC_API_BASE_URL` i
 src/app/           sayfalar: / · /radar · /backtest · /bulgular
 src/components/
   layout/          başlık (canlı veri tazeliği rozeti), altbilgi
-  query/           DrawPad, TemplatePicker, ShapeThumb, QueryPanel
+  query/           DrawPad, TemplatePicker, ChartSourcePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
   outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
   workspace/       SearchWorkspace — Radar ve Backtest'in ortak gövdesi

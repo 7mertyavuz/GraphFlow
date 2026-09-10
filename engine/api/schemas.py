@@ -16,6 +16,8 @@ from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, Field
 
+from engine.config import SOURCE_DEFAULT_BARS, SOURCE_MAX_BARS, SOURCE_MIN_BARS
+
 Timeframe = Literal["4h", "1d"]
 Tolerance = Literal["strict", "medium", "flexible"]
 Mode = Literal["historical", "live"]
@@ -32,6 +34,30 @@ DrawingSeries = Annotated[list[float], Field(max_length=MAX_DRAWING_POINTS)]
 DrawingPairs = Annotated[list[list[float]], Field(max_length=MAX_DRAWING_POINTS)]
 
 
+class ChartSource(BaseModel):
+    """Gerçek bir grafiğin parçası sorgu olarak (engine/search/source.py)."""
+
+    symbol: str = Field(min_length=1, max_length=40)
+    #: Parçanın son barının zamanı (ms, bar açılışı). Yoksa son kapanmış bar.
+    end_time: int | None = Field(default=None, ge=0)
+    length: int = Field(default=SOURCE_DEFAULT_BARS, ge=SOURCE_MIN_BARS, le=SOURCE_MAX_BARS)
+
+
+class SourceInfo(BaseModel):
+    """Sorgunun hangi parçadan kurulduğu ve motorun ondan ne okuduğu."""
+
+    symbol: str
+    start_time: int
+    end_time: int
+    length: int
+    #: Parçanın normalize hâli (32 nokta, z-score) — arayüz motorun gördüğü
+    #: şekli kendi normalizasyonunu kurmadan çizebilsin diye.
+    query_vector: list[float]
+    #: Sorguyla örtüştüğü için dışlanan Aşama 1 adayı. Tarihsel modda aynı
+    #: dönem tüm sembollerde, radarda yalnız sorgu sembolünde dışlanır.
+    excluded_overlap: int
+
+
 class SearchRequest(BaseModel):
     #: Serbest çizim. İki biçim kabul edilir:
     #:
@@ -43,6 +69,7 @@ class SearchRequest(BaseModel):
     #: normalizasyon otoritesi motordur (K-02/K-04).
     points: DrawingSeries | DrawingPairs | None = None
     template_id: str | None = None
+    source: ChartSource | None = None
     mode: Mode = "historical"
     timeframe: Timeframe = "4h"
     window_lengths: list[int] = Field(default_factory=lambda: [24, 40, 64, 100])
@@ -105,6 +132,8 @@ class SearchResponse(BaseModel):
     #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır;
     #: kesinmiş gibi göstermek fazla iddia olur.
     structure_stable: bool = True
+    #: Sorgu gerçek bir grafikten kurulduysa: hangi parça ve ne dışlandı.
+    source: SourceInfo | None = None
     results: list[MatchResponse]
     session: SessionInfo
 

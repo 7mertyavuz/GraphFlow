@@ -130,6 +130,33 @@ MESSAGES: dict[str, dict[str, str]] = {
         "tr": "Canlı radar sonuçlarının ileri penceresi yok; istatistik için tarihsel mod kullanın",
         "en": "Live radar results have no forward window yet; use historical mode for statistics",
     },
+    # --- gerçek grafikten sorgu (engine/search/source.py) --------------------
+    "source.unknown_symbol": {
+        "tr": "Bu zaman diliminde böyle bir sembol yok: {symbol}",
+        "en": "No such symbol in this timeframe: {symbol}",
+    },
+    "source.not_enough_bars": {
+        "tr": "Seçilen noktadan geriye {length} bar yok",
+        "en": "There are not {length} bars before the selected point",
+    },
+    "source.price_jump": {
+        "tr": (
+            "Parçada fiyat sıçraması var (redenominasyon ya da ticker yeniden "
+            "kullanımı); bu bir şekil değil birim değişikliği"
+        ),
+        "en": (
+            "The segment contains a price jump (redenomination or ticker reuse); "
+            "that is a change of unit, not a shape"
+        ),
+    },
+    "source.flat": {
+        "tr": "Parça düz: şekil taşımayan bir sorgu aranamaz (σ ≈ 0)",
+        "en": "The segment is flat: a query without shape cannot be searched (σ ≈ 0)",
+    },
+    "source.bad_length": {
+        "tr": "Parça uzunluğu {min}–{max} bar olmalı",
+        "en": "Segment length must be {min}–{max} bars",
+    },
     # --- oturum (çoklu karşılaştırma) ---------------------------------------
     "session.warning": {
         "tr": (

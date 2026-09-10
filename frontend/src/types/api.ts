@@ -72,6 +72,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/symbols": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Symbols
+         * @description Zaman diliminin sembol evreni — grafikten sorgu için.
+         *
+         *     ``symbol_id`` uzayı zaman dilimi başınadır; liste de öyle. Delist olmuş
+         *     semboller de listededir: geçmiş bir tarihteki parçaları hâlâ sorulabilir.
+         */
+        get: operations["get_symbols_api_symbols_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -170,6 +193,21 @@ export interface components {
             warped_overlay: components["schemas"]["OverlayPoint"][];
             /** Warp Amount */
             warp_amount: number | null;
+        };
+        /**
+         * ChartSource
+         * @description Gerçek bir grafiğin parçası sorgu olarak (engine/search/source.py).
+         */
+        ChartSource: {
+            /** Symbol */
+            symbol: string;
+            /** End Time */
+            end_time?: number | null;
+            /**
+             * Length
+             * @default 64
+             */
+            length: number;
         };
         /**
          * FanBands
@@ -405,6 +443,7 @@ export interface components {
             points?: number[] | number[][] | null;
             /** Template Id */
             template_id?: string | null;
+            source?: components["schemas"]["ChartSource"] | null;
             /**
              * Mode
              * @default historical
@@ -477,6 +516,7 @@ export interface components {
              * @default true
              */
             structure_stable: boolean;
+            source?: components["schemas"]["SourceInfo"] | null;
             /** Results */
             results: components["schemas"]["MatchResponse"][];
             session: components["schemas"]["SessionInfo"];
@@ -491,6 +531,24 @@ export interface components {
             adjusted_alpha: number;
             /** Warning Text */
             warning_text?: string | null;
+        };
+        /**
+         * SourceInfo
+         * @description Sorgunun hangi parçadan kurulduğu ve motorun ondan ne okuduğu.
+         */
+        SourceInfo: {
+            /** Symbol */
+            symbol: string;
+            /** Start Time */
+            start_time: number;
+            /** End Time */
+            end_time: number;
+            /** Length */
+            length: number;
+            /** Query Vector */
+            query_vector: number[];
+            /** Excluded Overlap */
+            excluded_overlap: number;
         };
         /**
          * StatEnvelope
@@ -679,6 +737,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OutcomeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_symbols_api_symbols_get: {
+        parameters: {
+            query?: {
+                timeframe?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Validation Error */

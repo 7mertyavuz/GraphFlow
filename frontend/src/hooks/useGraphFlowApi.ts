@@ -15,11 +15,13 @@ import {
   getHealth,
   getSearch,
   getSearchStats,
+  getSymbols,
   getTemplates,
   type Direction,
   type Match,
   type SearchRequest,
   type SearchResponse,
+  type Timeframe,
 } from "@/services/endpoints";
 import { useI18n } from "@/i18n/LanguageProvider";
 
@@ -37,6 +39,16 @@ export function useTemplates() {
     queryKey: ["templates", lang],
     queryFn: getTemplates,
     staleTime: Infinity, // şablon kütüphanesi sürüm başına sabittir
+  });
+}
+
+/** Zaman diliminin sembol evreni — grafikten sorgu için (id uzayı tf başına). */
+export function useSymbols(timeframe: Timeframe, enabled = true) {
+  return useQuery({
+    queryKey: ["symbols", timeframe],
+    queryFn: () => getSymbols(timeframe),
+    enabled,
+    staleTime: 10 * 60_000,
   });
 }
 
@@ -106,6 +118,7 @@ export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
     structureStable: head?.structure_stable ?? true,
     envelopeRead: head?.envelope_read ?? null,
     envelopeFiltered: head?.envelope_filtered ?? false,
+    source: head?.source ?? null,
     discriminative: head?.discriminative ?? true,
     staleWarning: head?.stale_warning ?? false,
     dataAsOf: head?.data_as_of ?? 0,

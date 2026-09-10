@@ -584,7 +584,27 @@ Bkz. [K-08](00-tasarim-kararlari.md#k-08--sayfalama-12li-grid-ve-cachelenmiş-s�
 }
 ```
 
-`points` veya `template_id`'den **biri** verilir.
+`points`, `template_id` veya `source`'tan **biri** verilir.
+
+**Gerçek grafikten sorgu (`source`).** `{"symbol": "BTCUSDT", "length": 64,
+"end_time": null}` — parça, sembolün `end_time`'da (yoksa son kapanmış barda)
+biten `length` barıdır (`SOURCE_MIN_BARS`–`SOURCE_MAX_BARS`). Sunucuda matris
+pencereleriyle aynı `normalize_window` yolundan geçer (`engine/search/source.py`).
+Parçada fiyat sıçraması varsa istek reddedilir.
+
+Parça matriste de bulunduğu için motor onunla örtüşen adayları Aşama 1'den
+sonra, pre-NMS'ten önce dışlar:
+
+- **historical:** sorgu penceresiyle zamanda örtüşen her pencere, hangi
+  sembolde olursa olsun — aynı dönemde başka bir coinin aynı hareketi
+  tarihsel bir benzer değil, aynı piyasa olayıdır (K-09'un kesitsel
+  karşılığı, K-12).
+- **live:** yalnız sorgu sembolünün örtüşen pencereleri — Radar'ın sorusu
+  zaten "şu an ne buna benziyor".
+
+Yanıtta `source` alanı parçanın zaman aralığını, normalize vektörünü ve
+dışlanan aday sayısını (`excluded_overlap`) taşır. Sembol evreni
+`GET /api/symbols?timeframe=` ile alınır.
 
 **Yanıt:**
 

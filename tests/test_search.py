@@ -19,6 +19,7 @@ from engine.config import (
     PRE_NMS_IOU,
     SAKOE_CHIBA_RADIUS,
     STAGE1_TOPK,
+    TIMEFRAME_MS,
     TOLERANCE_THRESHOLDS,
     TOLERANCE_THRESHOLDS_BY_METRIC,
 )
@@ -1625,6 +1626,64 @@ def test_yapisal_filtre_zarf_devredeyken_cekilir(obo_dataset):
     # Dönüş ailesinde zarf kapısı kapalı → yapısal filtre yerinde kalır.
     obo = engine.search(_canonical("head_and_shoulders"), timeframe=TF, tolerance="flexible", limit=12)
     assert obo.structure_filtered is True
+
+
+# ---------------------------------------------------------------------------
+# Gerçek grafikten sorgu — kendisiyle eşleşme dışlanır (engine/search/source.py)
+# ---------------------------------------------------------------------------
+
+
+def _source_window(root, engine: SearchEngine, truth):
+    from engine.outcome.bars import BarStore
+    from engine.search.source import chart_window
+
+    inj = truth[0]
+    ids = {name: sid for sid, name in engine.symbols_for(TF).items()}
+    store = BarStore.from_klines([inj.symbol], TF, ids, root / "klines")
+    sid = ids[inj.symbol]
+    end_time = int(store.open_time[store.offset[sid] + inj.end])
+    return chart_window(store, sid, length=inj.length, end_time=end_time)
+
+
+def _overlaps(match, window, step: int) -> bool:
+    start = match.end_time - (match.window_length - 1) * step
+    return match.end_time >= window.start_time and start <= window.end_time
+
+
+def test_grafik_sorgusu_dislanmazsa_kendini_bulur(obo_dataset):
+    """Sorunun kanıtı: dışlama olmadan sorgu kendi penceresini (ya da bir-iki
+    bar kaymış kopyasını) ilk sayfada döndürür."""
+    root, truth = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    window = _source_window(root, engine, truth)
+    step = TIMEFRAME_MS[TF]
+
+    naive = engine.search(window.vector, timeframe=TF, tolerance="flexible", limit=12)
+    assert any(
+        m.symbol_id == window.symbol_id and _overlaps(m, window, step) for m in naive.results
+    )
+
+
+@pytest.mark.parametrize("mode", ["historical", "live"])
+def test_grafik_sorgusu_kendisini_ve_ayni_donemi_dislar(obo_dataset, mode):
+    root, truth = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    window = _source_window(root, engine, truth)
+    step = TIMEFRAME_MS[TF]
+
+    result = engine.search(
+        window.vector, mode=mode, timeframe=TF, tolerance="flexible", limit=48, exclude=window
+    )
+    for m in result.results:
+        if mode == "historical":
+            # Tarihselde aynı dönem hiçbir sembolde benzer sayılmaz.
+            assert not _overlaps(m, window, step)
+        else:
+            assert not (m.symbol_id == window.symbol_id and _overlaps(m, window, step))
+    if mode == "historical":
+        assert result.excluded_overlap > 0
+        # Aradığı şey hâlâ bulunuyor: diğer enjekte OBO'lar.
+        assert _hits(result, truth[1:])
 
 
 def test_radar_delist_sembolun_eski_son_penceresini_almaz(tmp_path):

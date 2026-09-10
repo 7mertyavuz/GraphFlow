@@ -54,6 +54,8 @@ from engine.config import (
     REFINE_TOP_N,
     SEARCH_CACHE_MATCHES,
     SEARCH_RATE_LIMIT,
+    SOURCE_MAX_BARS,
+    SOURCE_MIN_BARS,
     TIMEFRAME_MS,
     WARP_PATH_TOP_N,
     WINDOW_LENGTHS,
@@ -66,6 +68,7 @@ from engine.outcome.shadow import ShadowPool
 from engine.outcome.triple_barrier import EVENT_DTYPE
 from engine.search.engine import SearchEngine
 from engine.search.refine import refine_matches
+from engine.search.source import ChartWindow, SourceError, chart_window
 from engine.templates.loader import load_all as load_all_templates
 
 log = logging.getLogger(__name__)
@@ -382,7 +385,40 @@ def resolve_query(request: SearchRequest) -> np.ndarray:
             )
         return vector
 
-    raise HTTPException(status_code=400, detail="template_id veya points zorunlu")
+    raise HTTPException(status_code=400, detail="template_id, points veya source zorunlu")
+
+
+def resolve_source(request: SearchRequest, lang: str = "tr") -> ChartWindow:
+    """``source`` → sorgunun kurulduğu gerçek grafik parçası.
+
+    Parça matris pencereleriyle aynı normalizasyondan geçer
+    (engine/search/source.py); motor, dönen pencereyi aramada kendisiyle
+    eşleşmemesi için dışlama bilgisi olarak da kullanır.
+    """
+    src = request.source
+    assert src is not None
+    symbol = src.symbol.strip().upper()
+    kwargs = {"symbol": symbol, "length": src.length, "min": SOURCE_MIN_BARS, "max": SOURCE_MAX_BARS}
+    symbol_id = get_engine().symbol_id_of(symbol, request.timeframe)
+    if symbol_id is None:
+        raise HTTPException(status_code=400, detail=t("source.unknown_symbol", lang, **kwargs))  # type: ignore[arg-type]
+    try:
+        return chart_window(get_store(request.timeframe), symbol_id, src.length, src.end_time)
+    except SourceError as err:
+        raise HTTPException(
+            status_code=400, detail=t(f"source.{err.code}", lang, **kwargs)  # type: ignore[arg-type]
+        ) from None
+
+
+def source_payload(window: ChartWindow, timeframe: str, excluded_overlap: int) -> dict[str, Any]:
+    return {
+        "symbol": get_engine().symbol_name(window.symbol_id, timeframe),
+        "start_time": window.start_time,
+        "end_time": window.end_time,
+        "length": window.length,
+        "query_vector": [round(float(v), 6) for v in window.vector],
+        "excluded_overlap": int(excluded_overlap),
+    }
 
 
 def match_payload(match, timeframe: str, warp_path: list[list[int]] | None) -> dict[str, Any]:
@@ -462,7 +498,14 @@ async def create_search(
     if rl_count > SEARCH_RATE_LIMIT:
         raise HTTPException(status_code=429, detail="Dakikalık arama limiti aşıldı")
 
-    query_vector = resolve_query(request)
+    # Gerçek grafikten sorgu yalnız başka bir şekil verilmediyse: çizim ya da
+    # şablon açıkça seçildiyse onlar kazanır (arayüz bir anda tek kaynak yollar).
+    source_window = (
+        resolve_source(request, lang)
+        if request.source is not None and not request.template_id and not request.points
+        else None
+    )
+    query_vector = source_window.vector if source_window is not None else resolve_query(request)
 
     window_lengths = [int(w) for w in (request.window_lengths or WINDOW_LENGTHS)]
     unknown = [w for w in window_lengths if w not in WINDOW_LENGTHS]
@@ -514,6 +557,12 @@ async def create_search(
         tolerance=request.tolerance,
         min_amplitude=request.min_amplitude,
         limit=SEARCH_CACHE_MATCHES,  # sayfalama havuzu; istemciye limit kadarı gider
+        exclude=source_window,
+    )
+    source = (
+        source_payload(source_window, request.timeframe, result.excluded_overlap)
+        if source_window is not None
+        else None
     )
 
     # İnce ayar: matris STRIDE=3 ile kurulduğu için gösterilen pencere
@@ -559,6 +608,7 @@ async def create_search(
                 "envelope_signature": _jsonable(result.envelope_signature),
                 "envelope_filtered": result.envelope_filtered,
                 "query_vector": [float(v) for v in query_vector],
+                "source": source,
                 "matches": matches,
             }
         ).encode("utf-8"),
@@ -588,6 +638,7 @@ async def create_search(
         structure_filtered=result.structure_filtered,
         structure_stable=result.structure_stable,
         envelope_filtered=result.envelope_filtered,
+        source=source,
         results=[MatchResponse(**m) for m in matches[: request.limit]],
         session=session_info,
     )
@@ -621,6 +672,7 @@ async def get_search(
         structure_filtered=parsed.get("structure_filtered", False),
         structure_stable=parsed.get("structure_stable", True),
         envelope_filtered=parsed.get("envelope_filtered", False),
+        source=parsed.get("source"),
         results=[MatchResponse(**m) for m in page],
         session=session_info,
     )
@@ -674,6 +726,16 @@ async def get_search_stats(
         OUTCOME_TTL,
     )
     return response
+
+
+@app.get("/api/symbols", response_model=list[str])
+async def get_symbols(timeframe: str = Query(default="4h", pattern="^(4h|1d)$")):
+    """Zaman diliminin sembol evreni — grafikten sorgu için.
+
+    ``symbol_id`` uzayı zaman dilimi başınadır; liste de öyle. Delist olmuş
+    semboller de listededir: geçmiş bir tarihteki parçaları hâlâ sorulabilir.
+    """
+    return sorted(set(get_engine().symbols_for(timeframe).values()))
 
 
 @app.get("/api/templates", response_model=list[TemplateResponse])

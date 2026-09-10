@@ -272,6 +272,52 @@
         }
       }
     },
+    "/api/symbols": {
+      "get": {
+        "summary": "Get Symbols",
+        "description": "Zaman diliminin sembol evreni — grafikten sorgu için.\n\n``symbol_id`` uzayı zaman dilimi başınadır; liste de öyle. Delist olmuş\nsemboller de listededir: geçmiş bir tarihteki parçaları hâlâ sorulabilir.",
+        "operationId": "get_symbols_api_symbols_get",
+        "parameters": [
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(4h|1d)$",
+              "default": "4h",
+              "title": "Timeframe"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Symbols Api Symbols Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/templates": {
       "get": {
         "summary": "Get Templates",
@@ -557,6 +603,41 @@
           "warp_amount"
         ],
         "title": "ChartResponse"
+      },
+      "ChartSource": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Symbol"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "length": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 24.0,
+            "title": "Length",
+            "default": 64
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol"
+        ],
+        "title": "ChartSource",
+        "description": "Gerçek bir grafiğin parçası sorgu olarak (engine/search/source.py)."
       },
       "FanBands": {
         "properties": {
@@ -1231,6 +1312,16 @@
             ],
             "title": "Template Id"
           },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChartSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -1375,6 +1466,16 @@
             "title": "Structure Stable",
             "default": true
           },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "results": {
             "items": {
               "$ref": "#/components/schemas/MatchResponse"
@@ -1434,6 +1535,48 @@
           "adjusted_alpha"
         ],
         "title": "SessionInfo"
+      },
+      "SourceInfo": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "end_time": {
+            "type": "integer",
+            "title": "End Time"
+          },
+          "length": {
+            "type": "integer",
+            "title": "Length"
+          },
+          "query_vector": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Query Vector"
+          },
+          "excluded_overlap": {
+            "type": "integer",
+            "title": "Excluded Overlap"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "start_time",
+          "end_time",
+          "length",
+          "query_vector",
+          "excluded_overlap"
+        ],
+        "title": "SourceInfo",
+        "description": "Sorgunun hangi parçadan kurulduğu ve motorun ondan ne okuduğu."
       },
       "StatEnvelope": {
         "properties": {
