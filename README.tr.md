@@ -6,6 +6,8 @@
 
 [English](README.md) · [Türkçe](README.tr.md)
 
+[![CI](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
+
 </div>
 
 ---
