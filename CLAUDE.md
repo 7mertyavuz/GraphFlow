@@ -101,9 +101,17 @@ geri getirme:
   etkisi medyan 1,28 — iid, belirsizliği ~%29 eksik ölçüyordu ve F4'ün tek
   pozitif bulgusu bu yüzden sahte çıktı (K-12).
 - 🚫 **Replikasyon.** Bir bulgu tek zaman diliminde anlamlıysa bulgu değildir.
-  1d ve 4h çaprazlandığında 56'şar testten yalnız `rising_wedge long 2:1`
-  aynı yönde anlamlı kaldı (F4.7). Yayınlanan her edge iddiası iki dilimde de
+  1d ve 4h çaprazlandığında 56'şar testten 4 hücre aynı yönde anlamlı (F4.10:
+  flama short 2:1 + yükselen takozun üç hücresi, tek olgu). Vekil testi
+  (F4.6) de iki dilimde koşulur: eşleştirmeli gölgeden **iki dilimde birden**
+  sağ çıkan şekil etkisi yok. Yayınlanan her edge iddiası iki dilimde de
   gösterilmelidir.
+- 🚫 **Ölçüm tablosu motorla birlikte bayatlar.** `data/f3` dosyaları köken
+  (davranış parmak izi) taşır; `/api/findings` uyuşmazlığı `stale` ile
+  bildirir. Motoru değiştiren her commit'ten sonra `tools/run_outcomes`
+  (1d + 4h) ve `tools/f46_proxy_test` (1d + 4h) yeniden koşulur (~4 dk).
+  Seçim listelerini (ör. "F4.5'te anlamlı çıkanlar") elle yazma — tanımı
+  kodla, değeri ölçümden hesapla.
 - 🚫 **Sınırdaki bulgu kırılgandır.** Ölçüldü: korpusa 10 günlük veri eklemek
   (9 yıllık geçmişe) Bonferroni'yi geçen hücrelerin **kimliğini** değiştirdi,
   replike eden hücre 3'ten 1'e düştü. Kod değişmedi. Güven aralıkları sıfırı
@@ -156,7 +164,7 @@ geri getirme:
                                   formation_audit (12 formasyon · --cross · --compare),
                                   gt_benchmark (ground truth · dairesel olmayan ölçüm),
                                   run_outcomes, measure_amplitude, template_health
-✅ tests/                          298 test (ingest, arşiv, normalize, matrix, search,
+✅ tests/                          310 test (ingest, arşiv, normalize, matrix, search,
                                   outcome, api, grafik karosu, denetçinin kendisi)
 ✅ notebooks/                      F3 GEÇTİ (kullanıcı onayı, 31 Tem 2026)
 ✅ F3.5 temizlik                   null kalibrasyonu · peg filtresi · invariantlar

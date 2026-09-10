@@ -145,3 +145,9 @@ sınırına dayanması — bkz. `docs/00` Açık Sorular #7 ve `tools/template_h
   analitik olarak genişletilmez
 
 Ham veri: `data/f3/f45_raw.json` (1d) ve `f45_raw_4h.json` (4h).
+
+---
+
+> **Güncelleme (10 Eylül 2026).** Motor değiştikten sonra replike eden hücre 2'den 4'e
+> çıktı (flama short 2:1 · yükselen takoz ×3 — üçü tek olgu). Bonferroni'yi geçen 1d
+> hücrelerinin kimliği dördüncü kez değişti. Bkz. [11-yeniden-olcum.md](11-yeniden-olcum.md).

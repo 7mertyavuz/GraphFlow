@@ -136,3 +136,7 @@ istatistiği.
 > rapordaki "%42 → %100" ölçümü 4 formasyonluktu ve denetçi sıkılaştıktan
 > sonra 12 formasyona genişletildi. Dönüş ailesi ilk 50'de %99; eğim tabanlı
 > formasyonlarda filtrenin **etkisiz** olduğu orada ölçülür (K-20).
+
+> **Güncelleme (10 Eylül 2026).** Bu rapordaki tablolar filtrenin her sorguda açık
+> olduğu motorla üretildi. Kararlılık kapısı (K-20) eğim ailesinde örneklemi 2–3 katına
+> çıkardı; güncel tablolar [11-yeniden-olcum.md](11-yeniden-olcum.md)'dedir.

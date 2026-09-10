@@ -109,3 +109,11 @@ Anlamlılık kaybının büyük kısmı **güç kaybıdır, etki kaybı değil**
 bunu ayrı ölçtü: nokta tahminlerinin korelasyonu 0,83 mertebesinde, ortalama
 değişim 0,07R civarında. *"Anlamlı çıkmadı"* ile *"etki yok"* aynı şey
 değildir.
+
+---
+
+> **Güncelleme (10 Eylül 2026).** Bu rapor bayat bir hedef listesiyle ve yalnız 1d'de
+> koşulmuştu. Motor değiştikten sonra hedefler güncel F4.5'ten türetilerek ve 4h'de de
+> yeniden sınandı: 1d'de iki şablon eşleştirmeden sonra %95'te anlamlı kalıyor, **hiçbiri
+> 4h'de replike etmiyor**. Manşet ayakta ama gerekçesi değişti — bkz.
+> [11-yeniden-olcum.md](11-yeniden-olcum.md).
