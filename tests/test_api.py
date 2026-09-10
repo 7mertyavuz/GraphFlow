@@ -383,6 +383,11 @@ def test_stats_use_the_matches_the_user_sees():
         outcome.shadow_report = {}
         band = {"u": [0.0, 1.0], "n": [4, 3], **{k: [0.0, None] for k in ("p10", "p25", "p50", "p75", "p90")}}
         outcome.paths = {"matches": band, "shadow": band}
+        outcome.ledger = [
+            {"symbol_id": 1, "end_idx": 123, "window_length": 24, "status": "counted",
+             "outcomes": {"2:1": {"outcome": "tp", "r": 2.0, "exit_bar": 5}}},
+            {"symbol_id": 1, "end_idx": 123, "window_length": 24, "status": "overlap", "outcomes": {}},
+        ]
 
         mock_engine.return_value.search.reset_mock()
         with patch("engine.api.main.get_store"), patch("engine.api.main.get_pools"), patch(
@@ -398,6 +403,11 @@ def test_stats_use_the_matches_the_user_sees():
         # Fan istenir ve gölgeyle birlikte döner (K-12); ölçülemeyen nokta
         # null kalır, uydurulmaz.
         assert run.call_args.kwargs["with_paths"] is True
+        # Eşleşme başına defter: kart, toplamın hangi olaylardan kurulduğunu gösterir.
+        assert run.call_args.kwargs["with_ledger"] is True
+        ledger = response.json()["ledger"]
+        assert [row["status"] for row in ledger] == ["counted", "overlap"]
+        assert ledger[0]["outcomes"]["2:1"] == {"outcome": "tp", "r": 2.0, "exit_bar": 5}
         paths = response.json()["paths"]
         assert set(paths) == {"matches", "shadow"}
         assert paths["matches"]["p50"] == [0.0, None]

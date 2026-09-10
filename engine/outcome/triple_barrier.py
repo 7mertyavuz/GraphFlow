@@ -82,21 +82,33 @@ def time_barrier(length: int, ratio: float = TIME_BARRIER_RATIO) -> int:
     return max(1, int(round(ratio * int(length))))
 
 
-def eligible(events: np.ndarray, store: BarStore) -> np.ndarray:
-    """İstatistiğe girebilecek olayların maskesi.
+#: Bir olayın istatistiğe neden GİRMEDİĞİ — eşleşme kartında gösterilir.
+#: Boş dizge = uygun.
+REASON_NO_DATA = "no_data"  # sembolün barı yok ya da ATR tanımsız
+REASON_COST_FLOOR = "cost_floor"  # 1×ATR / C₀ < %1 (K-16.7)
+REASON_LISTING = "listing"  # listelemeden sonra ATR ısınmadı
+
+
+def ineligible_reasons(events: np.ndarray, store: BarStore) -> np.ndarray:
+    """Olay başına elenme sebebi (``""`` = istatistiğe girebilir).
 
     * ``1×ATR / C₀ < %1`` → işlem maliyeti tabanı (K-16.7): bariyerler spread
       ve komisyonun içinde kaybolur, binlerce sahte "başarı" toplanır.
     * ``t₀ < MIN_BARS_SINCE_LISTING`` → ATR ısınmamış; listeleme günlerinin
       pump/dump oynaklığı hem ATR'yi hem sonucu bozar.
+
+    ``eligible`` bunun ince bir sarmalayıcısıdır: kartın söylediği sebep ile
+    istatistiğin uyguladığı filtre ayrı kodda yaşarsa bir gün ayrışır.
     """
+    reasons = np.full(events.size, "", dtype="<U10")
     if events.size == 0:
-        return np.zeros(0, dtype=bool)
+        return reasons
 
     known = np.array([store.has(int(s)) for s in events["symbol_id"]], dtype=bool)
     ok = known & np.isfinite(events["atr"]) & (events["atr"] > 0)
+    reasons[~ok] = REASON_NO_DATA
     if not ok.any():
-        return ok
+        return reasons
 
     c0 = np.zeros(events.size, dtype=np.float64)
     c0[ok] = store.close_at(events["symbol_id"][ok], events["t0"][ok])
@@ -104,9 +116,16 @@ def eligible(events: np.ndarray, store: BarStore) -> np.ndarray:
     with np.errstate(divide="ignore", invalid="ignore"):
         atr_pct = np.where(c0 > 0, events["atr"] / c0, np.nan)
 
-    ok &= np.isfinite(atr_pct) & (atr_pct >= MIN_ATR_PCT)
-    ok &= events["t0"] >= MIN_BARS_SINCE_LISTING
-    return ok
+    cost = ok & ~(np.isfinite(atr_pct) & (atr_pct >= MIN_ATR_PCT))
+    reasons[cost] = REASON_COST_FLOOR
+    listing = ok & ~cost & (events["t0"] < MIN_BARS_SINCE_LISTING)
+    reasons[listing] = REASON_LISTING
+    return reasons
+
+
+def eligible(events: np.ndarray, store: BarStore) -> np.ndarray:
+    """İstatistiğe girebilecek olayların maskesi (sebepler: ``ineligible_reasons``)."""
+    return ineligible_reasons(events, store) == ""
 
 
 def enforce_forward_separation(events: np.ndarray, ratio: float = TIME_BARRIER_RATIO) -> np.ndarray:

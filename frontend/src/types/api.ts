@@ -310,6 +310,36 @@ export interface components {
             /** Matrix Ready */
             matrix_ready: boolean;
         };
+        /** LedgerOutcome */
+        LedgerOutcome: {
+            /** Outcome */
+            outcome: string;
+            /** R */
+            r: number;
+            /** Exit Bar */
+            exit_bar: number;
+        };
+        /**
+         * LedgerRow
+         * @description Bir eşleşmenin istatistikteki yeri — eşleşme kartında gösterilir.
+         */
+        LedgerRow: {
+            /** Symbol Id */
+            symbol_id: number;
+            /** End Idx */
+            end_idx: number;
+            /** Window Length */
+            window_length: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "counted" | "overlap" | "cost_floor" | "listing" | "no_data" | "no_forward";
+            /** Outcomes */
+            outcomes?: {
+                [key: string]: components["schemas"]["LedgerOutcome"];
+            };
+        };
         /** MatchResponse */
         MatchResponse: {
             /** Symbol */
@@ -388,6 +418,8 @@ export interface components {
                 [key: string]: unknown;
             };
             paths?: components["schemas"]["FanReport"] | null;
+            /** Ledger */
+            ledger?: components["schemas"]["LedgerRow"][];
             /** Disclaimer */
             disclaimer: string;
         };

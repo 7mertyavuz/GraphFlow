@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OutcomePanel } from "@/components/outcome/OutcomePanel";
 import { SessionNotice } from "@/components/outcome/SessionNotice";
@@ -16,7 +16,9 @@ import {
 import { useI18n } from "@/i18n/LanguageProvider";
 import { errorMessage } from "@/services/apiClient";
 import {
+  ledgerKey,
   type Direction,
+  type LedgerRow,
   type SearchRequest,
   type SessionInfo,
 } from "@/services/endpoints";
@@ -45,6 +47,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
   const [searchId, setSearchId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [direction, setDirection] = useState<Direction>("long");
+  const [configName, setConfigName] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
 
   const createSearch = useCreateSearch();
@@ -91,6 +94,18 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
   }, [mode, searchId, createSearch.isPending, run]);
 
   const hasSearched = Boolean(searchId);
+
+  // Panel ile kartlar aynı konfigürasyonu gösterir: panelde 1:1 seçiliyken
+  // kartta 2:1 sonucu okumak iki farklı soruyu karıştırmak olurdu.
+  const configs = stats.data ? Object.keys(stats.data.configs) : [];
+  const activeConfig = configName && configs.includes(configName) ? configName : (configs[0] ?? null);
+  const ledger = useMemo(
+    () =>
+      stats.data?.ledger?.length
+        ? new Map<string, LedgerRow>(stats.data.ledger.map((row) => [ledgerKey(row), row]))
+        : null,
+    [stats.data]
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-6 px-4 py-6 lg:flex-row lg:px-6">
@@ -147,6 +162,8 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
             error={stats.error}
             direction={direction}
             onDirectionChange={setDirection}
+            configName={activeConfig}
+            onConfigChange={setConfigName}
           />
         )}
 
@@ -158,6 +175,9 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
           hasMore={page.hasMore}
           onLoadMore={page.loadMore}
           hasSearched={hasSearched}
+          ledger={withOutcome ? ledger : null}
+          config={activeConfig}
+          directionLabel={direction === "long" ? t.outcome.long : t.outcome.short}
         />
       </section>
     </main>

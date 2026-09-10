@@ -945,6 +945,73 @@
         ],
         "title": "HealthResponse"
       },
+      "LedgerOutcome": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "r": {
+            "type": "number",
+            "title": "R"
+          },
+          "exit_bar": {
+            "type": "integer",
+            "title": "Exit Bar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome",
+          "r",
+          "exit_bar"
+        ],
+        "title": "LedgerOutcome"
+      },
+      "LedgerRow": {
+        "properties": {
+          "symbol_id": {
+            "type": "integer",
+            "title": "Symbol Id"
+          },
+          "end_idx": {
+            "type": "integer",
+            "title": "End Idx"
+          },
+          "window_length": {
+            "type": "integer",
+            "title": "Window Length"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "counted",
+              "overlap",
+              "cost_floor",
+              "listing",
+              "no_data",
+              "no_forward"
+            ],
+            "title": "Status"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LedgerOutcome"
+            },
+            "type": "object",
+            "title": "Outcomes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol_id",
+          "end_idx",
+          "window_length",
+          "status"
+        ],
+        "title": "LedgerRow",
+        "description": "Bir eşleşmenin istatistikteki yeri — eşleşme kartında gösterilir."
+      },
       "MatchResponse": {
         "properties": {
           "symbol": {
@@ -1150,6 +1217,13 @@
                 "type": "null"
               }
             ]
+          },
+          "ledger": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerRow"
+            },
+            "type": "array",
+            "title": "Ledger"
           },
           "disclaimer": {
             "type": "string",

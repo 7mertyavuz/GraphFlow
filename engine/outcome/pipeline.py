@@ -38,9 +38,14 @@ from engine.outcome.paths import fan_report
 from engine.outcome.shadow import ShadowPool, sample_shadow
 from engine.outcome.triple_barrier import (
     EVENT_DTYPE,
+    OUTCOME_FORCED,
+    OUTCOME_SL,
+    OUTCOME_TIME,
+    OUTCOME_TP,
     eligible,
     enforce_forward_separation,
     evaluate,
+    ineligible_reasons,
 )
 from engine.search.engine import SearchEngine
 
@@ -61,6 +66,12 @@ class TemplateOutcome:
     #: İleri yol fanı (eşleşmeler + gölge). Yalnız istendiğinde hesaplanır;
     #: ölçüm araçları (run_outcomes) istemez, bulgu dosyaları değişmez.
     paths: dict | None = None
+    #: Eşleşme başına defter — girdi sırasıyla, ``with_ledger`` istenirse.
+    #: Her satır: olay istatistiğe girdi mi, girmediyse neden, girdiyse
+    #: konfigürasyon başına sonucu. Toplamın hangi olaylardan kurulduğunu
+    #: kullanıcı tek tek görebilsin diye (Chart Library eşleşme başına
+    #: ileri getiri gösterir; burada ek olarak SAYILMAYANLAR da görünür).
+    ledger: list[dict] | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -122,6 +133,7 @@ def run_events(
     return_matched_shadow: bool = False,
     return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
     with_paths: bool = False,
+    with_ledger: bool = False,
 ) -> TemplateOutcome:
     """Hazır olay dizisinden outcome — arama adımı olmadan.
 
@@ -136,18 +148,25 @@ def run_events(
     rng = rng if rng is not None else np.random.default_rng(20260731)
 
     n_matches = int(events.size)
+    matches = events
+    # Girdi sırasındaki her eşleşmenin durumu; istatistiğe girenler "counted".
+    status = np.full(n_matches, "counted", dtype="<U10")
+    index = np.arange(n_matches)
 
     if events.size:
         keep = enforce_forward_separation(events)
         dropped_sep = int((~keep).sum())
-        events = events[keep]
+        status[index[~keep]] = "overlap"
+        events, index = events[keep], index[keep]
     else:
         dropped_sep = 0
 
     if events.size:
-        ok = eligible(events, store)
+        reasons = ineligible_reasons(events, store)
+        ok = reasons == ""
         dropped_filters = int((~ok).sum())
-        events = events[ok]
+        status[index[~ok]] = reasons[~ok]
+        events, index = events[ok], index[ok]
     else:
         dropped_filters = 0
 
@@ -160,6 +179,8 @@ def run_events(
         dropped_filters=dropped_filters,
     )
     if events.size == 0:
+        if with_ledger:
+            outcome.ledger = _ledger(matches, status, {})
         return outcome
 
     shadow_events, shadow_report = sample_shadow(
@@ -175,8 +196,10 @@ def run_events(
         outcome.paths = fan_report(events, shadow_events, store)
 
     outcome.direction = direction
+    per_config: dict[str, np.ndarray] = {}
     for name, (k_tp, k_sl) in BARRIER_CONFIGS.items():
         results = evaluate(events, store, k_tp, k_sl, direction=direction)
+        per_config[name] = results
         shadow_results = (
             evaluate(shadow_events, store, k_tp, k_sl, direction=direction)
             if shadow_events.size
@@ -187,7 +210,50 @@ def run_events(
             direction=direction, confidence=confidence,
         )
 
+    if with_ledger:
+        outcome.ledger = _ledger(matches, status, per_config)
     return outcome
+
+
+_OUTCOME_NAMES = {OUTCOME_TP: "tp", OUTCOME_SL: "sl", OUTCOME_TIME: "time", OUTCOME_FORCED: "forced"}
+
+
+def _ledger(matches: np.ndarray, status: np.ndarray, per_config: dict[str, np.ndarray]) -> list[dict]:
+    """Eşleşme başına satır — ``matches`` sırasıyla.
+
+    R, istatistik panelindeki beklentiyle aynı büyüklüktür (brüt R). Tek bir
+    olayın gözlemidir, tahmin değildir; güven aralığı istatistik panelindedir.
+
+    İleri penceresi hiç olmayan (t₀ = son bar) olay ``evaluate``'ten düşer;
+    burada ``no_forward`` olarak görünür.
+    """
+    lookup: dict[str, dict[tuple[int, int, int], dict]] = {}
+    for name, results in per_config.items():
+        lookup[name] = {
+            (int(r["symbol_id"]), int(r["t0"]), int(r["length"])): {
+                "outcome": _OUTCOME_NAMES.get(int(r["outcome"]), "time"),
+                "r": round(float(r["r_gross"]), 4),
+                "exit_bar": int(r["exit_bar"]),
+            }
+            for r in results
+        }
+
+    rows: list[dict] = []
+    for m, state in zip(matches, status):
+        key = (int(m["symbol_id"]), int(m["t0"]), int(m["length"]))
+        outcomes = {name: table[key] for name, table in lookup.items() if key in table}
+        if state == "counted" and not outcomes:
+            state = "no_forward"
+        rows.append(
+            {
+                "symbol_id": key[0],
+                "end_idx": key[1],
+                "window_length": key[2],
+                "status": str(state),
+                "outcomes": outcomes,
+            }
+        )
+    return rows
 
 
 def run_template(

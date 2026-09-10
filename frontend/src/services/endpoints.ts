@@ -11,6 +11,12 @@ export type RegimeRow = components["schemas"]["RegimeRow"];
 export type ReturnDistribution = components["schemas"]["ReturnDistribution"];
 export type FanReport = components["schemas"]["FanReport"];
 export type FanBands = components["schemas"]["FanBands"];
+export type LedgerRow = components["schemas"]["LedgerRow"];
+
+/** Eşleşme ↔ defter satırı eşlemesinin anahtarı (sunucunun olay kimliği). */
+export function ledgerKey(row: { symbol_id: number; end_idx: number; window_length: number }): string {
+  return `${row.symbol_id}:${row.end_idx}:${row.window_length}`;
+}
 export type Template = components["schemas"]["TemplateResponse"];
 export type ChartResponse = components["schemas"]["ChartResponse"];
 export type FindingsResponse = components["schemas"]["FindingsResponse"];

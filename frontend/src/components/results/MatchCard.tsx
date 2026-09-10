@@ -17,12 +17,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChart } from "@/hooks/useGraphFlowApi";
 import { useI18n } from "@/i18n/LanguageProvider";
-import { type ChartResponse, type Match } from "@/services/endpoints";
+import { cn } from "@/lib/utils";
+import { type ChartResponse, type LedgerRow, type Match } from "@/services/endpoints";
 import {
   formatAmplitude,
   formatDate,
   formatDecimal,
   formatPercentile,
+  formatR,
 } from "@/utils/formatters";
 
 const COLORS = {
@@ -37,6 +39,10 @@ const COLORS = {
 interface MatchCardProps {
   match: Match;
   searchId: string | null;
+  /** Backtest'te: bu eşleşmenin istatistikteki yeri (sayıldı mı, sonucu). */
+  ledger?: LedgerRow | null;
+  config?: string | null;
+  directionLabel?: string;
 }
 
 /**
@@ -46,7 +52,7 @@ interface MatchCardProps {
  * blueprint (aradığın şey) ve bükülmüş blueprint (motorun hizaladığı şey).
  * Geometrinin tamamı sunucudan gelir — arayüz koordinat uydurmaz.
  */
-export function MatchCard({ match, searchId }: MatchCardProps) {
+export function MatchCard({ match, searchId, ledger, config, directionLabel }: MatchCardProps) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -209,6 +215,52 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
           )}
         </div>
       </div>
+
+      {ledger && config && (
+        <LedgerLine row={ledger} config={config} directionLabel={directionLabel ?? ""} />
+      )}
     </figure>
+  );
+}
+
+/**
+ * Eşleşmenin istatistikteki yeri. Toplam, ekrandaki olaylardan kurulur
+ * (K-09); hangisinin nasıl sonuçlandığı ve hangisinin NEDEN sayılmadığı
+ * kartta görünür — sayılmayanı gizlemek, örneklemin nasıl daraldığını
+ * gizlemek olurdu.
+ */
+function LedgerLine({
+  row,
+  config,
+  directionLabel,
+}: {
+  row: LedgerRow;
+  config: string;
+  directionLabel: string;
+}) {
+  const { t } = useI18n();
+  const result = row.outcomes?.[config];
+
+  if (row.status !== "counted" || !result) {
+    const reason = (t.card.reasons as Record<string, string>)[row.status] ?? row.status;
+    return (
+      <div className="border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground/80">
+        {t.card.notCounted} {reason}
+      </div>
+    );
+  }
+
+  const label = (t.outcome.outcomes as Record<string, string>)[result.outcome] ?? result.outcome;
+  const tone = result.r > 0 ? "text-up" : result.r < 0 ? "text-down" : "text-muted-foreground";
+  return (
+    <div
+      className="flex items-center justify-between gap-2 border-t border-border px-3 py-1.5 text-[10px]"
+      title={t.card.outcomeTitle(config, directionLabel)}
+    >
+      <span className="text-muted-foreground">
+        {label} · {t.card.exitBar(result.exit_bar)}
+      </span>
+      <span className={cn("tabular font-semibold", tone)}>{formatR(result.r)}</span>
+    </div>
   );
 }

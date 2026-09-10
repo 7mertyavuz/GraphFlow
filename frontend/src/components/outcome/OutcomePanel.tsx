@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
@@ -30,6 +29,9 @@ interface OutcomePanelProps {
   error: unknown;
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
+  /** Seçili bariyer konfigürasyonu — eşleşme kartları da bunu gösterir. */
+  configName: string | null;
+  onConfigChange: (name: string) => void;
 }
 
 /**
@@ -45,6 +47,8 @@ export function OutcomePanel({
   error,
   direction,
   onDirectionChange,
+  configName,
+  onConfigChange,
 }: OutcomePanelProps) {
   const { t } = useI18n();
   const outcomeLabel = (key: string) =>
@@ -54,7 +58,6 @@ export function OutcomePanel({
     { value: "short" as Direction, label: t.outcome.short, hint: t.outcome.shortHint },
   ];
   const configs = data ? Object.entries(data.configs) : [];
-  const [configName, setConfigName] = useState<string | null>(null);
   const active = configs.find(([name]) => name === configName) ?? configs[0];
 
   if (isLoading) {
@@ -114,7 +117,7 @@ export function OutcomePanel({
               <Segmented
                 options={configs.map(([key]) => ({ value: key, label: key }))}
                 value={name}
-                onChange={setConfigName}
+                onChange={onConfigChange}
                 size="sm"
                 ariaLabel={t.outcome.configAria}
               />

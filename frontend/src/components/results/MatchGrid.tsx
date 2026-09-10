@@ -5,7 +5,7 @@ import { Loader2, SearchX, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/LanguageProvider";
-import { type Match } from "@/services/endpoints";
+import { ledgerKey, type LedgerRow, type Match } from "@/services/endpoints";
 
 import { MatchCard } from "./MatchCard";
 
@@ -17,6 +17,10 @@ interface MatchGridProps {
   hasMore: boolean;
   onLoadMore: () => void;
   hasSearched: boolean;
+  /** Backtest: eşleşme başına defter (anahtar: ledgerKey). */
+  ledger?: Map<string, LedgerRow> | null;
+  config?: string | null;
+  directionLabel?: string;
 }
 
 export function MatchGrid({
@@ -27,6 +31,9 @@ export function MatchGrid({
   hasMore,
   onLoadMore,
   hasSearched,
+  ledger = null,
+  config = null,
+  directionLabel,
 }: MatchGridProps) {
   const { t } = useI18n();
   if (isLoading) {
@@ -67,6 +74,9 @@ export function MatchGrid({
             key={`${match.symbol}-${match.timeframe}-${match.start_idx}-${match.window_length}`}
             match={match}
             searchId={searchId}
+            ledger={ledger?.get(ledgerKey(match)) ?? null}
+            config={config}
+            directionLabel={directionLabel}
           />
         ))}
       </div>

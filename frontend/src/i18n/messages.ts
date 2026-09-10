@@ -179,6 +179,17 @@ export const tr = {
     amplitudeTitle: "Pencere içi toplam hareket",
     correlationTitle: "Pearson korelasyonu (Aşama 1 skoru)",
     warpTitle: "Yüksek bükülme: eşleşme ağır zaman esnetmesiyle kuruldu",
+    outcomeTitle: (config: string, direction: string) =>
+      `Bu olayın kendi sonucu (${config} · ${direction}) — tek bir gözlem, ortalama değil`,
+    exitBar: (n: number) => `${n}. barda`,
+    notCounted: "Sayılmadı:",
+    reasons: {
+      overlap: "aynı sembolde önceki bir olayın ileri penceresiyle örtüşüyor",
+      cost_floor: "ATR fiyatın %1'inden küçük — işlem maliyeti tabanı",
+      listing: "listelemeden hemen sonra; ATR henüz ısınmadı",
+      no_data: "bar verisi yok",
+      no_forward: "ileri pencere henüz oluşmadı",
+    },
   },
   outcome: {
     computing: "İleri pencereler hesaplanıyor, gölge dağılım örnekleniyor…",
@@ -491,6 +502,17 @@ export const en: Messages = {
     amplitudeTitle: "Total movement within the window",
     correlationTitle: "Pearson correlation (Stage 1 score)",
     warpTitle: "High warping: the match needed heavy time stretching",
+    outcomeTitle: (config: string, direction: string) =>
+      `This event's own outcome (${config} · ${direction}) — a single observation, not an average`,
+    exitBar: (n: number) => `at bar ${n}`,
+    notCounted: "Not counted:",
+    reasons: {
+      overlap: "overlaps the forward window of an earlier event in the same symbol",
+      cost_floor: "ATR below 1% of price — transaction-cost floor",
+      listing: "right after listing; ATR had not warmed up",
+      no_data: "no bar data",
+      no_forward: "no forward window yet",
+    },
   },
   outcome: {
     computing: "Computing forward windows, sampling the shadow distribution…",

@@ -337,6 +337,7 @@ def to_outcome_response(outcome: TemplateOutcome, lang: str = "tr") -> OutcomeRe
         direction=outcome.direction,
         shadow=outcome.shadow_report,
         paths=outcome.paths,
+        ledger=outcome.ledger or [],
         disclaimer=t("disclaimer", lang),  # type: ignore[arg-type]
     )
 
@@ -717,6 +718,7 @@ async def get_search_stats(
         timeframe=timeframe,
         direction=direction,
         with_paths=True,
+        with_ledger=True,
     )
 
     response = to_outcome_response(outcome, lang)

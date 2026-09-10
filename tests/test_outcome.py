@@ -1027,3 +1027,58 @@ def test_fan_yuzdelikleri_sirali_ve_golge_hep_birlikte():
         for i in range(len(side["u"])):
             vals = [side[k][i] for k in ("p10", "p25", "p50", "p75", "p90")]
             assert vals == sorted(vals)
+
+
+# ---------------------------------------------------------------------------
+# Eşleşme başına defter
+# ---------------------------------------------------------------------------
+
+
+def test_defter_her_eslesmenin_durumunu_girdi_sirasiyla_soyler():
+    """Toplamın hangi olaylardan kurulduğu tek tek görünür — sayılmayanlar dahil."""
+    from engine.outcome.pipeline import run_events
+
+    closes = 100.0 + np.arange(400.0)          # bar başına +1
+    store = _fan_store({1: closes})
+    events = np.concatenate(
+        [
+            _event(1, 100, 40, 5.0),   # A: sayılır — +1/bar, 2:1'de TP (+10) 10. barda
+            _event(1, 105, 40, 5.0),   # B: A'nın ileri penceresiyle örtüşür (T = 20)
+            _event(1, 10, 24, 5.0),    # C: listelemeden sonra ATR ısınmadı (t0 < 28)
+            _event(1, 200, 40, 0.5),   # D: 0,5 / 300 < %1 → işlem maliyeti tabanı
+            _event(9, 150, 40, 5.0),   # E: deposu olmayan sembol
+            _event(1, 399, 24, 5.0),   # F: son bar — ileri pencere yok
+        ]
+    )
+    out = run_events(events, store, {}, timeframe="4h", with_ledger=True)
+    ledger = out.ledger
+
+    assert [row["status"] for row in ledger] == [
+        "counted", "overlap", "listing", "cost_floor", "no_data", "no_forward",
+    ]
+    assert [(r["symbol_id"], r["end_idx"], r["window_length"]) for r in ledger] == [
+        (int(e["symbol_id"]), int(e["t0"]), int(e["length"])) for e in events
+    ]
+
+    a = ledger[0]["outcomes"]
+    assert set(a) == set(out.stats)
+    assert a["2:1"]["outcome"] == "tp" and a["2:1"]["exit_bar"] == 10
+    assert a["2:1"]["r"] == pytest.approx(2.0, abs=0.01)
+    assert all(not row["outcomes"] for row in ledger[1:])
+
+    # Defter ile toplam aynı olay kümesinden: sayılanların R ortalaması beklentidir.
+    for name, stats in out.stats.items():
+        counted = [row["outcomes"][name]["r"] for row in ledger if name in row["outcomes"]]
+        assert len(counted) == stats.n
+        assert np.mean(counted) == pytest.approx(stats.expectancy_r, abs=1e-3)
+
+
+def test_eleme_sebebi_ile_istatistik_filtresi_ayni_koddan():
+    """Kartın söylediği sebep ile istatistiğin uyguladığı filtre ayrışamaz."""
+    from engine.outcome.triple_barrier import eligible, ineligible_reasons
+
+    store = _fan_store({1: 100.0 + np.arange(400.0)})
+    events = np.concatenate(
+        [_event(1, t0, 40, atr) for t0 in (5, 50, 300) for atr in (0.1, 5.0, np.nan)]
+    )
+    assert (eligible(events, store) == (ineligible_reasons(events, store) == "")).all()

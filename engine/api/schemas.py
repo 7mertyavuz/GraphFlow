@@ -228,6 +228,31 @@ class FanReport(BaseModel):
     shadow: FanBands
 
 
+class LedgerOutcome(BaseModel):
+    #: tp · sl · time · forced — istatistik panelindeki ``outcomes`` anahtarları.
+    outcome: str
+    #: Brüt R — beklentiyle aynı büyüklük. Tek bir olayın GÖZLEMİdir, tahmin
+    #: değil; StatEnvelope kuralı tahminler içindir ve güven aralığı
+    #: istatistik panelindedir.
+    r: float
+    #: Çıkışın t0'dan kaç bar sonra olduğu.
+    exit_bar: int
+
+
+class LedgerRow(BaseModel):
+    """Bir eşleşmenin istatistikteki yeri — eşleşme kartında gösterilir."""
+
+    symbol_id: int
+    end_idx: int
+    window_length: int
+    #: counted · overlap (önceki bir olayın ileri penceresiyle örtüşüyor,
+    #: K-09) · cost_floor (K-16.7) · listing (ATR ısınmadı) · no_data ·
+    #: no_forward (ileri pencere yok)
+    status: Literal["counted", "overlap", "cost_floor", "listing", "no_data", "no_forward"]
+    #: Konfigürasyon başına sonuç; yalnız ``counted`` satırlarda dolu.
+    outcomes: dict[str, LedgerOutcome] = Field(default_factory=dict)
+
+
 class OutcomeResponse(BaseModel):
     configs: dict[str, OutcomeConfigResponse]
     #: Post-NMS'ten geçen eşleşme sayısı (bağımlı olabilir).
@@ -241,6 +266,8 @@ class OutcomeResponse(BaseModel):
     #: İleri yol fanı — eşleşmeler ve gölge, daima birlikte (K-12).
     #: Olay yoksa None.
     paths: FanReport | None = None
+    #: Eşleşme başına defter, arama sonuç sırasıyla.
+    ledger: list[LedgerRow] = Field(default_factory=list)
     disclaimer: str
 
 

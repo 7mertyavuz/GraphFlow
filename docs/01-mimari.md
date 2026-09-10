@@ -683,6 +683,14 @@ yolların dağılımını da taşır (`engine/outcome/paths.py`):
   gösterir — piyasadaki benzer araçların fan grafiklerinde eksik olan tam
   olarak bu kontrol grubudur.
 
+**Eşleşme başına defter (`ledger`).** Arama sonuç sırasıyla her eşleşme için
+bir satır: `status` (`counted` · `overlap` · `cost_floor` · `listing` ·
+`no_data` · `no_forward`) ve yalnız sayılan satırlarda konfigürasyon başına
+`{outcome, r, exit_bar}`. Eleme sebebi `triple_barrier.ineligible_reasons`'tan
+gelir ve `eligible` onun sarmalayıcısıdır — kartın söylediği sebep ile
+istatistiğin uyguladığı filtre ayrı kodda yaşamaz. Sayılan satırların R
+ortalaması beklentinin kendisidir (testle bağlı).
+
 ### `GET /api/templates`
 
 Şablon kütüphanesini (kategori, isim, ikon, önizleme noktaları) döndürür.
