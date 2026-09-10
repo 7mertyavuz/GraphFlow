@@ -249,6 +249,7 @@ def benchmark(
     tolerance: str = "flexible",
     variants: dict[str, dict] | None = None,
     real: bool = False,
+    freehand_seeds: list[int] | None = None,
 ) -> list[dict]:
     """Formasyon başına: enjekte edilenleri bulabiliyor mu?
 
@@ -267,16 +268,33 @@ def benchmark(
                 else build_corpus(pattern, root, n_targets, n_noise, seed)
             )
             engine = SearchEngine(root / "matrix")
-            query = np.asarray(get_template(pattern).vector, dtype=np.float64)
+            # Kullanıcı şablon seçmez, ÇİZER. Elle çizim taklidi (titrek el,
+            # düzensiz hız) kapıların davranışını değiştirir: titreme imzanın
+            # kararlılığını düşürür. Şablonla ölçülen her karar elle çizimde
+            # de tutmalı.
+            if freehand_seeds:
+                from tools.formation_audit import freehand_query
+
+                queries = [freehand_query(pattern, s) for s in freehand_seeds]
+            else:
+                queries = [np.asarray(get_template(pattern).vector, dtype=np.float64)]
 
             row = {"pattern": pattern, "injected": len(truth)}
             for label, kwargs in variants.items():
-                result = engine.search(
-                    query, mode="historical", timeframe=TF,
-                    tolerance=tolerance, limit=limit, **kwargs
-                )
+                agg = {"shown": 0, "correct": 0, "recall": 0.0, "total": 0}
+                for query in queries:
+                    result = engine.search(
+                        query, mode="historical", timeframe=TF,
+                        tolerance=tolerance, limit=limit, **kwargs
+                    )
+                    sc = score(result, truth)
+                    agg["shown"] += sc["shown"]
+                    agg["correct"] += sc["correct"]
+                    agg["recall"] += sc["recall"] / len(queries)
+                    agg["total"] += sc["total"]
+                agg["precision"] = agg["correct"] / agg["shown"] if agg["shown"] else 0.0
                 suffix = f"_{label}" if label else ""
-                for key, value in score(result, truth).items():
+                for key, value in agg.items():
                     row[f"{key}{suffix}"] = value
             rows.append(row)
             log.info("%s bitti", pattern)
@@ -291,6 +309,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--targets", type=int, default=24)
     p.add_argument("--noise", type=int, default=40)
     p.add_argument("--seed", type=int, default=2026)
+    p.add_argument("--freehand", type=int, default=0, metavar="N",
+                   help="Şablon yerine N elle çizim taklidi sorgula (titrek el, düzensiz hız)")
     p.add_argument("--real", action="store_true",
                    help="Dağıtıcılar sentetik GBM değil GERÇEK piyasa verisi olsun")
     p.add_argument("--tolerance", default="flexible")
@@ -321,10 +341,13 @@ def main(argv: list[str] | None = None) -> int:
         variants = {"": {}}
 
     rows = benchmark(patterns, args.limit, args.targets, args.noise,
-                     args.seed, args.tolerance, variants, args.real)
+                     args.seed, args.tolerance, variants, args.real,
+                     list(range(args.freehand)) if args.freehand else None)
 
     print()
     zemin = "GERÇEK piyasa" if args.real else "sentetik GBM"
+    if args.freehand:
+        zemin += f" · {args.freehand} elle çizim/formasyon"
     print(f"ground truth · {TF} · {zemin} zemini · {args.targets} hedef + "
           f"{args.noise} dağıtıcı · ilk {args.limit} · IoU ≥ {MIN_IOU}")
     print()

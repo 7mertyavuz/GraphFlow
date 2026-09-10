@@ -341,3 +341,20 @@ def test_f46_bonferroni_gecisi_ayni_sablonlarla_kosar(monkeypatch):
     ]
     f46.apply_bonferroni(first, timeframe="4h")
     assert seen == {"templates": ["pennant", "double_top"], "timeframe": "4h"}
+
+
+def test_gt_benchmark_elle_cizim_sorgulari_uretir(monkeypatch):
+    """--freehand şablon yerine elle çizim taklidini sorgulamalı.
+
+    Kullanıcı şablon seçmez, çizer. Kapılar sorgunun kararlılığına baktığı
+    için titreme davranışı değiştirir; şablonla alınan her karar elle
+    çizimde de sınanmalı.
+    """
+    import numpy as np
+
+    from tools.formation_audit import freehand_query
+
+    a, b = freehand_query("double_top", 0), freehand_query("double_top", 1)
+    assert a.shape == b.shape == (32,)
+    assert not np.allclose(a, b), "farklı tohum farklı el demek"
+    assert abs(a.mean()) < 1e-9 and abs(a.std() - 1) < 1e-6, "z-score'lu olmalı"
