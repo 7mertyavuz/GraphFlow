@@ -2,7 +2,7 @@
 
 > **Belge türü:** Faz raporu
 > **Tarih:** 31 Temmuz 2026
-> **Kapsam:** [`fazlar/F3.5-temizlik.md`](fazlar/F3.5-temizlik.md)
+> **Kapsam:** [01-mimari.md](01-mimari.md)
 > **Önceki:** [03-f3-dogrulama-raporu.md](03-f3-dogrulama-raporu.md)
 
 F3'ün açık bıraktığı beş bulgu (S-1…S-5) kapatıldı. Her adımın öncesi/sonrası

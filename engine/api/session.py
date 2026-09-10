@@ -1,4 +1,4 @@
-"""Oturum sayacı — çoklu karşılaştırma muhasebesi (CLAUDE.md, K-12).
+"""Oturum sayacı — çoklu karşılaştırma muhasebesi (K-12).
 
 Kullanıcı arka arkaya 20 şekil denerse %95 güvenle ~1 tanesinin şans eseri
 "anlamlı" çıkması beklenir. Sayaç bunu görünür kılar: α, denenen şekil

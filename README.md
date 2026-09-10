@@ -1,132 +1,161 @@
+<div align="center">
+
 # GraphFlow
 
-**Grafik formasyonları için görsel arama motoru.**
+**A visual search engine for chart patterns — draw a shape, find where the market drew it, and see honestly what happened next.**
 
-Kullanıcı bir grafik deseni çizer veya kütüphaneden seçer; GraphFlow gerçek piyasa verisinde bu şekle benzeyen grafikleri bulur ve — tarihsel modda — o formasyondan sonra istatistiksel olarak ne olduğunu dürüstçe raporlar.
+[English](README.md) · [Türkçe](README.tr.md)
 
----
-
-## İki mod
-
-| Mod | Soru | Kullanıcı |
-|---|---|---|
-| **Radar** (canlı) | "Şu an hangi coin'ler bu şekli yapıyor?" | İşlem açmak isteyen trader |
-| **Backtest** (tarihsel) | "Geçmişte bu şekil oluştuğunda ne olmuş?" | Araştırmacı / strateji geliştirici |
-
-Arka planda **tek motor** vardır; Radar, tarihsel motorun `offset = son bar` özel hâlidir.
+</div>
 
 ---
 
-## Nasıl çalışır
+![Twelve real head-and-shoulders matches found by GraphFlow, with the canonical shape overlaid](notebooks/output/goz_testi_blueprint_head_and_shoulders.png)
 
-```
-Kullanıcı çizimi ──▶ log fiyat → 32 noktaya resample → z-score
-                                          │
-                                          ▼
-        Aşama 1  ·  Kosinüs benzerliği (vektörize)      12M → 5.000   ~0,3 sn
-        Pre-NMS  ·  1D-IoU, gevşek (%70)                5.000 → 1.000
-        Aşama 2  ·  DDTW + Sakoe-Chiba bandı            1.000 → skorlanmış
-        Post-NMS ·  IoU %50 + max 3/sembol              → nihai liste
-                                          │
-                                          ▼
-                    12'li grid  +  "Sonra Ne Oldu?" istatistik kartı
-```
-
-**Ölçek gerçeği:** ~12 milyon önceden hesaplanmış pencere vektörü = ~1,5 GB. Tek bir matris çarpımı. Kafka yok, Rust yok, zaman serisi veritabanı yok.
+<sub>Twelve head-and-shoulders patterns GraphFlow found in real Binance daily data. Dark line: price. Red: the canonical shape warped onto the match. Shaded: the matched window.</sub>
 
 ---
 
-## Tasarım ilkeleri
+## What it does
 
-1. **Doğruluk > hız.** Ürünün tek gerçek riski, bir trader'ın sonuçlara bakıp "evet, bu benim çizdiğim şey" diyip diyememesidir.
-2. **İstatistiksel dürüstlük.** Sinyal satmıyoruz; ölçülmüş geçmiş dağılım sunuyoruz. Her başarı oranı bir baseline ile birlikte gösterilir.
-3. **Motor önce, arayüz sonra.** Notebook göz testi geçilmeden Next.js'e bir satır yazılmaz.
-4. **Az parça.** Ölçülmemiş bir problem için erken optimizasyon yapılmaz.
+You sketch a pattern with your mouse — or pick one of 14 classic formations — and GraphFlow searches **11.6 million** historical windows of real crypto price data for places where the market drew the same shape. In historical mode it then reports what happened *after* those formations, next to a baseline of what the market was doing anyway.
 
----
-
-## Dokümantasyon
-
-| Belge | İçerik |
+| Mode | Question it answers |
 |---|---|
-| [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) | **Karar kaydı** — 18 mimari karar, gerekçeleri ve reddedilen 19 alternatif |
-| [docs/01-mimari.md](docs/01-mimari.md) | **Teknik spesifikasyon** — veri katmanı, algoritmalar, API, repo yapısı, yol haritası |
-| [docs/07-f46-raporu.md](docs/07-f46-raporu.md) | **F4.6 Vekil Testi Raporu** — Formasyonların şekil mi yoksa momentum vekili mi olduğunun kanıtı |
-| [docs/fazlar/](docs/fazlar/README.md) | **Faz belgeleri** — F0…F7 için ayrı ayrı kapsam, ölçümler, bilinen sorunlar, çıkış şartları |
+| **Radar** (live) | *Which coins are forming this shape right now?* |
+| **Backtest** (historical) | *When this shape appeared in the past, what happened next — and was that different from chance?* |
 
-Yeni bir mimari karar alındığında karar kaydına `K-xx` olarak eklenir.
+Both modes run on the same engine; Radar is the historical search anchored to the latest closed bar.
 
----
+## What makes it different
 
-## Çalıştırma
+Most open-source pattern tools are rule-based detectors that tell you a pattern *exists*. Almost none tell you whether it *matters*. GraphFlow is built around that second question:
 
-Veri deposu (`data/`) commit edilmez; yolu `GRAPHFLOW_DATA_DIR` ile taşıyabilirsiniz.
+- **You draw the query.** Freehand sketches are normalized server-side (scale and level invariant), and the engine tells you how it read your drawing: *"3 prominent peaks · the middle one highest · the others at similar levels"*.
+- **Every statistic has a baseline.** Outcomes are compared against a time-matched shadow sample of random windows from the same months — not against zero.
+- **Honest uncertainty.** Month-block bootstrap confidence intervals, Bonferroni correction across all 56 tests, and results reported for *every* template, not just the ones that look good.
+- **Survivorship-free data.** The universe includes delisted pairs from the Binance archive.
+- **Measured, not assumed.** Every filter in the engine was A/B-tested against injected ground truth before it was switched on — and several were rejected.
 
-```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
+## The honest finding
 
-python -m engine.ingest.download          # F0: Binance klines
-python -m tools.backfill --timeframe 4h   # F0: bir dilimi diğerinin evrenine tamamla
-python -m engine.matrix.build             # F1: vektör matrisleri
-uvicorn engine.api.main:app --reload      # F5: API  → :8000
-cd frontend && npm install && npm run dev # F6/F7: arayüz → :3000
-pytest -q                                 # testler
+After replicating every test on two timeframes (1d and 4h) and against a baseline matched on prior returns:
+
+> **No chart pattern shape carries information beyond short-term momentum reversal.**
+
+The one effect that replicates — prices tend to fall after a rising wedge — disappears once the baseline is matched on how much the price had already risen. The pattern is a proxy for momentum, not an independent signal. GraphFlow reports this rather than hiding it; that is the point of the tool.
+
+## How it works
+
+```
+ drawing / template
+        │   log price → resample to 32 points → z-score
+        ▼
+ Stage 1   cosine similarity over all windows (one matrix product)   11.6M → 12,500
+ Pre-NMS   1-D IoU 0.70 — collapse overlapping windows
+ Stage 2   hybrid DTW (derivative + raw, Sakoe–Chiba band)           → 2,500 scored
+ Threshold query-relative null percentile + absolute sanity cap
+ Filters   structural signature (peaks/troughs)  ┐ each applied only when the
+           trend-line envelope (slopes)          ┘ query's reading is stable
+ Post-NMS  1-D IoU 0.50, max 3 per symbol → independent events
+        │
+        ▼
+ results grid  +  "what happened next": triple-barrier outcomes vs. shadow baseline
 ```
 
-Matrisler eski bir sürümle üretildiyse sembol haritası eksik olabilir
-(eşleşmeler `#897` gibi görünür). Matrisleri yeniden inşa etmeden onarır ve
-yazmadan önce Parquet verisine karşı doğrular:
+A warm search over 11.6 million windows takes about **300 ms** on a laptop. There is no Kafka, no Rust, no time-series database — the bottleneck was never the language, it was the data layout.
+
+## Quick start
+
+**Requirements:** Python 3.11+ (3.12 tested), Node.js 20+, ~3 GB disk for data.
 
 ```bash
-python -m tools.repair_symbol_map
+git clone https://github.com/7mertyavuz/GraphFlow.git
+cd GraphFlow
+
+# 1. Python environment
+python -m venv .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+
+# 2. Data — free, no API key (Binance public archive, delisted pairs included)
+python -m engine.ingest.download --timeframes 1d 4h
+python -m tools.backfill --timeframe 4h     # complete 4h to the full universe
+
+# 3. Build the search matrices (~2 GB of memory-mapped vectors)
+python -m engine.matrix.build
+
+# 4. Run
+uvicorn engine.api.main:app --port 8000     # API
+cd frontend && npm install && npm run dev   # UI → http://localhost:3000
 ```
 
-Motorun kendini denetleyen araçları:
+To try it quickly on a subset, add `--limit-symbols 50` to the download step. The data directory can live anywhere via `GRAPHFLOW_DATA_DIR`.
+
+## Using it
+
+> The interface is currently in Turkish; the labels below are given as *Turkish (English)*.
+
+1. **Draw** a shape on the canvas (*Çiz*) — left to right; going back overwrites — or open *Kütüphane* (Library) and pick a formation.
+2. Choose the **timeframe** (*4 saat* / *1 gün*) and **tolerance** (*Katı · Orta · Esnek* — Strict · Medium · Flexible). Tolerance is a percentile of the query's own null distribution, not a fake "% similarity".
+3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
+4. In **Backtest**, the *Sonra ne oldu?* (What happened next?) panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the shadow baseline and the edge with a confidence interval. Small samples are flagged instead of shown as headline numbers.
+5. The *Bulgular* (Findings) page lists every test, the stage where each finding was eliminated, and which engine version produced the numbers.
+
+## Verifying the engine yourself
+
+GraphFlow ships the tools that were used to validate it:
 
 ```bash
-python -m tools.verify_stage1 --timeframe 1d   # matris == Parquet? stride bedeli?
-python -m tools.ci_calibration                 # %95 aralık gerçekten %95 mi?
-python -m tools.f46_proxy_test                 # şekil mi, momentum vekili mi?
-python -m tools.run_outcomes --timeframe 1d    # F4/F4.5 tablolarını yeniden üret
-python -m tools.measure_amplitude              # genlik eşiğini korpustan ölç
+pytest -q                                              # 300+ tests
+python -m tools.formation_audit --cross                # audit the auditor (no data needed)
+python -m tools.gt_benchmark --family all              # ground truth: injected patterns
+python -m tools.gt_benchmark --family all --real       # …on a real-market background
+python -m tools.gt_benchmark --family all --freehand 6 # …with simulated hand drawings
+python -m tools.verify_stage1 --timeframe 1d           # matrix vs. brute force
+python -m tools.ci_calibration                         # does a 95% CI cover 95%?
+python -m tools.run_outcomes --timeframe 1d            # regenerate the statistics
+python -m tools.f46_proxy_test                         # shape or momentum proxy?
 ```
 
----
+Measurement files record which engine produced them (a behavioral fingerprint). If you change the engine and do not re-run the measurements, the Findings page says so.
 
-## Teknoloji yığını
+## Project layout
 
-**Motor:** Python 3.11 · NumPy · SciPy · FastAPI
-**Veri:** Binance REST (klines) · Parquet · `.npy` memmap matrisler · Redis (opsiyonel, varsayılan süreç içi önbellek)
-**Frontend:** Next.js 16 · Tailwind v4 · TanStack Query · TradingView Lightweight Charts · düz HTML5 Canvas
+```
+engine/
+  ingest/      Binance downloader (REST + archive), resumable, rate-limited
+  normalize/   log → resample → z-score, ATR, amplitude
+  matrix/      memory-mapped window vectors, liquidity filter
+  search/      cosine stage, DTW/DDTW, NMS, structural & envelope filters
+  outcome/     triple-barrier, shadow baseline, block bootstrap
+  api/         FastAPI: search, stats, charts, findings, freshness
+  templates/   14 canonical formations as 32-point vectors
+frontend/      Next.js 16 · Tailwind v4 · TanStack Query · Lightweight Charts
+tools/         validation and measurement tools (see above)
+tests/         pytest suite, including real-corpus sentinels
+notebooks/     original validation notebooks and figures
+docs/          design decisions and measurement reports
+```
 
-**Bilinçli olarak yok:** Kafka, Rust/Go, TimescaleDB, WebSocket, Fabric.js.
+## Documentation
 
----
+The design record and the measurement reports are written in **Turkish**; see [docs/README.md](docs/README.md) for an English index.
 
-## Yol haritası
+- [Design decisions](docs/00-tasarim-kararlari.md) — 21 architectural decisions, each with the alternatives that were rejected and why
+- [Architecture](docs/01-mimari.md) — data layer, algorithms, API, performance budget
+- Measurement reports — validation, outcome statistics, proxy test, timeframe replication, formation audit
 
-| Faz | İçerik | Durum |
-|---|---|---|
-| [F0](docs/fazlar/F0-veri-ingest.md) | Veri indirme altyapısı | ✅ 1.165 parite · 1,5M bar |
-| [F1](docs/fazlar/F1-normalizasyon-matris.md) | Normalizasyon + matris inşası | ✅ 1,92M pencere |
-| [F2](docs/fazlar/F2-arama-motoru.md) | Arama motoru (kaskad) | ✅ 51 ms |
-| [**F3**](docs/fazlar/F3-dogrulama.md) | **Notebook doğrulaması** 🚦 zorunlu kapı | ✅ **Geçti** |
-| [F3.5](docs/fazlar/F3.5-temizlik.md) | Temizlik (yüzdelik skorlama, evren) | ✅ **Geçti** |
-| [F4](docs/fazlar/F4-outcome-engine.md) | Outcome Engine (triple-barrier) | ✅ **Bitti** |
-| [F4.5](docs/fazlar/F4.5-istatistiksel-saglamlastirma.md) | Ay-bloklu bootstrap + short yönü | ✅ **Bitti** |
-| [F4.6](docs/07-f46-raporu.md) | Vekil testi & Ön-getiri eşleştirmeli gölge | ✅ **Yeniden koşuldu** (N=242–509) |
-| [F4.7](docs/08-zaman-dilimi-caprazlama.md) | Zaman dilimi çaprazlaması (1d ↔ 4h) | ✅ Bitti |
-| [F4.8](docs/09-yapisal-filtre-ve-istatistik.md) | Yapısal filtre ve istatistik | ✅ Bitti — örneklem artık gerçekten o formasyon |
-| [F4.9](docs/10-formasyon-denetimi.md) | Formasyon denetimi (12 formasyon) | ✅ Bitti — ground truth ölçüm zemini, K-20/K-21 |
-| [F4.10](docs/11-yeniden-olcum.md) | Bulgular yeni motorla yeniden ölçüldü | ✅ **Yeni** — iki dilimde sağ çıkan şekil etkisi yok; köken kaydı |
-| [Rapor](docs/12-oturum-raporu.md) | 24 Ağu – 10 Eyl geliştirme raporu | 64 commit: ne, neden, hangi ölçümle; geri alınan kararlar |
-| [F5](docs/fazlar/F5-api.md) | F4.6 entegrasyonu + FastAPI / Önbellek | ✅ **Bitti** |
-| [F6](docs/fazlar/F6-radar-ui.md) | Next.js 16 — Radar (MVP 1) | ✅ **Bitti** |
-| [F7](docs/fazlar/F7-backtest-ui.md) | Next.js 16 — Backtest (MVP 2) | ✅ **Bitti** |
-| — | Doğrulama araçları: Aşama 1 kaba kuvvet, GA kapsaması | ✅ **Bitti** |
+## Contributing
 
----
+Contributions are welcome. GraphFlow has a few non-negotiable correctness rules (no lookahead, independent samples, baselines for every rate, replication across timeframes) — please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-## Sorumluluk reddi
+## Tech stack
 
-GraphFlow bir **araştırma aracıdır**, yatırım tavsiyesi değildir. Ürettiği tüm istatistikler geçmiş fiyat dağılımlarıdır ve gelecekteki performansın göstergesi değildir.
+**Engine:** Python · NumPy · pandas · PyArrow · FastAPI
+**Data:** Binance public klines · Parquet · `.npy` memory-mapped matrices
+**Frontend:** Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query · TradingView Lightweight Charts · plain HTML5 Canvas
+
+## Disclaimer
+
+GraphFlow is a **research tool**, not investment advice. Every statistic it produces describes past price behavior and is not an indication of future performance.

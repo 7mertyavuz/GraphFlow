@@ -1287,7 +1287,7 @@ veri kullanır — yani sahtekârlar da gerçek.
 | kapılı filtre | **210/288 · %73** | **%69** |
 | her sorguda filtre | 183/267 · %69 | %61 |
 
-Karar iki zeminde de aynı yönde (CLAUDE.md replikasyon kuralı).
+Karar iki zeminde de aynı yönde (CONTRIBUTING.md, replikasyon kuralı).
 
 ### Alınan ders
 

@@ -297,7 +297,7 @@ def apply_bonferroni(results: list[ProxyResult], timeframe: str = "1d") -> list[
 
     F4.5 bunu yapıyordu, F4.6 yapmıyordu — 40 testte %95 ile şans eseri ~2
     "anlamlı" hücre beklenir. Düzeltilmemiş bir F4.6 tablosu, tam olarak
-    kaçınmak için kurulmuş olduğu tuzağa düşerdi (CLAUDE.md, K-12).
+    kaçınmak için kurulmuş olduğu tuzağa düşerdi (K-12).
     """
     from engine.outcome.metrics import bonferroni_level
 

@@ -1,6 +1,6 @@
 # GraphFlow — motor bağımlılıkları.
 #
-# Bağımlılık listesi bilinçli olarak kısadır (CLAUDE.md): sıcak yol NumPy,
+# Bağımlılık listesi bilinçli olarak kısadır (CONTRIBUTING.md): sıcak yol NumPy,
 # depolama Parquet, sunum FastAPI. Yeni bir paket eklemeden önce sorulur.
 #
 #   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt

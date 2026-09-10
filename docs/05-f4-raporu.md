@@ -2,7 +2,7 @@
 
 > **Belge türü:** Faz raporu
 > **Tarih:** 31 Temmuz 2026
-> **Kapsam:** [`fazlar/F4-outcome-engine.md`](fazlar/F4-outcome-engine.md)
+> **Kapsam:** [01-mimari.md](01-mimari.md)
 > **Önceki:** [04-f35-raporu.md](04-f35-raporu.md)
 
 Ürünün tacı: *"sonra ne oldu?"*. Sinyal satmıyoruz; **ölçülmüş ve dürüstçe

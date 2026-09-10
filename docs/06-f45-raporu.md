@@ -2,7 +2,7 @@
 
 > **Belge türü:** Faz raporu
 > **Tarih:** 31 Temmuz 2026
-> **Kapsam:** [`fazlar/F4.5-istatistik.md`](fazlar/) · **Önceki:** [05-f4-raporu.md](05-f4-raporu.md)
+> **Önceki:** [05-f4-raporu.md](05-f4-raporu.md)
 
 Bu oturum yeni özellik eklemedi; F4'ün sayılarını sağlamlaştırdı.
 

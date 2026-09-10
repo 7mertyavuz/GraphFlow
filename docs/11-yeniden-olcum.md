@@ -228,7 +228,7 @@ Toplam süre ~4 dakika. Motor her değiştiğinde koşulmalıdır; koşulmazsa
 
 ## Ek: değişmezlik taraması ve köken mekanizmasının ilk gerçek kullanımı
 
-CLAUDE.md'deki "şekil okuyan her fonksiyonun değişmezlik testi olmalı"
+CONTRIBUTING.md'deki "şekil okuyan her fonksiyonun değişmezlik testi olmalı"
 kuralı, ayna hatasından sonra yalnız belirginlik için uygulanmıştı. Tüm
 fonksiyonlara uygulandı (2.000 rastgele pencere):
 

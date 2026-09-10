@@ -871,7 +871,7 @@ def _finding_stages() -> list[FindingStage]:
             desc=(
                 "Eşleştirmeli gölgeden sonra İKİ zaman diliminde de aynı yönde "
                 f"anlamlı kalan: {_describe_cells(f46_survivors)}. Tek dilimde "
-                "kalan etki bulgu değildir (CLAUDE.md replikasyon kuralı)."
+                "kalan etki bulgu değildir (replikasyon kuralı)."
             ),
         ),
         FindingStage(
