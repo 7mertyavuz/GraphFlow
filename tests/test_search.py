@@ -1625,3 +1625,34 @@ def test_yapisal_filtre_zarf_devredeyken_cekilir(obo_dataset):
     # Dönüş ailesinde zarf kapısı kapalı → yapısal filtre yerinde kalır.
     obo = engine.search(_canonical("head_and_shoulders"), timeframe=TF, tolerance="flexible", limit=12)
     assert obo.structure_filtered is True
+
+
+def test_radar_delist_sembolun_eski_son_penceresini_almaz(tmp_path):
+    """K-15: Radar = son bar. Delist olmuş sembolün son penceresi 'şimdi' değildir.
+
+    Ölçüldü: sınır yokken gerçek matriste ~640 radar satırı delist
+    sembollerin yıllar önceki son penceresiydi; ~106'sı aranabilirdi.
+    """
+    rng = np.random.default_rng(11)
+    for i in range(6):
+        df, _ = make_symbol(f"LIV{i}USDT", rng, n_bars=400, n_injections=0)
+        write_atomic(df, tmp_path / "klines" / TF / f"LIV{i}USDT.parquet")
+    # Aynı başlangıç, daha az bar → daha erken biter: delist olmuş sembol.
+    df, _ = make_symbol("DEADUSDT", rng, n_bars=250, n_injections=0)
+    write_atomic(df, tmp_path / "klines" / TF / "DEADUSDT.parquet")
+    build_all(timeframes=[TF], klines_root=tmp_path / "klines", out_root=tmp_path / "matrix", use_liquidity=False)
+
+    engine = SearchEngine(tmp_path / "matrix")
+    dead = engine.symbol_id_of("DEADUSDT", TF)
+    h = engine.handle(TF, 24)
+    live = h.live_mask
+    assert dead not in set(h.symbol_id[live].tolist())
+    # Güncel semboller hâlâ tam bir kez radarda.
+    assert sorted(h.symbol_id[live].tolist()) == sorted(
+        engine.symbol_id_of(f"LIV{i}USDT", TF) for i in range(6)
+    )
+
+    result = engine.search(
+        get_template("double_bottom").vector, mode="live", timeframe=TF, tolerance="flexible", limit=48
+    )
+    assert all(m.symbol != "DEADUSDT" for m in result.results)

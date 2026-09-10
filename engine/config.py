@@ -56,6 +56,15 @@ WINDOW_LENGTHS: Final[tuple[int, ...]] = (24, 40, 64, 100)
 #: Kayan pencere adımı. Stride 1'de komşu pencereler ~%99 aynı olur.
 STRIDE: Final[int] = 3
 
+#: Radar popülasyonu (K-15): her sembolün son penceresi — ama yalnız o
+#: pencere matrisin en yeni penceresine bu kadar bar yakınsa. Izgara 0'dan
+#: STRIDE ile hizalandığı için güncel bir sembolün son penceresi en fazla
+#: STRIDE−1 bar geride biter; daha gerisi delist olmuş (ya da verisi
+#: güncellenmemiş) bir semboldür. Ölçüldü: sınır yokken her matriste ~1.095
+#: radar satırının ~640'ı delist sembollerin yıllar önceki son penceresiydi,
+#: ~106'sı likidite maskesinden geçip "şu an buna benziyor" diye aranıyordu.
+LIVE_MAX_LAG_BARS: Final[int] = STRIDE - 1
+
 #: Matris inşasında tek seferde işlenecek pencere sayısı. Tüm pencereleri
 #: aynı anda RAM'e almamak için; asıl kazanç bitişik matris yapısında (K-01).
 MATRIX_CHUNK_WINDOWS: Final[int] = 8_192

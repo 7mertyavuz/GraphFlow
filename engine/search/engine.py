@@ -55,10 +55,12 @@ from engine.config import (
     STAGE2_TOPK,
     ENVELOPE_FILTER,
     ENVELOPE_MIN_SURVIVORS,
+    LIVE_MAX_LAG_BARS,
     STRUCTURE_FILTER,
     STRUCTURE_MIN_SURVIVORS,
     STRUCTURE_STABILITY_GATE,
     STRUCTURE_YIELDS_TO_ENVELOPE,
+    TIMEFRAME_MS,
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
@@ -256,7 +258,13 @@ class MatrixHandle:
 
     @property
     def live_mask(self) -> np.ndarray:
-        """Her sembolün **son** penceresi (Radar). Bir kez hesaplanır."""
+        """Her **güncel** sembolün son penceresi (Radar). Bir kez hesaplanır.
+
+        "Son pencere" tek başına yetmez: delist olmuş bir sembolün son
+        penceresi yıllar öncesindedir ve Radar'ın sorusu "şu an buna ne
+        benziyor". Pencere, matrisin en yeni penceresinden
+        ``LIVE_MAX_LAG_BARS``'tan fazla geride bitiyorsa Radar'a girmez (K-15).
+        """
         if self._live_mask is None:
             mask = np.zeros(len(self), dtype=bool)
             if len(self):
@@ -266,6 +274,8 @@ class MatrixHandle:
                 last[-1] = True
                 last[:-1] = sid[1:] != sid[:-1]
                 mask[order[last]] = True
+                horizon = LIVE_MAX_LAG_BARS * TIMEFRAME_MS[self.timeframe]
+                mask &= self.end_time >= self.end_time.max() - horizon
             self._live_mask = mask
         return self._live_mask
 
