@@ -513,6 +513,29 @@ ENVELOPE_DEAD_BAND: Final[float] = 0.2
 #: motorun tek güçlü olduğu aileyi — gürültüyle elerdi.
 ENVELOPE_MIN_STABILITY: Final[float] = 0.90
 
+#: Yapısal filtre, zarf filtresi devredeyken ÇEKİLİR: iki katman üst üste
+#: değil, birbirinin alternatifidir. Trend çizgisi okuması kararlıysa
+#: formasyon eğimle tanımlıdır ve uç SAYISI sorulmaz.
+#:
+#: Bulgu (düşen takoz, en zayıf formasyon): 2.000 sonuç derinliğinde enjekte
+#: edilen takozların üçte biri hiç dönmüyordu (duyarlılık %67); yapısal
+#: filtre kapatılınca %96. Takozun yapısal imzası ("2 belirgin tepe · ilki
+#: en yüksek") sorguya eklenen gürültüye karşı kararlı (%88, kapıyı geçiyor)
+#: ama gerçek takozlar 2 ya da 3 kez dokunur — kapı eklenen gürültüye karşı
+#: kararlılığı ölçer, formasyonun doğal çeşitliliğine karşı ölçmez. Zarf
+#: filtresi ise aynı derinlikte 140 sahtekârı 1 doğru kaybıyla eliyordu.
+#:
+#: Ölçüm (tools/gt_benchmark --compare-yield, alternatif / yığın):
+#:   sentetik, ilk 24          düşen takoz 10 / 9   · genel 203 / 202
+#:   sentetik, havuz 2.000     düşen takoz duyarlılık %96 / %67
+#:   gerçek piyasa, ilk 24     düşen takoz 14 / 11  · genel 209 / 206
+#:   elle çizim (6/formasyon)  düşen takoz 63 / 61  · genel 1171 / 1169
+#:   sentetik, 2. tohum        düşen takoz 12 / 9   · genel 209 / 206
+#: Beş ölçümün hiçbirinde bir formasyon kötüleşmiyor. Kural yalnız iki
+#: okumanın birden kararlı olduğu sorgulara dokunur (kanonik şablonlarda
+#: yalnız düşen takoz; elle çizimde 6'da 1 takoz).
+STRUCTURE_YIELDS_TO_ENVELOPE: Final[bool] = True
+
 #: Zarf filtresi açık mı. Ölçüm sonucu için bkz. K-21.
 ENVELOPE_FILTER: Final[bool] = True
 

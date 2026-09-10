@@ -188,7 +188,7 @@ def build_real_corpus(
 
     Sentetik korpusun dış geçerlilik sınırı buydu: enjekte edilen formasyon
     temiz bir GBM zemininde duruyordu. Gerçek piyasada sahtekârlar da gerçek;
-    kararların orada da ayakta kalması gerekir (CLAUDE.md replikasyon kuralı).
+    kararların orada da ayakta kalması gerekir (CONTRIBUTING.md, replikasyon kuralı).
     """
     rng = np.random.default_rng(seed)
     files = _real_symbols(timeframe, n_bars, n_targets + n_noise)
@@ -318,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Yapısal filtre AÇIK/KAPALI karşılaştırması")
     p.add_argument("--compare-envelope", action="store_true",
                    help="Zarf (trend çizgisi) filtresi AÇIK/KAPALI karşılaştırması")
+    p.add_argument("--compare-yield", action="store_true",
+                   help="Yapısal filtre, zarf devredeyken çekilsin mi (alternatif / yığın)")
     p.add_argument("--compare-metric", action="store_true",
                    help="Aşama 2: hybrid (Keogh türevi) / hybrid_central (merkezi fark) — K-11 açık sorusu")
     p.add_argument("--compare-gate", action="store_true",
@@ -328,6 +330,8 @@ def main(argv: list[str] | None = None) -> int:
     patterns = tuple(args.pattern or FAMILIES[args.family])
     if args.compare_structure:
         variants = {"on": {"structure_filter": True}, "off": {"structure_filter": False}}
+    elif args.compare_yield:
+        variants = {"alternatif": {"structure_yields": True}, "yığın": {"structure_yields": False}}
     elif args.compare_metric:
         variants = {"hybrid": {"metric": "hybrid"}, "merkezi": {"metric": "hybrid_central"}}
     elif args.compare_gate:

@@ -60,6 +60,7 @@ from engine.config import (
     STRUCTURE_MIN_STABILITY,
     STRUCTURE_MIN_SURVIVORS,
     STRUCTURE_STABILITY_GATE,
+    STRUCTURE_YIELDS_TO_ENVELOPE,
     TOLERANCE_THRESHOLDS_BY_METRIC,
     WINDOW_LENGTHS,
 )
@@ -390,6 +391,7 @@ class SearchEngine:
         structure_filter: bool = STRUCTURE_FILTER,
         structure_gate: bool = STRUCTURE_STABILITY_GATE,
         envelope_filter: bool = ENVELOPE_FILTER,
+        structure_yields: bool = STRUCTURE_YIELDS_TO_ENVELOPE,
     ) -> SearchResult:
         # Eşikler metrik başına ayrıdır; ham DTW mesafeleri DDTW'ninkinden
         # ~4-8x büyüktür (K-11, F3 kalibrasyonu).
@@ -518,6 +520,14 @@ class SearchEngine:
         if structure_gate and not result.structure_stable:
             structure_filter = False
 
+        # Zarf kapısı burada, yapısal filtreden ÖNCE kararlaştırılır: iki
+        # katman üst üste değil, birbirinin alternatifidir (bkz. config
+        # STRUCTURE_YIELDS_TO_ENVELOPE). Trend çizgisi okuması kararlıysa
+        # formasyon eğimle tanımlıdır ve uç sayısı sorulmaz.
+        envelope_on = bool(envelope_filter) and envelope_stability(q) >= ENVELOPE_MIN_STABILITY
+        if structure_yields and envelope_on:
+            structure_filter = False
+
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
@@ -537,8 +547,7 @@ class SearchEngine:
         # Kapı burada da geçerli (K-20 dersi): OBO'nun zarf imzası tanımlıdır
         # ama kararlılığı %41 — kapısız bir zarf filtresi dönüş ailesini
         # yazı-turayla elerdi.
-        if envelope_filter and envelope_stability(q) < ENVELOPE_MIN_STABILITY:
-            envelope_filter = False
+        envelope_filter = envelope_on
         if envelope_filter:
             result.envelope_read = describe_envelope(envelope_signature(q, strict=True))
 

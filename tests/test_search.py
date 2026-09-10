@@ -1452,7 +1452,7 @@ def test_toplu_uc_tespiti_parcalama_sinirinda_tutarli():
 
 
 # ---------------------------------------------------------------------------
-# Değişmezlik — şekil okuyan her fonksiyon (CLAUDE.md kuralı)
+# Değişmezlik — şekil okuyan her fonksiyon (CONTRIBUTING.md kuralı)
 # ---------------------------------------------------------------------------
 
 
@@ -1597,3 +1597,31 @@ def test_mutlak_tavan_cagrinin_metriginden_okunur():
     for metric in ("hybrid", "hybrid_central"):
         stats = engine._null_stats(40, null, "flexible", T[metric])
         assert stats.threshold == pytest.approx(T[metric]["flexible"])
+
+
+def test_yapisal_filtre_zarf_devredeyken_cekilir(obo_dataset):
+    """İki katman alternatif: trend çizgisi okuması kararlıysa uç sayısı sorulmaz.
+
+    Düşen takozun yapısal imzası kapıyı geçer (%88) ama gerçek takozlar 2 ya
+    da 3 kez dokunur; imza formasyonun doğal çeşitliliğine dayanıklı değil.
+    Ölçüldü: 2.000 derinlikte duyarlılık %67 → %96, beş ölçümde hiçbir
+    formasyon kötüleşmiyor.
+    """
+    from engine.config import STRUCTURE_YIELDS_TO_ENVELOPE
+
+    assert STRUCTURE_YIELDS_TO_ENVELOPE is True
+
+    root, _ = obo_dataset
+    engine = SearchEngine(root / "matrix")
+    fw = _canonical("falling_wedge")
+
+    alt = engine.search(fw, timeframe=TF, tolerance="flexible", limit=12)
+    assert alt.structure_stable, "düşen takozun yapısal okuması kararlı — kapıyı geçer"
+    assert alt.structure_filtered is False, "zarf devredeyken yapısal filtre çekilmeli"
+
+    yigin = engine.search(fw, timeframe=TF, tolerance="flexible", limit=12, structure_yields=False)
+    assert yigin.structure_filtered or yigin.structure_relaxed
+
+    # Dönüş ailesinde zarf kapısı kapalı → yapısal filtre yerinde kalır.
+    obo = engine.search(_canonical("head_and_shoulders"), timeframe=TF, tolerance="flexible", limit=12)
+    assert obo.structure_filtered is True
