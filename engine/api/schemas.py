@@ -177,6 +177,28 @@ class OutcomeConfigResponse(BaseModel):
     by_regime: list[RegimeRow]
 
 
+class FanBands(BaseModel):
+    """Izgara noktası başına yüzdelikler (ATR cinsinden).
+
+    ``u`` zaman bariyerine göre konumdur (0 = t0, 1 = t0 + T, K-16.4);
+    ``n`` o noktada ölçülebilen yol sayısıdır (veri sonu ve fiyat sıçraması
+    yolu keser). Ölçülemeyen noktalar ``None``'dır — uydurulmaz.
+    """
+
+    u: list[float]
+    n: list[int]
+    p10: list[float | None]
+    p25: list[float | None]
+    p50: list[float | None]
+    p75: list[float | None]
+    p90: list[float | None]
+
+
+class FanReport(BaseModel):
+    matches: FanBands
+    shadow: FanBands
+
+
 class OutcomeResponse(BaseModel):
     configs: dict[str, OutcomeConfigResponse]
     #: Post-NMS'ten geçen eşleşme sayısı (bağımlı olabilir).
@@ -187,6 +209,9 @@ class OutcomeResponse(BaseModel):
     dropped_filters: int
     direction: str
     shadow: dict = Field(default_factory=dict)
+    #: İleri yol fanı — eşleşmeler ve gölge, daima birlikte (K-12).
+    #: Olay yoksa None.
+    paths: FanReport | None = None
     disclaimer: str
 
 

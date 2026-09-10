@@ -38,7 +38,7 @@ src/components/
   layout/          header (live data-freshness badge), footer
   query/           DrawPad, TemplatePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
-  outcome/         StatCard, RegimeTable, OutcomePanel, SessionNotice
+  outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
   workspace/       SearchWorkspace — shared body of Radar and Backtest
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId
@@ -104,7 +104,7 @@ src/components/
   layout/          başlık (canlı veri tazeliği rozeti), altbilgi
   query/           DrawPad, TemplatePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
-  outcome/         StatCard, RegimeTable, OutcomePanel, SessionNotice
+  outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
   workspace/       SearchWorkspace — Radar ve Backtest'in ortak gövdesi
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId

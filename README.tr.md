@@ -101,7 +101,7 @@ Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle
 1. **Çiz** sekmesinde kanvasa bir şekil çizin — soldan sağa; geri dönmek o bölgenin üstüne yazar — ya da **Kütüphane**'den bir formasyon seçin.
 2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
-4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, gölge baseline'ı ve güven aralığıyla edge'i gösterir. Küçük örneklemler başlık sayısı olarak değil, uyarıyla gösterilir.
+4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, gölge baseline'ı ve güven aralığıyla edge'i gösterir. Küçük örneklemler başlık sayısı olarak değil, uyarıyla gösterilir. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını gösterir (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) — gölge örneklemin fanıyla aynı eksende. Kontrol grubu olmayan bir fan, piyasanın o dönemde zaten yaptığını formasyonun eseri sayar.
 5. **Bulgular** sayfası her testi, her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
 
 ## Motoru kendiniz doğrulayın

@@ -558,6 +558,122 @@
         ],
         "title": "ChartResponse"
       },
+      "FanBands": {
+        "properties": {
+          "u": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "U"
+          },
+          "n": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "N"
+          },
+          "p10": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P10"
+          },
+          "p25": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P25"
+          },
+          "p50": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P50"
+          },
+          "p75": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P75"
+          },
+          "p90": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "P90"
+          }
+        },
+        "type": "object",
+        "required": [
+          "u",
+          "n",
+          "p10",
+          "p25",
+          "p50",
+          "p75",
+          "p90"
+        ],
+        "title": "FanBands",
+        "description": "Izgara noktası başına yüzdelikler (ATR cinsinden).\n\n``u`` zaman bariyerine göre konumdur (0 = t0, 1 = t0 + T, K-16.4);\n``n`` o noktada ölçülebilen yol sayısıdır (veri sonu ve fiyat sıçraması\nyolu keser). Ölçülemeyen noktalar ``None``'dır — uydurulmaz."
+      },
+      "FanReport": {
+        "properties": {
+          "matches": {
+            "$ref": "#/components/schemas/FanBands"
+          },
+          "shadow": {
+            "$ref": "#/components/schemas/FanBands"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches",
+          "shadow"
+        ],
+        "title": "FanReport"
+      },
       "FindingProvenance": {
         "properties": {
           "file": {
@@ -943,6 +1059,16 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Shadow"
+          },
+          "paths": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FanReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "disclaimer": {
             "type": "string",

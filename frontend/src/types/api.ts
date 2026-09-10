@@ -172,6 +172,35 @@ export interface components {
             warp_amount: number | null;
         };
         /**
+         * FanBands
+         * @description Izgara noktası başına yüzdelikler (ATR cinsinden).
+         *
+         *     ``u`` zaman bariyerine göre konumdur (0 = t0, 1 = t0 + T, K-16.4);
+         *     ``n`` o noktada ölçülebilen yol sayısıdır (veri sonu ve fiyat sıçraması
+         *     yolu keser). Ölçülemeyen noktalar ``None``'dır — uydurulmaz.
+         */
+        FanBands: {
+            /** U */
+            u: number[];
+            /** N */
+            n: number[];
+            /** P10 */
+            p10: (number | null)[];
+            /** P25 */
+            p25: (number | null)[];
+            /** P50 */
+            p50: (number | null)[];
+            /** P75 */
+            p75: (number | null)[];
+            /** P90 */
+            p90: (number | null)[];
+        };
+        /** FanReport */
+        FanReport: {
+            matches: components["schemas"]["FanBands"];
+            shadow: components["schemas"]["FanBands"];
+        };
+        /**
          * FindingProvenance
          * @description Bir ölçüm tablosunun kökeni: hangi motor, hangi veri, ne zaman.
          */
@@ -320,6 +349,7 @@ export interface components {
             shadow?: {
                 [key: string]: unknown;
             };
+            paths?: components["schemas"]["FanReport"] | null;
             /** Disclaimer */
             disclaimer: string;
         };

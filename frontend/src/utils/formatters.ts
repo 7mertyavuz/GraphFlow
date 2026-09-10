@@ -32,6 +32,16 @@ export function formatR(value: number | null | undefined, digits = 2): string {
   return `${sign}${dec(Math.abs(value).toFixed(digits))}R`;
 }
 
+/**
+ * Fiyat hareketi, ATR cinsinden. R değildir: R işlem yönüne ve stop
+ * genişliğine bağlıdır, fiyat yolu ikisine de bağlı değildir.
+ */
+export function formatATR(value: number | null | undefined, digits = 2): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return DASH;
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return `${sign}${dec(Math.abs(value).toFixed(digits))} ATR`;
+}
+
 export function formatPercent(
   value: number | null | undefined,
   digits = 0

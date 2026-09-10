@@ -952,3 +952,78 @@ def test_small_sample_is_flagged_and_says_so(random_dataset):
                      rng=np.random.default_rng(0))
     assert not many.insufficient
     assert "yetersiz örnek" not in many.verdict
+
+
+# ---------------------------------------------------------------------------
+# İleri yol fanı
+# ---------------------------------------------------------------------------
+
+
+def _fan_store(closes: dict[int, list[float]]):
+    from engine.outcome.bars import BarStore
+
+    arrays = {}
+    for sid, c in closes.items():
+        c = np.asarray(c, dtype=np.float64)
+        arrays[sid] = {"open": c, "high": c * 1.001, "low": c * 0.999, "close": c}
+    return BarStore.from_arrays(arrays)
+
+
+def _event(sid: int, t0: int, length: int, atr: float):
+    from engine.outcome.triple_barrier import EVENT_DTYPE
+
+    ev = np.zeros(1, dtype=EVENT_DTYPE)
+    ev["symbol_id"], ev["t0"], ev["length"], ev["atr"], ev["end_time"] = sid, t0, length, atr, 0
+    return ev
+
+
+def test_fan_yolu_atr_cinsinden_ve_bariyere_gore_normalize():
+    """Her barda +1 ATR yükselen fiyat: yol 0'dan T'ye doğrusal çıkmalı.
+
+    T = pencere uzunluğunun yarısı (K-16.4). 24 barlık pencere → T = 12,
+    100 barlık → T = 50; ikisi de aynı [0, 1] zaman ekseninde durur.
+    """
+    from engine.outcome.paths import forward_paths
+
+    closes = 100.0 + np.arange(200.0)          # bar başına +1
+    store = _fan_store({1: closes})
+    events = np.concatenate([_event(1, 20, 24, 1.0), _event(1, 40, 100, 1.0)])
+    paths = forward_paths(events, store, grid=5)
+
+    assert np.allclose(paths[0], [0, 3, 6, 9, 12])    # T = 12
+    assert np.allclose(paths[1], [0, 12.5, 25, 37.5, 50])  # T = 50
+
+
+def test_fan_veri_sonu_ve_fiyat_sicramasini_uydurmaz():
+    """Ölçülemeyen nokta NaN'dır; kesilen yol sayımdan düşer."""
+    from engine.outcome.paths import fan, forward_paths
+
+    closes = list(100.0 + np.arange(30.0))
+    closes[25] = closes[24] * 20              # redenominasyon (>10x) — sıçrama
+    store = _fan_store({1: closes})
+    ev = _event(1, 20, 24, 1.0)              # T = 12 → t0+12 = 32 > veri sonu
+    paths = forward_paths(ev, store, grid=13)
+    assert paths[0, 0] == 0.0
+    assert np.isfinite(paths[0, :5]).all()      # t0+1..t0+4 ölçülebilir
+    assert np.isnan(paths[0, 5:]).all()         # sıçrama barı ve ötesi yok
+
+    rep = fan(paths)
+    assert rep["n"][0] == 1 and rep["n"][-1] == 0
+    assert rep["p50"][-1] is None
+
+
+def test_fan_yuzdelikleri_sirali_ve_golge_hep_birlikte():
+    from engine.outcome.paths import fan_report
+
+    rng = np.random.default_rng(3)
+    closes = {sid: 100 + np.cumsum(rng.normal(0, 1, 400)) + 200 for sid in range(1, 6)}
+    store = _fan_store(closes)
+    events = np.concatenate([_event(sid, 100 + 10 * sid, 40, 2.0) for sid in range(1, 6)])
+    shadow = np.concatenate([_event(sid, 250, 40, 2.0) for sid in range(1, 6)])
+    rep = fan_report(events, shadow, store)
+
+    assert set(rep) == {"matches", "shadow"}, "fan asla gölgesiz dönmemeli (K-12)"
+    for side in rep.values():
+        for i in range(len(side["u"])):
+            vals = [side[k][i] for k in ("p10", "p25", "p50", "p75", "p90")]
+            assert vals == sorted(vals)

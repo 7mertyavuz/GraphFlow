@@ -573,6 +573,13 @@ BARRIER_CONFIGS: Final[dict[str, tuple[float, float]]] = {
 #: Zaman bariyeri = bu oran * pencere uzunluğu (K-16.4).
 TIME_BARRIER_RATIO: Final[float] = 0.5
 
+#: İleri yol fanı (engine/outcome/paths.py): zaman bariyerine göre normalize
+#: edilmiş ızgaranın nokta sayısı ve gösterilen yüzdelikler. 21 nokta →
+#: bariyerin her %5'i; 24 barlık pencerenin bariyeri (12 bar) bile ara
+#: değerlemeyle temsil edilir.
+FAN_GRID_POINTS: Final[int] = 21
+FAN_QUANTILES: Final[tuple[float, ...]] = (0.10, 0.25, 0.50, 0.75, 0.90)
+
 #: İşlem maliyeti tabanı: 1*ATR / close bu oranın altındaysa pencere
 #: istatistiğe girmez (K-16.7). Binance taker gidiş-dönüş ~%0.1 + slipaj.
 MIN_ATR_PCT: Final[float] = 0.01

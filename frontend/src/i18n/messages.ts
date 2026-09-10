@@ -237,6 +237,30 @@ export const tr = {
     positiveHint: "Kazanma oranından farklı: zaman bariyerinden yeşil çıkanlar da dahil",
     shadow: "Gölge dağılım",
   },
+  fan: {
+    title: "Fiyat ne yaptı",
+    subtitle:
+      "Eşleşmelerden sonraki fiyat yolları, zaman bariyerine kadar. ATR cinsinden ve bariyersiz: yol TP'ye ya da SL'ye değse de sürer.",
+    matches: "Eşleşmeler",
+    shadow: "Gölge (aynı aylar)",
+    band80: "%10–%90",
+    band50: "%25–%75",
+    median: "Medyan",
+    tp: "TP",
+    sl: "SL",
+    xStart: "t₀",
+    xMid: "bariyerin yarısı",
+    xEnd: "zaman bariyeri",
+    at: (position: string) => `Bariyerin ${position} noktasında`,
+    matchesAt: (median: string, lo: string, hi: string) =>
+      `eşleşme medyanı ${median} (%25–%75: ${lo} … ${hi})`,
+    shadowAt: (median: string) => `gölge medyanı ${median}`,
+    counts: (start: number, end: number) =>
+      end === start ? `${start} yol` : `${start} yol · bariyer sonunda ölçülebilen ${end}`,
+    note:
+      "Geçmiş örneklemin dağılımıdır, tahmin değildir. Gölge, aynı aylarda rastgele pencerelerin izlediği yoldur; iki fan ayrışmıyorsa formasyon, piyasanın o dönemde zaten yaptığından fazlasını söylemiyor.",
+    aria: "İleri yol fanı: eşleşmeler ve gölge dağılım",
+  },
   session: {
     tried: (n: number) => `Bu oturumda ${n} şekil denendi.`,
     triedTitle: (n: number) => `Bu oturumda ${n} şekil denendi`,
@@ -503,6 +527,30 @@ export const en: Messages = {
     positive: "Closed in profit",
     positiveHint: "Not the win rate: includes events that exited green at the time barrier",
     shadow: "Shadow distribution",
+  },
+  fan: {
+    title: "What price did",
+    subtitle:
+      "Price paths after the matches, up to the time barrier. In ATR units and barrier-free: a path keeps going after touching TP or SL.",
+    matches: "Matches",
+    shadow: "Shadow (same months)",
+    band80: "10–90%",
+    band50: "25–75%",
+    median: "Median",
+    tp: "TP",
+    sl: "SL",
+    xStart: "t₀",
+    xMid: "half the barrier",
+    xEnd: "time barrier",
+    at: (position: string) => `At ${position} of the barrier`,
+    matchesAt: (median: string, lo: string, hi: string) =>
+      `match median ${median} (25–75%: ${lo} … ${hi})`,
+    shadowAt: (median: string) => `shadow median ${median}`,
+    counts: (start: number, end: number) =>
+      end === start ? `${start} paths` : `${start} paths · ${end} measurable at the barrier`,
+    note:
+      "A distribution of the historical sample, not a forecast. The shadow is the path random windows took in the same months; if the two fans do not separate, the pattern says nothing beyond what the market was already doing then.",
+    aria: "Forward path fan: matches and shadow distribution",
   },
   session: {
     tried: (n: number) => `${n} shapes tried in this session.`,

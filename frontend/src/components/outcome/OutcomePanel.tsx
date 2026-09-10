@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { type Direction, type OutcomeResponse } from "@/services/endpoints";
 import { formatCount, formatPercent } from "@/utils/formatters";
 
+import { FanChart } from "./FanChart";
 import { RegimeTable } from "./RegimeTable";
 import { ReturnBand } from "./ReturnBand";
 import { StatCard } from "./StatCard";
@@ -169,6 +170,16 @@ export function OutcomePanel({
             </div>
 
             <ReturnBand distribution={config.distribution} />
+
+            {data.paths && (
+              <FanChart
+                paths={data.paths}
+                direction={direction}
+                kTp={config.k_tp}
+                kSl={config.k_sl}
+                dimmed={config.insufficient}
+              />
+            )}
 
             <div className="space-y-2">
               <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

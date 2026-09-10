@@ -637,6 +637,32 @@ Cache'lenmiş listeden dilim döndürür. Yeniden hesaplama yapmaz.
 }
 ```
 
+**İleri yol fanı (`paths`).** Yanıt, eşleşmelerden sonra fiyatın izlediği
+yolların dağılımını da taşır (`engine/outcome/paths.py`):
+
+```json
+"paths": {
+  "matches": { "u": [0.0, 0.05, "…", 1.0], "n": [193, "…"], "p10": ["…"], "p25": ["…"],
+               "p50": ["…"], "p75": ["…"], "p90": ["…"] },
+  "shadow":  { "…": "aynı alanlar, gölge olaylar için" }
+}
+```
+
+- Fiyat ekseni ATR cinsindendir: `(C[t0+k] − C[t0]) / ATR(t0)`; ATR yalnız
+  `t0`'a kadarki barlardan gelir (lookahead yok).
+- Zaman ekseni her olayın kendi zaman bariyerine göre normalize edilir
+  (`u = 0` → `t0`, `u = 1` → `t0 + T`, K-16.4); 21 noktalı ızgara
+  (`FAN_GRID_POINTS`).
+- Bariyer yoktur: yol TP'ye ya da SL'ye değse de sürer. Soru "işlem ne oldu"
+  değil, "fiyat ne yaptı".
+- Veri sonu ve fiyat sıçraması (redenominasyon) yolu keser; o noktalar
+  `null`'dır ve `n` her noktada kaç yolun ölçüldüğünü söyler. Ara
+  değerleme ölçülemeyen bir komşuyu asla karışıma katmaz.
+- Eşleşmelerin fanı **daima** gölgenin fanıyla birlikte döner (K-12). Tek
+  başına bir fan, piyasanın o aylarda zaten yaptığını formasyonun eseri gibi
+  gösterir — piyasadaki benzer araçların fan grafiklerinde eksik olan tam
+  olarak bu kontrol grubudur.
+
 ### `GET /api/templates`
 
 Şablon kütüphanesini (kategori, isim, ikon, önizleme noktaları) döndürür.

@@ -380,6 +380,8 @@ def test_stats_use_the_matches_the_user_sees():
         outcome.dropped_filters = 0
         outcome.direction = "long"
         outcome.shadow_report = {}
+        band = {"u": [0.0, 1.0], "n": [4, 3], **{k: [0.0, None] for k in ("p10", "p25", "p50", "p75", "p90")}}
+        outcome.paths = {"matches": band, "shadow": band}
 
         mock_engine.return_value.search.reset_mock()
         with patch("engine.api.main.get_store"), patch("engine.api.main.get_pools"), patch(
@@ -391,6 +393,13 @@ def test_stats_use_the_matches_the_user_sees():
         assert response.json()["n_events"] == 4
         assert response.json()["disclaimer"]
         mock_engine.return_value.search.assert_not_called()
+
+        # Fan istenir ve gölgeyle birlikte döner (K-12); ölçülemeyen nokta
+        # null kalır, uydurulmaz.
+        assert run.call_args.kwargs["with_paths"] is True
+        paths = response.json()["paths"]
+        assert set(paths) == {"matches", "shadow"}
+        assert paths["matches"]["p50"] == [0.0, None]
 
         events = run.call_args[0][0]
         assert events.size == 4

@@ -34,6 +34,7 @@ from engine.matrix.build import META_FILE, matrix_dir
 from engine.matrix.npy_store import load_matrix
 from engine.outcome.bars import BarStore
 from engine.outcome.metrics import OutcomeStats, summarize
+from engine.outcome.paths import fan_report
 from engine.outcome.shadow import ShadowPool, sample_shadow
 from engine.outcome.triple_barrier import (
     EVENT_DTYPE,
@@ -57,6 +58,9 @@ class TemplateOutcome:
     shadow_report: dict = field(default_factory=dict)
     stats: dict[str, OutcomeStats] = field(default_factory=dict)
     direction: str = "long"
+    #: İleri yol fanı (eşleşmeler + gölge). Yalnız istendiğinde hesaplanır;
+    #: ölçüm araçları (run_outcomes) istemez, bulgu dosyaları değişmez.
+    paths: dict | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -117,6 +121,7 @@ def run_events(
     confidence: float | None = None,
     return_matched_shadow: bool = False,
     return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
+    with_paths: bool = False,
 ) -> TemplateOutcome:
     """Hazır olay dizisinden outcome — arama adımı olmadan.
 
@@ -164,6 +169,10 @@ def run_events(
     )
     shadow_events = shadow_events[eligible(shadow_events, store)] if shadow_events.size else shadow_events
     outcome.shadow_report = shadow_report
+
+    if with_paths:
+        # Fan yönden bağımsızdır (fiyat ne yaptı); gölgeyle birlikte döner (K-12).
+        outcome.paths = fan_report(events, shadow_events, store)
 
     outcome.direction = direction
     for name, (k_tp, k_sl) in BARRIER_CONFIGS.items():
