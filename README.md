@@ -7,6 +7,7 @@
 [English](README.md) · [Türkçe](README.tr.md)
 
 [![CI](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 
@@ -157,6 +158,10 @@ Contributions are welcome. GraphFlow has a few non-negotiable correctness rules 
 **Engine:** Python · NumPy · pandas · PyArrow · FastAPI
 **Data:** Binance public klines · Parquet · `.npy` memory-mapped matrices
 **Frontend:** Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query · TradingView Lightweight Charts · plain HTML5 Canvas
+
+## License
+
+[MIT](LICENSE)
 
 ## Disclaimer
 

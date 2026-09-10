@@ -7,6 +7,7 @@
 [English](README.md) · [Türkçe](README.tr.md)
 
 [![CI](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
+[![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-blue.svg)](LICENSE)
 
 </div>
 
@@ -157,6 +158,10 @@ Katkılar memnuniyetle karşılanır. GraphFlow'un pazarlığa kapalı birkaç d
 **Motor:** Python · NumPy · pandas · PyArrow · FastAPI
 **Veri:** Binance açık klines · Parquet · `.npy` memory-mapped matrisler
 **Arayüz:** Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query · TradingView Lightweight Charts · düz HTML5 Canvas
+
+## Lisans
+
+[MIT](LICENSE)
 
 ## Sorumluluk reddi
 
