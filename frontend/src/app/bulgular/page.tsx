@@ -6,7 +6,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFindings } from "@/hooks/useGraphFlowApi";
-import { formatPercent } from "@/utils/formatters";
+import { formatDate, formatPercent } from "@/utils/formatters";
 
 /**
  * Eleme zinciri sayfası.
@@ -43,6 +43,16 @@ export default function FindingsPage() {
 
       {data && (
         <div className="space-y-4">
+          {data.stale && (
+            <Alert tone="warn" title="Bu tablolar bugünkü motorla ölçülmedi">
+              Aşağıdaki sayıların en az bir kısmı, istatistiğe giren pencere
+              kümesini belirleyen filtreler değişmeden önce üretildi. Motor
+              değişince örneklem değişir; bayat bir tabloyu güncelmiş gibi
+              göstermek bu sayfanın anlattığı şeyin tersidir. Yenilemek için{" "}
+              <code className="kbd">python -m tools.run_outcomes</code>.
+            </Alert>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Aşamalar</CardTitle>
@@ -71,6 +81,41 @@ export default function FindingsPage() {
               })}
             </CardBody>
           </Card>
+
+          {data.provenance && data.provenance.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Köken</CardTitle>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {data.provenance.map((p) => (
+                  <div
+                    key={p.file}
+                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs"
+                  >
+                    <span className="font-medium">{p.file}</span>
+                    <span className="flex flex-wrap items-center gap-2 text-muted-foreground tabular">
+                      {p.data_as_of ? <>veri: {formatDate(p.data_as_of)}</> : null}
+                      {p.generated_at ? <>· ölçüm: {p.generated_at.slice(0, 10)}</> : null}
+                      <Badge
+                        tone={p.engine_match === true ? "outline" : "warn"}
+                        className="tabular"
+                      >
+                        {p.engine_match === true
+                          ? "bugünkü motor"
+                          : p.engine_match === false
+                            ? "farklı motor"
+                            : "köken bilinmiyor"}
+                      </Badge>
+                    </span>
+                    {p.reason && (
+                      <p className="w-full text-[11px] text-muted-foreground">{p.reason}</p>
+                    )}
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

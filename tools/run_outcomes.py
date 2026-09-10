@@ -37,6 +37,7 @@ from pathlib import Path
 import numpy as np
 
 from engine.config import CONFIDENCE_LEVEL, DATA_DIR, OUTCOME_TOLERANCE
+from engine.fingerprint import provenance
 from engine.outcome.bars import BarStore
 from engine.outcome.metrics import bonferroni_level
 from engine.outcome.pipeline import events_from_matches, load_shadow_pools, run_events
@@ -225,6 +226,9 @@ def main(argv: list[str] | None = None) -> int:
             "confidence_level": CONFIDENCE_LEVEL,
             "timeframe": report["timeframe"],
             "tolerance": OUTCOME_TOLERANCE,
+            # Hangi motor, hangi veri: /api/findings bunu bugünkü motorla
+            # karşılaştırır. Eksik olsaydı bayat tablo sessizce yayında kalırdı.
+            **provenance(report["timeframe"]),
         },
     }
     for name, payload in files.items():

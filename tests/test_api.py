@@ -546,7 +546,12 @@ def test_templates_expose_vectors_and_descriptions():
 def test_findings_report_every_stage():
     """Elenen bulgular da raporlanır — 'anlamlı 2' sayısı tek başına yanıltıcı."""
     body = client.get("/api/findings").json()
-    assert len(body["stages"]) == 6
+    names = [st["stage"] for st in body["stages"]]
+    assert len(names) == 7
+    # Replikasyon aşamaları ayrı ayrı görünmeli: tek dilimde kalan etki
+    # bulgu değildir ve sayfa bunu saklayamaz.
+    assert any("4h replikasyonu" in n for n in names)
+    assert any("F4.7" in n for n in names)
     assert "Bonferroni" in body["methodology"]
     for stage in body["stages"]:
         assert 0 <= stage["significant"] <= stage["total"]
@@ -740,3 +745,111 @@ def test_repeating_a_query_does_not_inflate_bonferroni(fresh_cache):
     assert r3.json()["session"]["session_queries"] == 2  # farklı tolerans → ayrı test
     # α ayrı hipotez sayısına bölünür.
     assert r3.json()["session"]["adjusted_alpha"] == pytest.approx(0.05 / 2)
+
+
+# ---------------------------------------------------------------------------
+# Bulguların kökeni — bayat tablo sessizce yayında kalmamalı
+# ---------------------------------------------------------------------------
+
+
+def test_parmak_izi_yeniden_yazimda_degismez():
+    """Davranışı koruyan bir değişiklik "farklı motor" alarmı vermemeli.
+
+    Ölçüldü: yapısal imzanın vektörizasyonundan (250 → 47 ms) önce ve sonra
+    parmak izi aynı (``cb49511dc3856220``). Yanlış alarm veren bir bayatlık
+    kontrolü, ilk hafta içinde görmezden gelinmeye başlanır.
+    """
+    from engine.fingerprint import engine_fingerprint
+
+    a = engine_fingerprint()
+    engine_fingerprint.cache_clear()
+    b = engine_fingerprint()
+    assert a == b
+
+
+def test_parmak_izi_farkli_motoru_yakalar():
+    """Kayıtlı özet farklıysa uyuşmaz; sabitler değiştiyse adları raporlanır."""
+    import copy
+
+    from engine.fingerprint import compare, engine_fingerprint
+
+    current = engine_fingerprint()
+    assert compare(current) == (True, None)
+
+    kodu_degismis = copy.deepcopy(current)
+    kodu_degismis["behavior"] = "0" * 16
+    ok, reason = compare(kodu_degismis)
+    assert ok is False and "sabitler aynı" in reason
+
+    sabiti_degismis = copy.deepcopy(kodu_degismis)
+    sabiti_degismis["config"]["ENVELOPE_FILTER"] = not current["config"]["ENVELOPE_FILTER"]
+    ok, reason = compare(sabiti_degismis)
+    assert ok is False and "ENVELOPE_FILTER" in reason
+
+
+def test_parmak_izi_yoksa_uyusuyor_denmez():
+    """Kökensiz tablo "bilinmiyor"dur — asla "güncel" değil."""
+    from engine.fingerprint import compare
+
+    assert compare(None)[0] is None
+    assert compare({})[0] is None
+
+
+def test_bulgular_bayat_tabloyu_isaretler(tmp_path, monkeypatch):
+    """Tablo var, köken yok → ``stale=True``; köken uyuşuyor → ``False``."""
+    import json
+
+    from engine.api import main as api
+    from engine.fingerprint import engine_fingerprint
+
+    f3 = tmp_path / "f3"
+    f3.mkdir()
+    (f3 / "f45_raw.json").write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(api, "DATA_DIR", tmp_path)
+
+    prov = api._findings_provenance()
+    assert len(prov) == 1 and prov[0].engine_match is None, "kökensiz tablo atlanmamalı"
+
+    (f3 / "f45_meta.json").write_text(
+        json.dumps({"fingerprint": engine_fingerprint(), "timeframe": "1d"}), encoding="utf-8"
+    )
+    prov = api._findings_provenance()
+    assert prov[0].engine_match is True
+
+    stale = json.loads(json.dumps({"fingerprint": {"behavior": "x", "config": {}}}))
+    (f3 / "f45_meta.json").write_text(json.dumps(stale), encoding="utf-8")
+    assert api._findings_provenance()[0].engine_match is False
+
+
+def test_f46_sayimi_yalniz_eslestirilmis_birincil_banttan(monkeypatch):
+    """Standart gölge ve duyarlılık bantları "eşleştirmeden sonra kalan"
+    sayısına girmemeli — standart gölge vekil testinin kontrol koludur."""
+    from engine.api import main as api
+    from engine.config import RETURN_MATCH_BAND_SIGMA
+
+    rows = [
+        {"template_id": "a", "config": "2:1", "shadow_type": "standard", "band_sigma": 0.0},
+        {"template_id": "a", "config": "2:1", "shadow_type": "return_matched",
+         "band_sigma": RETURN_MATCH_BAND_SIGMA},
+        {"template_id": "a", "config": "2:1", "shadow_type": "return_matched", "band_sigma": 0.5},
+    ]
+    assert len(api._f46_primary(rows)) == 1
+
+
+def test_replikasyon_ters_isareti_saymaz(monkeypatch):
+    """İki dilimde anlamlı ama işaret zıt → replikasyon değil, çelişki."""
+    from engine.api import main as api
+
+    def row(edge, lo, hi):
+        return {"sablon": "pennant", "yon": "short", "konf": "2:1",
+                "edge": edge, "blok_alt": lo, "blok_ust": hi}
+
+    files = {
+        "f45_raw.json": [row(+0.14, 0.03, 0.27)],
+        "f45_raw_4h.json": [row(-0.15, -0.28, -0.02)],
+    }
+    monkeypatch.setattr(api, "_load_findings_file", lambda name: files.get(name, []))
+    assert api._replicated_cells() == []
+
+    files["f45_raw_4h.json"] = [row(+0.17, 0.05, 0.28)]
+    assert api._replicated_cells() == [("pennant", "short", "2:1")]

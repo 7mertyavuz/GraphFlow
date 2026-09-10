@@ -238,10 +238,30 @@ class FindingStage(BaseModel):
     desc: str
 
 
+class FindingProvenance(BaseModel):
+    """Bir ölçüm tablosunun kökeni: hangi motor, hangi veri, ne zaman."""
+
+    file: str
+    timeframe: str | None = None
+    generated_at: str | None = None
+    #: Ölçümün gördüğü en yeni bar (ms). Korpus büyüdükçe geride kalır —
+    #: bu "başka motor" değil "daha eski veri" demektir.
+    data_as_of: int | None = None
+    #: True = bugünkü motorla ölçüldü · False = farklı motor ·
+    #: None = dosya parmak izi taşımıyor (bilinmiyor, "uyuşuyor" denemez).
+    engine_match: bool | None = None
+    reason: str | None = None
+
+
 class FindingsResponse(BaseModel):
     stages: list[FindingStage]
     full_table: list[dict]
     methodology: str
+    provenance: list[FindingProvenance] = []
+    #: Tablolardan en az biri bugünkü motorla ölçülmemişse True. Arayüz bunu
+    #: gizleyemez: bayat bir istatistiği güncelmiş gibi göstermek, dürüstlük
+    #: sayfasının anlatmaya çalıştığı şeyin tam tersidir.
+    stale: bool = False
 
 
 class HealthResponse(BaseModel):

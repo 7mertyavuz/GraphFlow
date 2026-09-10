@@ -171,6 +171,24 @@ export interface components {
             /** Warp Amount */
             warp_amount: number | null;
         };
+        /**
+         * FindingProvenance
+         * @description Bir ölçüm tablosunun kökeni: hangi motor, hangi veri, ne zaman.
+         */
+        FindingProvenance: {
+            /** File */
+            file: string;
+            /** Timeframe */
+            timeframe?: string | null;
+            /** Generated At */
+            generated_at?: string | null;
+            /** Data As Of */
+            data_as_of?: number | null;
+            /** Engine Match */
+            engine_match?: boolean | null;
+            /** Reason */
+            reason?: string | null;
+        };
         /** FindingStage */
         FindingStage: {
             /** Stage */
@@ -192,6 +210,16 @@ export interface components {
             }[];
             /** Methodology */
             methodology: string;
+            /**
+             * Provenance
+             * @default []
+             */
+            provenance: components["schemas"]["FindingProvenance"][];
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

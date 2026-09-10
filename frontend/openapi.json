@@ -454,6 +454,75 @@
         ],
         "title": "ChartResponse"
       },
+      "FindingProvenance": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "timeframe": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframe"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "engine_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Match"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "FindingProvenance",
+        "description": "Bir ölçüm tablosunun kökeni: hangi motor, hangi veri, ne zaman."
+      },
       "FindingStage": {
         "properties": {
           "stage": {
@@ -502,6 +571,19 @@
           "methodology": {
             "type": "string",
             "title": "Methodology"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/FindingProvenance"
+            },
+            "type": "array",
+            "title": "Provenance",
+            "default": []
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "default": false
           }
         },
         "type": "object",

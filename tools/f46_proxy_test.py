@@ -36,14 +36,40 @@ from engine.config import (
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("f46_proxy_test")
 
-# Test edilecek formasyonlar — F4.5'te short yönde anlamlı çıkanlar
-TARGET_TEMPLATES = [
+# Test edilecek formasyonlar — F4.5'te short yönde anlamlı çıkanlar.
+#
+# Bu liste eskiden ELLE yazılmıştı ve tanımıyla değeri ayrıştı: motor
+# değişince (K-20, K-21, ayna düzeltmesi) F4.5'in anlamlı kümesi değişti,
+# liste değişmedi. Sonuç, iki zaman diliminde replike eden flama short 2:1
+# hücresinin vekil testine HİÇ girmemesiydi. Tanım korunur, değer artık
+# güncel F4.5 ölçümünden hesaplanır.
+FALLBACK_TARGETS = [
     "rising_wedge",
     "inverse_head_and_shoulders",
     "rounding_bottom",
     "cup_and_handle",
     "double_bottom",
 ]
+
+
+def target_templates(timeframe: str = "1d") -> list[str]:
+    """F4.5'te short yönde (blok GA'sı) anlamlı çıkan şablonlar."""
+    suffix = "" if timeframe == "1d" else f"_{timeframe}"
+    path = DATA_DIR / "f3" / f"f45_raw{suffix}.json"
+    if not path.exists():
+        log.warning("%s yok — elle yazılmış yedek listeye düşülüyor", path.name)
+        return list(FALLBACK_TARGETS)
+
+    rows = json.loads(path.read_text(encoding="utf-8"))
+    chosen = sorted({
+        r["sablon"] for r in rows
+        if r.get("yon") == "short" and r.get("olculebilir")
+        and r.get("blok_alt") is not None and r.get("blok_ust") is not None
+        and (r["blok_alt"] > 0.0 or r["blok_ust"] < 0.0)
+    })
+    log.info("hedefler (F4.5 short anlamlı, %s): %s", timeframe, ", ".join(chosen) or "—")
+    return chosen
+
 
 # Her iki konfigürasyon da test edilir
 CONFIGS_TO_TEST = ["2:1", "1:1"]
@@ -90,7 +116,7 @@ def run_proxy_test(
     from engine.search.engine import SearchEngine
     from engine.templates import load_all
 
-    templates = templates or TARGET_TEMPLATES
+    templates = templates or target_templates(timeframe)
     all_templates = load_all()
 
     engine = SearchEngine()
@@ -279,7 +305,12 @@ def apply_bonferroni(results: list[ProxyResult], timeframe: str = "1d") -> list[
     level = bonferroni_level(family)
     log.info("Bonferroni: aile %d test → güven düzeyi %.6f", family, level)
 
-    corrected = run_proxy_test(timeframe=timeframe, confidence=level)
+    # Şablon listesi AÇIKÇA iletilir. Eskiden iletilmiyordu; liste sabitken
+    # zararsızdı, veriden türetilince ikinci geçiş başka bir listeyle
+    # koşabilirdi (ör. 1d hedefleri 4h'de sınanırken) ve düzeltilmiş aralık
+    # sessizce eksik kalırdı.
+    templates = list(dict.fromkeys(r.template_id for r in results))
+    corrected = run_proxy_test(timeframe=timeframe, templates=templates, confidence=level)
     by_key = {
         (r.template_id, r.config, r.shadow_type, round(r.band_sigma, 3)): r for r in corrected
     }
@@ -291,11 +322,21 @@ def apply_bonferroni(results: list[ProxyResult], timeframe: str = "1d") -> list[
     return results
 
 
-def main():
-    log.info("F4.6 Vekil Testi başlıyor...")
+def main(argv: list[str] | None = None):
+    import argparse
 
-    results = run_proxy_test()
-    results = apply_bonferroni(results)
+    p = argparse.ArgumentParser(description="F4.6 vekil testi")
+    p.add_argument("--timeframe", default="1d")
+    p.add_argument("--templates", nargs="+", default=None,
+                   help="Varsayılan: bu zaman diliminin F4.5 short-anlamlı şablonları. "
+                        "Replikasyon için 1d hedefleri 4h'de açıkça verilir.")
+    args = p.parse_args(argv)
+    sfx = "" if args.timeframe == "1d" else f"_{args.timeframe}"
+
+    log.info("F4.6 Vekil Testi başlıyor (%s)...", args.timeframe)
+
+    results = run_proxy_test(timeframe=args.timeframe, templates=args.templates)
+    results = apply_bonferroni(results, timeframe=args.timeframe)
 
     # Tablo
     table = format_results_table(results)
@@ -330,9 +371,15 @@ def main():
             "n_months": r.n_months,
             "design_effect": r.design_effect,
         })
-    with open(output_dir / "f46_raw.json", "w", encoding="utf-8") as f:
+    with open(output_dir / f"f46_raw{sfx}.json", "w", encoding="utf-8") as f:
         json.dump(raw, f, indent=2, ensure_ascii=False)
-    log.info("Sonuçlar: %s", output_dir / "f46_raw.json")
+    log.info("Sonuçlar: %s", output_dir / f"f46_raw{sfx}.json")
+
+    # Köken: /api/findings bu tabloyu bugünkü motorla karşılaştırır.
+    from engine.fingerprint import provenance
+
+    with open(output_dir / f"f46_meta{sfx}.json", "w", encoding="utf-8") as f:
+        json.dump(provenance(args.timeframe), f, indent=2, ensure_ascii=False)
 
     # Markdown rapor
     report = f"""# F4.6 — Vekil Testi Raporu
@@ -357,9 +404,9 @@ Duyarlılık: ±0.15σ, ±0.25σ, ±0.50σ.
 
 Fallback zinciri: band genişlet → ay esnet (±1 ay) → uyarı ver.
 """
-    with open(output_dir / "f46_raporu.md", "w", encoding="utf-8") as f:
+    with open(output_dir / f"f46_raporu{sfx}.md", "w", encoding="utf-8") as f:
         f.write(report)
-    log.info("Rapor: %s", output_dir / "f46_raporu.md")
+    log.info("Rapor: %s", output_dir / f"f46_raporu{sfx}.md")
 
 
 if __name__ == "__main__":

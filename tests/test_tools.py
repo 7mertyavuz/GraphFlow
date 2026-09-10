@@ -276,3 +276,68 @@ def test_gercek_veri_dagiticilari_dokunulmamis_kalir():
         assert _inject_into_real(src, dst, None, rng, n, (0, 0), (0, 0), (0, 0)) is None
         out = pd.read_parquet(dst)
     assert np.allclose(out["close"].to_numpy(), close)
+
+
+# ---------------------------------------------------------------------------
+# F4.6 hedef listesi — tanımı sabit, değeri güncel ölçümden
+# ---------------------------------------------------------------------------
+
+
+def _f45_row(sablon, yon, lo, hi, edge=0.1):
+    return {"sablon": sablon, "yon": yon, "konf": "2:1", "olculebilir": True,
+            "blok_alt": lo, "blok_ust": hi, "edge": edge}
+
+
+def test_f46_hedefleri_guncel_f45_olcumunden_gelir(tmp_path, monkeypatch):
+    """Liste elle yazıldığında tanımıyla değeri ayrışmıştı.
+
+    Motor değişince F4.5'in anlamlı kümesi değişti, liste değişmedi; iki
+    zaman diliminde replike eden flama short 2:1 vekil testine hiç girmedi.
+    """
+    import json
+
+    from tools import f46_proxy_test as f46
+
+    (tmp_path / "f3").mkdir()
+    rows = [
+        _f45_row("pennant", "short", 0.02, 0.26),        # anlamlı, short → hedef
+        _f45_row("double_top", "short", -0.80, -0.10),   # anlamlı (negatif) → hedef
+        _f45_row("bull_flag", "short", -0.10, 0.20),     # sıfırı içeriyor → değil
+        _f45_row("double_bottom", "long", -0.77, -0.25), # anlamlı ama long → değil
+    ]
+    (tmp_path / "f3" / "f45_raw.json").write_text(json.dumps(rows), encoding="utf-8")
+    monkeypatch.setattr(f46, "DATA_DIR", tmp_path)
+
+    assert f46.target_templates("1d") == ["double_top", "pennant"]
+
+
+def test_f46_hedef_dosyasi_yoksa_yedek_listeye_duser(tmp_path, monkeypatch):
+    from tools import f46_proxy_test as f46
+
+    monkeypatch.setattr(f46, "DATA_DIR", tmp_path)
+    assert f46.target_templates("1d") == f46.FALLBACK_TARGETS
+
+
+def test_f46_bonferroni_gecisi_ayni_sablonlarla_kosar(monkeypatch):
+    """İkinci geçiş şablon listesini ilk geçişten almalı.
+
+    Eskiden liste iletilmiyordu: liste sabitken zararsızdı, veriden
+    türetilince (ör. 1d hedefleri 4h'de sınanırken) ikinci geçiş başka bir
+    listeyle koşar ve düzeltilmiş aralıklar sessizce eksik kalırdı.
+    """
+    from tools import f46_proxy_test as f46
+
+    seen = {}
+
+    def fake_run(timeframe="1d", templates=None, confidence=None, **_):
+        seen["templates"] = templates
+        seen["timeframe"] = timeframe
+        return []
+
+    monkeypatch.setattr(f46, "run_proxy_test", fake_run)
+    first = [
+        f46.ProxyResult("pennant", "short", "2:1", 0.25, 10, 100, 0.1, (0.0, 0.2), False, "return_matched"),
+        f46.ProxyResult("double_top", "short", "2:1", 0.25, 10, 100, 0.1, (0.0, 0.2), False, "return_matched"),
+    ]
+    f46.apply_bonferroni(first, timeframe="4h")
+    assert seen == {"templates": ["pennant", "double_top"], "timeframe": "4h"}

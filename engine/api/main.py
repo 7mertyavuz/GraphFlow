@@ -29,6 +29,7 @@ from engine.api.cache import OUTCOME_TTL, RADAR_TTL, SEARCH_TTL, get_cache
 from engine.api.chart import build_chart
 from engine.api.schemas import (
     ChartResponse,
+    FindingProvenance,
     FindingsResponse,
     FindingStage,
     MatchResponse,
@@ -44,6 +45,7 @@ from engine.api.schemas import (
 from engine.api.session import get_session_id, read_session, track_session
 from engine.config import (
     DATA_DIR,
+    RETURN_MATCH_BAND_SIGMA,
     TIMEFRAMES,
     N_POINTS,
     REFINE_MATCHES,
@@ -715,8 +717,13 @@ def _load_findings_file(name: str) -> list[dict]:
     return []
 
 
-def _replicated() -> int:
-    """1d ve 4h'de **aynı yönde** anlamlı çıkan hücre sayısı (F4.7).
+def _block_significant(row: dict) -> bool:
+    lo, hi = row.get("blok_alt"), row.get("blok_ust")
+    return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
+
+
+def _replicated_cells() -> list[tuple[str, str, str]]:
+    """1d ve 4h'de **aynı yönde** anlamlı çıkan hücreler (F4.7).
 
     Bir bulgu tek zaman diliminde anlamlıysa bulgu değildir. İki dilim
     bağımsız veri kümesi olmasa da (aynı piyasa, aynı semboller) farklı
@@ -726,25 +733,75 @@ def _replicated() -> int:
     one_day = _load_findings_file("f45_raw.json")
     four_hour = _load_findings_file("f45_raw_4h.json")
     if not one_day or not four_hour:
-        return 0
+        return []
 
     def key(row: dict) -> tuple:
         return (row.get("sablon"), row.get("yon"), row.get("konf"))
 
-    def significant(row: dict) -> bool:
-        lo, hi = row.get("blok_alt"), row.get("blok_ust")
-        return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
-
     by_4h = {key(r): r for r in four_hour}
-    count = 0
+    cells: list[tuple[str, str, str]] = []
     for row in one_day:
         other = by_4h.get(key(row))
-        if other is None or not (significant(row) and significant(other)):
+        if other is None or not (_block_significant(row) and _block_significant(other)):
             continue
         # Aynı yön şartı: işaret dönüyorsa replikasyon değil, çelişkidir.
         if (row.get("edge") or 0.0) * (other.get("edge") or 0.0) > 0:
-            count += 1
-    return count
+            cells.append(key(row))
+    return sorted(cells)
+
+
+def _replicated() -> int:
+    return len(_replicated_cells())
+
+
+def _f46_primary(rows: list[dict]) -> list[dict]:
+    """Ön-getiri eşleştirmeli gölge, BİRİNCİL bant (duyarlılık bantları hariç).
+
+    Eskiden sayım tüm satırlar üzerindendi — standart gölge satırları da
+    dahil. Standart gölge vekil testinin kontrol koludur; "eşleştirmeli
+    gölgeden sonra anlamlı kalan" sayısına onu katmak soruyu bulandırıyordu.
+    """
+    return [
+        r for r in rows
+        if r.get("shadow_type") == "return_matched"
+        and abs((r.get("band_sigma") or 0.0) - RETURN_MATCH_BAND_SIGMA) < 1e-6
+    ]
+
+
+def _f46_replicated() -> list[tuple[str, str]]:
+    """Eşleştirmeli gölgeden sonra 1d VE 4h'de aynı yönde anlamlı kalanlar."""
+    four_hour = {
+        (r["template_id"], r["config"]): r
+        for r in _f46_primary(_load_findings_file("f46_raw_4h.json"))
+    }
+    survivors: list[tuple[str, str]] = []
+    for r in _f46_primary(_load_findings_file("f46_raw.json")):
+        other = four_hour.get((r["template_id"], r["config"]))
+        if not (r.get("edge_is_significant") and other and other.get("edge_is_significant")):
+            continue
+        if (r.get("edge_r") or 0.0) * (other.get("edge_r") or 0.0) > 0:
+            survivors.append((r["template_id"], r["config"]))
+    return sorted(survivors)
+
+
+_TR_TEMPLATE = {
+    "rising_wedge": "yükselen takoz", "falling_wedge": "düşen takoz",
+    "pennant": "flama", "bull_flag": "boğa bayrağı", "bear_flag": "ayı bayrağı",
+    "double_top": "ikili tepe", "double_bottom": "ikili dip",
+    "head_and_shoulders": "OBO", "inverse_head_and_shoulders": "ters OBO",
+    "ascending_triangle": "yükselen üçgen", "descending_triangle": "alçalan üçgen",
+    "symmetrical_triangle": "simetrik üçgen", "cup_and_handle": "fincan-kulp",
+    "rounding_bottom": "çanak dip",
+}
+
+
+def _describe_cells(cells: list[tuple]) -> str:
+    """Hücre listesini okunur Türkçeye çevirir — açıklamalar veriden gelir."""
+    if not cells:
+        return "hiçbiri"
+    return ", ".join(
+        " ".join([_TR_TEMPLATE.get(c[0], c[0]), *(str(x) for x in c[1:])]) for c in cells
+    )
 
 
 def _finding_stages() -> list[FindingStage]:
@@ -765,6 +822,9 @@ def _finding_stages() -> list[FindingStage]:
         return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
 
     measurable_45 = [r for r in f45_raw if r.get("olculebilir")]
+    f46_primary = _f46_primary(f46)
+    f46_survivors = _f46_replicated()
+    replicated = _replicated_cells()
     bonf_measurable = [r for r in f45_bonf if r.get("olculebilir")]
 
     return [
@@ -787,41 +847,110 @@ def _finding_stages() -> list[FindingStage]:
             desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
         ),
         FindingStage(
-            stage="F4.6 — ön-getiri eşleştirmeli gölge",
-            significant=sum(1 for r in f46 if r.get("edge_is_significant")),
-            total=len(f46),
+            stage="F4.6 — ön-getiri eşleştirmeli gölge (1d)",
+            significant=sum(1 for r in f46_primary if r.get("edge_is_significant")),
+            total=len(f46_primary),
             desc=(
                 "Gölge havuzuna 'benzer ön-getiri' kısıtı eklendi: fark "
                 "buharlaşıyorsa ölçülen şey şekil değil, momentum tersine "
-                "dönüşüdür. Beş şablonun beşinde de edge eriyor."
+                "dönüşüdür. Sınanan şablonlar F4.5'te short yönde anlamlı "
+                f"çıkanlardır ({_describe_cells(sorted({(r['template_id'],) for r in f46_primary}))}); "
+                "liste güncel ölçümden hesaplanır, elle yazılmaz."
             ),
         ),
         FindingStage(
             stage="F4.6 — Bonferroni",
-            significant=sum(1 for r in f46 if r.get("edge_significant_bonferroni")),
-            total=len(f46),
+            significant=sum(1 for r in f46_primary if r.get("edge_significant_bonferroni")),
+            total=len(f46_primary),
+            desc="Aynı aile, çoklu karşılaştırma düzeltmesiyle.",
+        ),
+        FindingStage(
+            stage="F4.6 — 4h replikasyonu",
+            significant=len(f46_survivors),
+            total=len(f46_primary),
             desc=(
-                "Aynı aile, çoklu karşılaştırma düzeltmesiyle. Yapısal imza "
-                "filtresi açıkken örneklem gerçekten o formasyonla sınırlı; "
-                "N düştüğü için güç de düştü (bkz. F4.8)."
+                "Eşleştirmeli gölgeden sonra İKİ zaman diliminde de aynı yönde "
+                f"anlamlı kalan: {_describe_cells(f46_survivors)}. Tek dilimde "
+                "kalan etki bulgu değildir (CLAUDE.md replikasyon kuralı)."
             ),
         ),
         FindingStage(
             stage="F4.7 — zaman dilimi çaprazlaması",
-            significant=_replicated(),
-            total=len(_load_findings_file("f45_raw.json")),
+            significant=len(replicated),
+            total=len(f45_raw),
             desc=(
                 "Aynı 56 test 1d ve 4h'de ayrı ayrı koşuldu. Sayılan: iki "
-                "dilimde de AYNI YÖNDE anlamlı çıkan hücreler. Replike eden "
-                "tek formasyon yükselen takoz; diğerleri bir dilimde var, "
-                "ötekinde yok — gürültünün klasik imzası."
+                "dilimde de AYNI YÖNDE anlamlı çıkan hücreler — "
+                f"{_describe_cells(replicated)}. Bu hücreler F4.6'da "
+                "momentum vekili olup olmadıkları için ayrıca sınanır."
             ),
         ),
     ]
 
 
+#: Ölçüm tabloları ve köken dosyaları. f4/f45 tabloları kökenlerini
+#: ``f45_meta*.json``'da taşır (tablolar liste olduğu için).
+_PROVENANCE_FILES: tuple[tuple[str, str, str], ...] = (
+    ("f45_raw.json", "f45_meta.json", "F4/F4.5 · 1d"),
+    ("f45_raw_4h.json", "f45_meta_4h.json", "F4/F4.5 · 4h"),
+    ("f46_raw.json", "f46_meta.json", "F4.6 · 1d"),
+    ("f46_raw_4h.json", "f46_meta_4h.json", "F4.6 · 4h"),
+)
+
+
+def _bonferroni_family() -> int | str:
+    """F4.5 ailesinin boyutu — ölçüm dosyasından.
+
+    Metinde "m=52" sabit yazılıydı; ölçüm 56 test sayıyordu. Yöntem metni
+    de bir sayıdır ve veriden gelmelidir.
+    """
+    path = DATA_DIR / "f3" / "f45_meta.json"
+    try:
+        meta = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        return int(meta.get("family_size")) if meta.get("family_size") else "?"
+    except Exception:  # pragma: no cover - rapor dosyası opsiyonel
+        return "?"
+
+
+def _findings_provenance() -> list[FindingProvenance]:
+    """Her ölçüm tablosunu bugünkü motorla karşılaştırır.
+
+    Bu kontrol yokken tablolar motor değiştikçe sessizce bayatlıyordu:
+    Eylül 2026'da üç filtre değişikliği aynı gün bağlandı, "Bulgular"
+    sayfası bir önceki günün motorunun istatistiğini göstermeye devam etti.
+
+    Anahtar TABLONUN varlığıdır, köken dosyasının değil: tablo var ama köken
+    yoksa durum "bilinmiyor"dur ve öyle raporlanır — atlanması, kökensiz bir
+    tabloyu sessizce güncel saymak olurdu.
+    """
+    from engine.fingerprint import compare
+
+    out: list[FindingProvenance] = []
+    for table, meta_name, label in _PROVENANCE_FILES:
+        if not (DATA_DIR / "f3" / table).exists():
+            continue
+        meta: dict = {}
+        path = DATA_DIR / "f3" / meta_name
+        try:
+            if path.exists():
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                meta = loaded if isinstance(loaded, dict) else {}
+        except Exception:  # pragma: no cover - rapor dosyası opsiyonel
+            log.warning("%s okunamadı", meta_name, exc_info=True)
+        match, reason = compare(meta.get("fingerprint"))
+        out.append(FindingProvenance(
+            file=label,
+            timeframe=meta.get("timeframe"),
+            generated_at=meta.get("generated_at"),
+            data_as_of=meta.get("data_as_of"),
+            engine_match=match,
+            reason=reason,
+        ))
+    return out
+
+
 @app.get("/api/findings", response_model=FindingsResponse)
-async def get_findings():
+def get_findings():
     """F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
 
     Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
@@ -837,13 +966,16 @@ async def get_findings():
     except Exception:  # pragma: no cover - rapor dosyası opsiyonel
         log.warning("f46_raw.json okunamadı", exc_info=True)
 
+    provenance = _findings_provenance()
     return FindingsResponse(
         stages=stages,
         full_table=full_table,
+        provenance=provenance,
+        stale=any(p.engine_match is not True for p in provenance),
         methodology=(
             "Aylık kesitsel likidite filtresi (üst %40), takvim ayı bloklu bootstrap, "
-            "Bonferroni çoğul test düzeltmesi (m=52) ve ön-getiri eşleştirmeli gölge "
-            "dağılım (±0.25σ). Bariyerler ATR tabanlıdır; aynı barda TP ve SL "
-            "çarpıldığında SL varsayılır."
+            f"Bonferroni çoğul test düzeltmesi (m={_bonferroni_family()}) ve ön-getiri "
+            f"eşleştirmeli gölge dağılım (±{RETURN_MATCH_BAND_SIGMA:.2f}σ). Bariyerler "
+            "ATR tabanlıdır; aynı barda TP ve SL çarpıldığında SL varsayılır."
         ),
     )
