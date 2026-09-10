@@ -21,7 +21,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import numpy as np
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from engine.api import freshness, health
@@ -43,6 +43,8 @@ from engine.api.schemas import (
     TemplateResponse,
 )
 from engine.api.session import get_session_id, read_session, track_session
+from engine.i18n import resolve_lang, t
+from engine.search.constraints import describe_envelope, describe_signature
 from engine.config import (
     DATA_DIR,
     RETURN_MATCH_BAND_SIGMA,
@@ -115,10 +117,33 @@ app.add_middleware(
 
 app.include_router(health.router, prefix="/api")
 
-DISCLAIMER = (
-    "Geçmiş dağılım gelecek getirinin garantisi değildir. Burada gösterilen "
-    "her sayı ölçülmüş bir geçmiş istatistiktir; işlem tavsiyesi değildir."
-)
+def get_lang(accept_language: str | None = Header(default=None)) -> str:
+    """İsteğin dili — ``Accept-Language`` (engine.i18n)."""
+    return resolve_lang(accept_language)
+
+
+def _jsonable(sig: tuple | None) -> list | None:
+    """İmza demeti → JSON listesi (numpy skalerleri düz Python'a)."""
+    if sig is None:
+        return None
+    return [bool(v) if isinstance(v, (bool,)) or type(v).__name__ == "bool_" else int(v) for v in sig]
+
+
+def _texts(src: dict, lang: str) -> dict[str, str | None]:
+    """Önbellekteki dilden bağımsız veriden kullanıcı metinleri.
+
+    Önbelleğe metin değil imza ve uyarı kodu yazılır: Radar önbelleğini bir
+    Türkçe istemci doldurduysa İngilizce istemci Türkçe metin almamalı.
+    """
+    sig = src.get("structure_signature")
+    env = src.get("envelope_signature")
+    code = src.get("warning_code")
+    return {
+        "warning": t(f"warn.{code}", lang) if code else None,  # type: ignore[arg-type]
+        "structure_read": describe_signature(tuple(sig), lang) if sig else None,
+        "envelope_read": describe_envelope(tuple(env), lang) if env else None,
+    }
+
 
 # ---------------------------------------------------------------------------
 # Tembel yüklenen ağır nesneler (matrisler memmap, bar deposu ~yüz MB)
@@ -234,7 +259,7 @@ def wrap_stat(
     )
 
 
-def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
+def to_outcome_config(stats: OutcomeStats, lang: str = "tr") -> OutcomeConfigResponse:
     expectancy = wrap_stat(
         val=stats.expectancy_r,
         ci=stats.expectancy_ci,
@@ -272,7 +297,7 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
             n_events=stats.n,
             n_months=stats.n_months,
             significant=stats.edge_is_significant,
-            verdict=stats.verdict,
+            verdict=stats.verdict_text(lang),
             design_effect=stats.design_effect,
             unit="R",
         )
@@ -299,16 +324,16 @@ def to_outcome_config(stats: OutcomeStats) -> OutcomeConfigResponse:
     )
 
 
-def to_outcome_response(outcome: TemplateOutcome) -> OutcomeResponse:
+def to_outcome_response(outcome: TemplateOutcome, lang: str = "tr") -> OutcomeResponse:
     return OutcomeResponse(
-        configs={name: to_outcome_config(s) for name, s in outcome.stats.items()},
+        configs={name: to_outcome_config(s, lang) for name, s in outcome.stats.items()},
         matches=outcome.matches,
         n_events=outcome.events,
         dropped_forward_overlap=outcome.dropped_separation,
         dropped_filters=outcome.dropped_filters,
         direction=outcome.direction,
         shadow=outcome.shadow_report,
-        disclaimer=DISCLAIMER,
+        disclaimer=t("disclaimer", lang),  # type: ignore[arg-type]
     )
 
 
@@ -423,7 +448,11 @@ async def load_search(search_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/search", response_model=SearchResponse)
-async def create_search(request: SearchRequest, session_id: str = Depends(get_session_id)):
+async def create_search(
+    request: SearchRequest,
+    session_id: str = Depends(get_session_id),
+    lang: str = Depends(get_lang),
+):
     engine = get_engine()
     cache = get_cache()
 
@@ -442,7 +471,7 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
     # Sayaç ayrı hipotez sayar: aynı şekil aynı parametrelerle tekrar
     # sorulduğunda artmaz (Radar'ın kendini yenilemesi dahil).
     session_info = await track_session(
-        session_id, query_fingerprint(request, query_vector, window_lengths)
+        session_id, query_fingerprint(request, query_vector, window_lengths), lang
     )
 
     # Radar önbelleği (§6): aynı şablon 5 dakika içinde yeniden sorulursa
@@ -468,11 +497,9 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                     data_as_of=freshness.data_as_of(request.timeframe),
                     stale_warning=freshness.is_stale(request.timeframe),
                     discriminative=stored.get("discriminative", True),
-                    warning=stored.get("warning"),
-                    structure_read=stored.get("structure_read"),
+                    **_texts(stored, lang),
                     structure_filtered=stored.get("structure_filtered", False),
                     structure_stable=stored.get("structure_stable", True),
-                    envelope_read=stored.get("envelope_read"),
                     envelope_filtered=stored.get("envelope_filtered", False),
                     results=[MatchResponse(**m) for m in page],
                     session=session_info,
@@ -523,11 +550,12 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
                 "timeframe": request.timeframe,
                 "tolerance": request.tolerance,
                 "discriminative": result.discriminative,
-                "warning": result.warning,
-                "structure_read": result.structure_read,
+                # Metin değil veri (engine.i18n): metin yanıt anında dile göre.
+                "warning_code": result.warning_code,
+                "structure_signature": _jsonable(result.structure_signature),
                 "structure_filtered": result.structure_filtered,
                 "structure_stable": result.structure_stable,
-                "envelope_read": result.envelope_read,
+                "envelope_signature": _jsonable(result.envelope_signature),
                 "envelope_filtered": result.envelope_filtered,
                 "query_vector": [float(v) for v in query_vector],
                 "matches": matches,
@@ -548,11 +576,16 @@ async def create_search(request: SearchRequest, session_id: str = Depends(get_se
         data_as_of=freshness.data_as_of(request.timeframe),
         stale_warning=freshness.is_stale(request.timeframe),
         discriminative=result.discriminative,
-        warning=result.warning,
-        structure_read=result.structure_read,
+        **_texts(
+            {
+                "warning_code": result.warning_code,
+                "structure_signature": result.structure_signature,
+                "envelope_signature": result.envelope_signature,
+            },
+            lang,
+        ),
         structure_filtered=result.structure_filtered,
         structure_stable=result.structure_stable,
-        envelope_read=result.envelope_read,
         envelope_filtered=result.envelope_filtered,
         results=[MatchResponse(**m) for m in matches[: request.limit]],
         session=session_info,
@@ -565,10 +598,11 @@ async def get_search(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=12, ge=1, le=48),
     session_id: str = Depends(get_session_id),
+    lang: str = Depends(get_lang),
 ):
     parsed = await load_search(search_id)
     # Sayfalama yeni bir hipotez testi değildir: oturum sayacı artmaz.
-    session_info = await read_session(session_id)
+    session_info = await read_session(session_id, lang)
     timeframe = parsed.get("timeframe", "4h")
 
     page = parsed["matches"][offset : offset + limit]
@@ -582,11 +616,9 @@ async def get_search(
         data_as_of=freshness.data_as_of(timeframe),
         stale_warning=freshness.is_stale(timeframe),
         discriminative=parsed.get("discriminative", True),
-        warning=parsed.get("warning"),
-        structure_read=parsed.get("structure_read"),
+        **_texts(parsed, lang),
         structure_filtered=parsed.get("structure_filtered", False),
         structure_stable=parsed.get("structure_stable", True),
-        envelope_read=parsed.get("envelope_read"),
         envelope_filtered=parsed.get("envelope_filtered", False),
         results=[MatchResponse(**m) for m in page],
         session=session_info,
@@ -598,11 +630,14 @@ async def get_search_stats(
     search_id: str,
     direction: str = Query(default="long", pattern="^(long|short)$"),
     session_id: str = Depends(get_session_id),
+    lang: str = Depends(get_lang),
 ):
     cache = get_cache()
-    await read_session(session_id)
+    await read_session(session_id, lang)
 
-    cached = await cache.get(f"search:{search_id}:stats:{direction}")
+    # Anahtar dili de içerir: yanıtta hüküm ve sorumluluk reddi metni var.
+    stats_key = f"search:{search_id}:stats:{direction}:{lang}"
+    cached = await cache.get(stats_key)
     if cached:
         return OutcomeResponse(**json.loads(cached))
 
@@ -613,7 +648,7 @@ async def get_search_stats(
         # Radar eşleşmeleri son bardadır; ileri pencereleri henüz yoktur.
         raise HTTPException(
             status_code=400,
-            detail="Canlı radar sonuçlarının ileri penceresi yok; istatistik için tarihsel mod kullanın",
+            detail=t("live_no_stats", lang),  # type: ignore[arg-type]
         )
 
     matches = parsed["matches"]
@@ -630,9 +665,9 @@ async def get_search_stats(
         direction=direction,
     )
 
-    response = to_outcome_response(outcome)
+    response = to_outcome_response(outcome, lang)
     await cache.set(
-        f"search:{search_id}:stats:{direction}",
+        stats_key,
         json.dumps(response.model_dump()).encode("utf-8"),
         OUTCOME_TTL,
     )
@@ -640,18 +675,18 @@ async def get_search_stats(
 
 
 @app.get("/api/templates", response_model=list[TemplateResponse])
-async def get_templates():
+async def get_templates(lang: str = Depends(get_lang)):
     return [
         TemplateResponse(
             id=t_id,
-            name=t.name_tr,
-            name_en=t.name_en,
-            category=t.category,
-            bias=t.bias,
-            description=t.description_tr,
-            vector=[float(v) for v in t.vector],
+            name=tpl.name_en if lang == "en" else tpl.name_tr,
+            name_en=tpl.name_en,
+            category=tpl.category,
+            bias=tpl.bias,
+            description=(tpl.description_en or tpl.description_tr) if lang == "en" else tpl.description_tr,
+            vector=[float(v) for v in tpl.vector],
         )
-        for t_id, t in load_all_templates().items()
+        for t_id, tpl in load_all_templates().items()
     ]
 
 
@@ -784,107 +819,61 @@ def _f46_replicated() -> list[tuple[str, str]]:
     return sorted(survivors)
 
 
-_TR_TEMPLATE = {
-    "rising_wedge": "yükselen takoz", "falling_wedge": "düşen takoz",
-    "pennant": "flama", "bull_flag": "boğa bayrağı", "bear_flag": "ayı bayrağı",
-    "double_top": "ikili tepe", "double_bottom": "ikili dip",
-    "head_and_shoulders": "OBO", "inverse_head_and_shoulders": "ters OBO",
-    "ascending_triangle": "yükselen üçgen", "descending_triangle": "alçalan üçgen",
-    "symmetrical_triangle": "simetrik üçgen", "cup_and_handle": "fincan-kulp",
-    "rounding_bottom": "çanak dip",
-}
+def _template_name(template_id: str, lang: str) -> str:
+    """Şablonun adı istenen dilde — şablon dosyasından, elle yazılmış sözlükten değil."""
+    tpl = load_all_templates().get(template_id)
+    if tpl is None:
+        return template_id
+    return tpl.name_en if lang == "en" else tpl.name_tr
 
 
-def _describe_cells(cells: list[tuple]) -> str:
-    """Hücre listesini okunur Türkçeye çevirir — açıklamalar veriden gelir."""
+def _describe_cells(cells: list[tuple], lang: str = "tr") -> str:
+    """Hücre listesini okunur metne çevirir — açıklamalar veriden gelir."""
     if not cells:
-        return "hiçbiri"
+        return t("cells.none", lang)  # type: ignore[arg-type]
     return ", ".join(
-        " ".join([_TR_TEMPLATE.get(c[0], c[0]), *(str(x) for x in c[1:])]) for c in cells
+        " ".join([_template_name(c[0], lang), *(str(x) for x in c[1:])]) for c in cells
     )
 
 
-def _finding_stages() -> list[FindingStage]:
+def _finding_stages(lang: str = "tr") -> list[FindingStage]:
     """Eleme zinciri sayıları — **ölçüm dosyalarından**, elle değil.
 
     Bu sayılar önceden sabit kodluydu ve veriyle çelişiyordu (ör. F4.5
     Bonferroni "14/52" yazıyordu, ``f45_bonferroni.json`` ise 2 diyor —
     üstelik Bonferroni bir sayıyı artıramaz). Dürüstlük sayfasının kendi
     ölçümüne uymaması, sayfanın anlatmaya çalıştığı şeyin tam tersidir.
+    Metinler ``engine.i18n`` kataloğundandır.
     """
+    L = lang
     f4 = _load_findings_file("f4_bonferroni.json")
     f45_raw = _load_findings_file("f45_raw.json")
     f45_bonf = _load_findings_file("f45_bonferroni.json")
     f46 = _load_findings_file("f46_raw.json")
-
-    def block_significant(row: dict) -> bool:
-        lo, hi = row.get("blok_alt"), row.get("blok_ust")
-        return lo is not None and hi is not None and (lo > 0.0 or hi < 0.0)
 
     measurable_45 = [r for r in f45_raw if r.get("olculebilir")]
     f46_primary = _f46_primary(f46)
     f46_survivors = _f46_replicated()
     replicated = _replicated_cells()
     bonf_measurable = [r for r in f45_bonf if r.get("olculebilir")]
+    tested = _describe_cells(sorted({(r["template_id"],) for r in f46_primary}), L)
+
+    def stage(key: str, significant: int, total: int, **kw) -> FindingStage:
+        return FindingStage(
+            stage=t(f"stage.{key}", L),  # type: ignore[arg-type]
+            significant=significant,
+            total=total,
+            desc=t(f"stage.{key}.desc", L, **kw),  # type: ignore[arg-type]
+        )
 
     return [
-        FindingStage(
-            stage="F4 — ham triple-barrier",
-            significant=sum(1 for r in f4 if r.get("anlamli95")),
-            total=len(f4),
-            desc="ATR bariyerleri, iid bootstrap, tüm-geçmiş baseline",
-        ),
-        FindingStage(
-            stage="F4.5 — ay-bloklu bootstrap",
-            significant=sum(1 for r in measurable_45 if block_significant(r)),
-            total=len(measurable_45),
-            desc="Kesitsel korelasyon düzeltmesi; iid belirsizliği ~%29 eksik ölçüyordu",
-        ),
-        FindingStage(
-            stage="F4.5 — Bonferroni (long + short)",
-            significant=sum(1 for r in bonf_measurable if r.get("bonf_anlamli")),
-            total=len(bonf_measurable),
-            desc="14 şablon × 2 yön × 2 konfigürasyon, aile bazlı düzeltme",
-        ),
-        FindingStage(
-            stage="F4.6 — ön-getiri eşleştirmeli gölge (1d)",
-            significant=sum(1 for r in f46_primary if r.get("edge_is_significant")),
-            total=len(f46_primary),
-            desc=(
-                "Gölge havuzuna 'benzer ön-getiri' kısıtı eklendi: fark "
-                "buharlaşıyorsa ölçülen şey şekil değil, momentum tersine "
-                "dönüşüdür. Sınanan şablonlar F4.5'te short yönde anlamlı "
-                f"çıkanlardır ({_describe_cells(sorted({(r['template_id'],) for r in f46_primary}))}); "
-                "liste güncel ölçümden hesaplanır, elle yazılmaz."
-            ),
-        ),
-        FindingStage(
-            stage="F4.6 — Bonferroni",
-            significant=sum(1 for r in f46_primary if r.get("edge_significant_bonferroni")),
-            total=len(f46_primary),
-            desc="Aynı aile, çoklu karşılaştırma düzeltmesiyle.",
-        ),
-        FindingStage(
-            stage="F4.6 — 4h replikasyonu",
-            significant=len(f46_survivors),
-            total=len(f46_primary),
-            desc=(
-                "Eşleştirmeli gölgeden sonra İKİ zaman diliminde de aynı yönde "
-                f"anlamlı kalan: {_describe_cells(f46_survivors)}. Tek dilimde "
-                "kalan etki bulgu değildir (replikasyon kuralı)."
-            ),
-        ),
-        FindingStage(
-            stage="F4.7 — zaman dilimi çaprazlaması",
-            significant=len(replicated),
-            total=len(f45_raw),
-            desc=(
-                "Aynı 56 test 1d ve 4h'de ayrı ayrı koşuldu. Sayılan: iki "
-                "dilimde de AYNI YÖNDE anlamlı çıkan hücreler — "
-                f"{_describe_cells(replicated)}. Bu hücreler F4.6'da "
-                "momentum vekili olup olmadıkları için ayrıca sınanır."
-            ),
-        ),
+        stage("f4", sum(1 for r in f4 if r.get("anlamli95")), len(f4)),
+        stage("f45", sum(1 for r in measurable_45 if _block_significant(r)), len(measurable_45)),
+        stage("f45b", sum(1 for r in bonf_measurable if r.get("bonf_anlamli")), len(bonf_measurable)),
+        stage("f46", sum(1 for r in f46_primary if r.get("edge_is_significant")), len(f46_primary), cells=tested),
+        stage("f46b", sum(1 for r in f46_primary if r.get("edge_significant_bonferroni")), len(f46_primary)),
+        stage("f46r", len(f46_survivors), len(f46_primary), cells=_describe_cells(f46_survivors, L)),
+        stage("f47", len(replicated), len(f45_raw), cells=_describe_cells(replicated, L)),
     ]
 
 
@@ -912,7 +901,7 @@ def _bonferroni_family() -> int | str:
         return "?"
 
 
-def _findings_provenance() -> list[FindingProvenance]:
+def _findings_provenance(lang: str = "tr") -> list[FindingProvenance]:
     """Her ölçüm tablosunu bugünkü motorla karşılaştırır.
 
     Bu kontrol yokken tablolar motor değiştikçe sessizce bayatlıyordu:
@@ -937,7 +926,7 @@ def _findings_provenance() -> list[FindingProvenance]:
                 meta = loaded if isinstance(loaded, dict) else {}
         except Exception:  # pragma: no cover - rapor dosyası opsiyonel
             log.warning("%s okunamadı", meta_name, exc_info=True)
-        match, reason = compare(meta.get("fingerprint"))
+        match, reason = compare(meta.get("fingerprint"), lang)
         out.append(FindingProvenance(
             file=label,
             timeframe=meta.get("timeframe"),
@@ -950,13 +939,13 @@ def _findings_provenance() -> list[FindingProvenance]:
 
 
 @app.get("/api/findings", response_model=FindingsResponse)
-def get_findings():
+def get_findings(lang: str = Depends(get_lang)):
     """F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
 
     Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
     cümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.
     """
-    stages = _finding_stages()
+    stages = _finding_stages(lang)
 
     full_table: list[dict] = []
     f46_file = DATA_DIR / "f3" / "f46_raw.json"
@@ -966,16 +955,16 @@ def get_findings():
     except Exception:  # pragma: no cover - rapor dosyası opsiyonel
         log.warning("f46_raw.json okunamadı", exc_info=True)
 
-    provenance = _findings_provenance()
+    provenance = _findings_provenance(lang)
     return FindingsResponse(
         stages=stages,
         full_table=full_table,
         provenance=provenance,
         stale=any(p.engine_match is not True for p in provenance),
-        methodology=(
-            "Aylık kesitsel likidite filtresi (üst %40), takvim ayı bloklu bootstrap, "
-            f"Bonferroni çoğul test düzeltmesi (m={_bonferroni_family()}) ve ön-getiri "
-            f"eşleştirmeli gölge dağılım (±{RETURN_MATCH_BAND_SIGMA:.2f}σ). Bariyerler "
-            "ATR tabanlıdır; aynı barda TP ve SL çarpıldığında SL varsayılır."
+        methodology=t(
+            "methodology",
+            lang,  # type: ignore[arg-type]
+            m=_bonferroni_family(),
+            band=f"{RETURN_MATCH_BAND_SIGMA:.2f}",
         ),
     )

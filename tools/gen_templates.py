@@ -36,6 +36,24 @@ DESCRIPTIONS: dict[str, str] = {
 }
 
 
+DESCRIPTIONS_EN: dict[str, str] = {
+    "head_and_shoulders": "A higher head between two roughly equal shoulders; a reversal is expected on a break of the neckline.",
+    "inverse_head_and_shoulders": "The mirror image of head-and-shoulders; a bullish reversal at the end of a downtrend.",
+    "double_top": "Two roughly equal peaks with a trough between them; failure to clear the second peak is read as a reversal.",
+    "double_bottom": "Two roughly equal troughs; holding the second trough is read as a bullish reversal.",
+    "cup_and_handle": "A rounded base (cup) followed by a shallow pullback (handle); a break of the handle is read as continuation.",
+    "rounding_bottom": "A long, symmetric rounded base; gradual accumulation.",
+    "bull_flag": "A steep rise (the pole) followed by a narrow, downward-sloping consolidation; trend continuation.",
+    "bear_flag": "A steep drop followed by a narrow, upward-sloping consolidation; downtrend continuation.",
+    "pennant": "A narrowing symmetric oscillation after a pole; a short pause.",
+    "rising_wedge": "An upward-sloping, narrowing oscillation; usually resolves downward.",
+    "falling_wedge": "A downward-sloping, narrowing oscillation; usually resolves upward.",
+    "symmetrical_triangle": "A symmetric contraction; the direction is set by the breakout.",
+    "ascending_triangle": "Flat resistance and rising lows; a break of resistance is expected.",
+    "descending_triangle": "Flat support and falling highs; a break of support is expected.",
+}
+
+
 #: Geometrik kısıtlar (F3.5, Adım 7) — kanonik vektördeki çapa indeksleri.
 #: Kural KODA değil ŞABLON META-VERİSİNE yazılır; tek genel değerlendirici
 #: ``engine/search/constraints.py``'dedir. Böylece K-04 korunur: formasyon
@@ -98,6 +116,7 @@ def build_template(template_id: str, n: int = N_POINTS) -> dict:
         "points": points,
         "icon": f"{template_id}.svg",
         "description_tr": DESCRIPTIONS.get(template_id, ""),
+        "description_en": DESCRIPTIONS_EN.get(template_id, ""),
         **({"constraints": kisitlar} if kisitlar else {}),
     }
 

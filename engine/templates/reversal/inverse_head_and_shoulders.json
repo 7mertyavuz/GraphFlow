@@ -40,6 +40,7 @@
   ],
   "icon": "inverse_head_and_shoulders.svg",
   "description_tr": "OBO'nun ayna görüntüsü; düşüş trendinin sonunda yükseliş dönüşü.",
+  "description_en": "The mirror image of head-and-shoulders; a bullish reversal at the end of a downtrend.",
   "constraints": [
     {
       "type": "level_match",

@@ -39,5 +39,6 @@
     0.0
   ],
   "icon": "falling_wedge.svg",
-  "description_tr": "Aşağı eğimli, daralan salınım; genellikle yükseliş yönlü çözülür."
+  "description_tr": "Aşağı eğimli, daralan salınım; genellikle yükseliş yönlü çözülür.",
+  "description_en": "A downward-sloping, narrowing oscillation; usually resolves upward."
 }

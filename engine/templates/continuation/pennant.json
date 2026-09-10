@@ -39,5 +39,6 @@
     0.851505
   ],
   "icon": "pennant.svg",
-  "description_tr": "Direk sonrası daralan simetrik salınım; kısa soluklanma."
+  "description_tr": "Direk sonrası daralan simetrik salınım; kısa soluklanma.",
+  "description_en": "A narrowing symmetric oscillation after a pole; a short pause."
 }

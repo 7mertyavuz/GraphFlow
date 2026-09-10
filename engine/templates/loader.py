@@ -36,6 +36,7 @@ class Template:
     vector: np.ndarray  # (32,) z-score'lu — motora giden
     icon: str = ""
     description_tr: str = ""
+    description_en: str = ""
     #: Geometrik kısıtlar (F3.5) — yoksa hiçbir ek filtre uygulanmaz.
     constraints: tuple = ()
 
@@ -49,6 +50,7 @@ class Template:
             "points": [round(float(v), 6) for v in self.points],
             "icon": self.icon,
             "description_tr": self.description_tr,
+            "description_en": self.description_en,
         }
 
 
@@ -72,6 +74,7 @@ def _from_payload(payload: dict) -> Template:
         vector=vector,
         icon=payload.get("icon", ""),
         description_tr=payload.get("description_tr", ""),
+        description_en=payload.get("description_en", ""),
         constraints=tuple(payload.get("constraints", ())),
     )
 

@@ -256,16 +256,22 @@ class OutcomeStats:
             return False
         return self.edge_ci[0] > 0.0 or self.edge_ci[1] < 0.0
 
+    def verdict_text(self, lang: str = "tr") -> str:
+        """Hüküm, istenen dilde (``engine.i18n``)."""
+        from engine.i18n import t
+
+        if self.insufficient:
+            return t("verdict.insufficient", lang, n=self.n)  # type: ignore[arg-type]
+        if self.shadow_n == 0:
+            return t("verdict.no_shadow", lang)  # type: ignore[arg-type]
+        if not self.edge_is_significant:
+            return t("verdict.not_significant", lang)  # type: ignore[arg-type]
+        side = t("verdict.favorable" if (self.edge_r or 0) > 0 else "verdict.unfavorable", lang)  # type: ignore[arg-type]
+        return t("verdict.significant", lang, side=side, edge=f"{self.edge_r:+.3f}")  # type: ignore[arg-type]
+
     @property
     def verdict(self) -> str:
-        if self.insufficient:
-            return f"yetersiz örnek (N = {self.n}) — sayılar okunmamalı"
-        if self.shadow_n == 0:
-            return "gölge dağılım yok — edge iddiası yapılamaz"
-        if not self.edge_is_significant:
-            return "anlamlı fark ölçülemedi"
-        yon = "lehte" if (self.edge_r or 0) > 0 else "aleyhte"
-        return f"anlamlı fark ({yon}): {self.edge_r:+.3f}R"
+        return self.verdict_text("tr")
 
     def as_dict(self) -> dict:
         return {

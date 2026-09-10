@@ -39,5 +39,6 @@
     1.0
   ],
   "icon": "rounding_bottom.svg",
-  "description_tr": "Uzun ve simetrik yuvarlak taban; kademeli birikim."
+  "description_tr": "Uzun ve simetrik yuvarlak taban; kademeli birikim.",
+  "description_en": "A long, symmetric rounded base; gradual accumulation."
 }

@@ -39,5 +39,6 @@
     1.0
   ],
   "icon": "cup_and_handle.svg",
-  "description_tr": "Yuvarlak taban (fincan) ve ardından sığ geri çekilme (kulp); kulp kırılımı devam sinyali."
+  "description_tr": "Yuvarlak taban (fincan) ve ardından sığ geri çekilme (kulp); kulp kırılımı devam sinyali.",
+  "description_en": "A rounded base (cup) followed by a shallow pullback (handle); a break of the handle is read as continuation."
 }

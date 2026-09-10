@@ -40,6 +40,7 @@
   ],
   "icon": "head_and_shoulders.svg",
   "description_tr": "İki eşit omuz arasında daha yüksek bir baş; boyun çizgisi kırılımıyla dönüş beklenir.",
+  "description_en": "A higher head between two roughly equal shoulders; a reversal is expected on a break of the neckline.",
   "constraints": [
     {
       "type": "level_match",

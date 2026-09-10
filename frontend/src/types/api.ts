@@ -558,6 +558,7 @@ export interface operations {
             query?: never;
             header?: {
                 "x-session-id"?: string | null;
+                "accept-language"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -596,6 +597,7 @@ export interface operations {
             };
             header?: {
                 "x-session-id"?: string | null;
+                "accept-language"?: string | null;
             };
             path: {
                 search_id: string;
@@ -631,6 +633,7 @@ export interface operations {
             };
             header?: {
                 "x-session-id"?: string | null;
+                "accept-language"?: string | null;
             };
             path: {
                 search_id: string;
@@ -662,7 +665,9 @@ export interface operations {
     get_templates_api_templates_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -675,6 +680,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -718,7 +732,9 @@ export interface operations {
     get_findings_api_findings_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "accept-language"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -731,6 +747,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FindingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -185,6 +185,10 @@ class SearchResult:
     #: Eğimle tanımlı formasyonlarda daralmayı YAPAN okuma budur; yalnız uç
     #: düzeni okumasını göstermek motorun gerçek gerekçesini gizlerdi.
     envelope_read: str | None = None
+    #: Okumaların dilden bağımsız hâli (engine.i18n ilkesi: önbelleğe veri
+    #: yazılır, metin yanıt anında istenen dilde üretilir).
+    structure_signature: tuple | None = None
+    envelope_signature: tuple | None = None
     #: Okuma sağlam mı: aynı şekil biraz farklı çizilse aynı okunur muydu?
     #: Eğimle tanımlı formasyonlarda (üçgen, takoz, flama) okuma kararsızdır
     #: ve o kararsızlık ölçülen doğrulukla birebir örtüşür: dönüş ailesinde
@@ -194,6 +198,15 @@ class SearchResult:
 
     def __len__(self) -> int:
         return len(self.results)
+
+    @property
+    def warning_code(self) -> str | None:
+        """Uyarının dilden bağımsız kodu; metni ``engine.i18n`` üretir."""
+        if self.structure_relaxed:
+            return "structure_relaxed"
+        if not self.discriminative:
+            return "not_discriminative"
+        return None
 
     @property
     def warning(self) -> str | None:
@@ -511,6 +524,8 @@ class SearchEngine:
         result.structure_read = plan.structure_read
         result.structure_stable = plan.structure_stable
         result.envelope_read = plan.envelope_read
+        result.structure_signature = plan.structure_signature
+        result.envelope_signature = plan.envelope_signature
         structure_filter = plan.apply_structure
         envelope_filter = plan.apply_envelope
 

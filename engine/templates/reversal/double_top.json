@@ -40,6 +40,7 @@
   ],
   "icon": "double_top.svg",
   "description_tr": "Yaklaşık eşit iki zirve ve aralarındaki dip; ikinci zirvenin aşılamaması dönüş sinyali sayılır.",
+  "description_en": "Two roughly equal peaks with a trough between them; failure to clear the second peak is read as a reversal.",
   "constraints": [
     {
       "type": "level_match",

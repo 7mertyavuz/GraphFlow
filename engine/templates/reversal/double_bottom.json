@@ -40,6 +40,7 @@
   ],
   "icon": "double_bottom.svg",
   "description_tr": "Yaklaşık eşit iki dip; ikinci dibin korunması yükseliş dönüşü olarak okunur.",
+  "description_en": "Two roughly equal troughs; holding the second trough is read as a bullish reversal.",
   "constraints": [
     {
       "type": "level_match",

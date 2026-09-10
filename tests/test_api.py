@@ -96,6 +96,10 @@ def _mock_result(n: int):
     result.envelope_read = None
     result.envelope_filtered = False
     result.envelope_relaxed = False
+    # Dilden bağımsız alanlar (engine.i18n): önbelleğe metin değil bunlar yazılır.
+    result.warning_code = None
+    result.structure_signature = None
+    result.envelope_signature = None
     result.null_dist = {}
     return result
 
@@ -882,3 +886,89 @@ def test_parmak_izi_sondanin_calistirmadigi_sabiti_de_yakalar(monkeypatch):
     base = _behavior_digest()
     monkeypatch.setattr(config, "NULL_PERCENTILES", {**config.NULL_PERCENTILES, "medium": 0.003})
     assert _behavior_digest() != base
+
+
+# ---------------------------------------------------------------------------
+# İki dil — motor veri üretir, metni API üretir (engine.i18n)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "header, expected",
+    [
+        ("en-US,en;q=0.9", "en"),
+        ("tr-TR,tr;q=0.9,en;q=0.8", "tr"),
+        ("fr-FR,en;q=0.5", "en"),
+        ("en;q=0.2, tr;q=0.8", "tr"),
+        ("de-DE", "tr"),
+        ("", "tr"),
+        (None, "tr"),
+    ],
+)
+def test_dil_accept_language_basligindan_cozulur(header, expected):
+    from engine.i18n import resolve_lang
+
+    assert resolve_lang(header) == expected
+
+
+def test_katalogda_her_ileti_iki_dilde_ve_yer_tutucular_esit():
+    """Bir dilde eksik ileti ya da farklı yer tutucu, çalışma anında patlar."""
+    import string
+
+    from engine.i18n import LANGS, MESSAGES
+
+    fmt = string.Formatter()
+    for key, entry in MESSAGES.items():
+        assert set(entry) == set(LANGS), f"{key}: eksik dil"
+        fields = {lang: {f for _, f, _, _ in fmt.parse(text) if f} for lang, text in entry.items()}
+        assert fields["tr"] == fields["en"], f"{key}: yer tutucular farklı {fields}"
+
+
+def test_onbellek_metin_degil_veri_tasir(fresh_cache):
+    """İngilizce istemcinin açtığı arama Türkçe istemciye Türkçe okunmalı.
+
+    Önbelleğe metin yazılsaydı, Radar önbelleğini dolduran ilk istemcinin
+    dili herkese giderdi. Önbellekte imza ve uyarı kodu durur; metin yanıt
+    anında isteğin diliyle üretilir.
+    """
+    result = _mock_result(2)
+    result.structure_signature = (1, 3, 1, False, True)  # OBO okuması
+    result.envelope_signature = None
+    result.warning_code = "structure_relaxed"
+
+    engine = MagicMock()
+    engine.search.return_value = result
+    engine.compute_warp_paths.return_value = []
+    engine.symbols_for.return_value = {}
+
+    body = {"template_id": "head_and_shoulders", "mode": "historical", "timeframe": "4h", "limit": 2}
+    with patch("engine.api.main.get_engine", return_value=engine), patch(
+        "engine.api.main.REFINE_MATCHES", False
+    ):
+        en = client.post("/api/search", json=body,
+                         headers={"X-Session-Id": "i18n", "Accept-Language": "en-US,en;q=0.9"}).json()
+        tr = client.get(f"/api/search/{en['search_id']}",
+                        headers={"X-Session-Id": "i18n", "Accept-Language": "tr-TR"}).json()
+
+    assert en["structure_read"] == "3 prominent peaks · the middle one highest · the others at similar levels"
+    assert tr["structure_read"] == "3 belirgin tepe · ortadaki en yüksek · diğerleri benzer seviyede"
+    assert en["warning"].startswith("Not enough windows")
+    assert tr["warning"].startswith("Çizdiğiniz yapıyı")
+
+
+def test_sablon_adlari_istenen_dilde():
+    tr = client.get("/api/templates", headers={"Accept-Language": "tr"}).json()
+    en = client.get("/api/templates", headers={"Accept-Language": "en"}).json()
+    by_tr = {t["id"]: t for t in tr}
+    by_en = {t["id"]: t for t in en}
+    assert by_tr["head_and_shoulders"]["name"] == "Omuz Baş Omuz"
+    assert by_en["head_and_shoulders"]["name"] == "Head and Shoulders"
+    assert all(t["description"] for t in en), "her şablonun İngilizce açıklaması olmalı"
+
+
+def test_bulgular_istenen_dilde():
+    en = client.get("/api/findings", headers={"Accept-Language": "en"}).json()
+    tr = client.get("/api/findings", headers={"Accept-Language": "tr"}).json()
+    assert "Bonferroni" in en["methodology"] and en["methodology"].startswith("Monthly")
+    assert tr["methodology"].startswith("Aylık")
+    assert [s["significant"] for s in en["stages"]] == [s["significant"] for s in tr["stages"]]

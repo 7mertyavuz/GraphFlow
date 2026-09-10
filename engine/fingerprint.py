@@ -152,15 +152,17 @@ def engine_fingerprint() -> dict:
     return {"behavior": _behavior_digest(), "config": _config_snapshot()}
 
 
-def compare(stored: dict | None) -> tuple[bool | None, str | None]:
+def compare(stored: dict | None, lang: str = "tr") -> tuple[bool | None, str | None]:
     """Kayıtlı parmak izi bugünkü motorla uyuşuyor mu.
 
     ``(None, neden)`` — dosyada parmak izi yok (bu mekanizmadan önce
     üretilmiş); bilinmiyor, ama "uyuşuyor" da denemez.
     ``(False, neden)`` — farklı motor. Değişen sabitler varsa adlarıyla.
     """
+    from engine.i18n import t
+
     if not stored or "behavior" not in stored:
-        return None, "Ölçüm dosyası motor parmak izi taşımıyor (bu mekanizmadan önce üretilmiş)."
+        return None, t("prov.no_fingerprint", lang)  # type: ignore[arg-type]
 
     current = engine_fingerprint()
     if stored["behavior"] == current["behavior"]:
@@ -171,8 +173,8 @@ def compare(stored: dict | None) -> tuple[bool | None, str | None]:
         k for k in SAMPLE_CONFIG_KEYS if old_cfg.get(k) != current["config"].get(k)
     )
     if changed:
-        return False, "Motor değişti; farklı sabitler: " + ", ".join(changed) + "."
-    return False, "Motor değişti (sabitler aynı — bir filtre ya da metrik kodu değişmiş)."
+        return False, t("prov.config_changed", lang, keys=", ".join(changed))  # type: ignore[arg-type]
+    return False, t("prov.code_changed", lang)  # type: ignore[arg-type]
 
 
 def provenance(timeframe: str) -> dict:

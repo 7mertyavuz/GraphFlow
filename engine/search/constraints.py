@@ -667,24 +667,28 @@ def envelope_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
     return (sig == np.asarray(target, dtype=np.int8)).all(axis=1)
 
 
-def describe_envelope(signature: tuple[int, int, int] | None) -> str | None:
+def describe_envelope(signature: tuple[int, int, int] | None, lang: str = "tr") -> str | None:
     """Trend çizgisi imzasını okunur bir cümleye çevirir.
 
     Uç düzeni okuması eğimle tanımlı formasyonlarda kararsızdır ve motor onu
     eleme için kullanmaz (K-20). Kullanıcıya yalnız o okumayı göstermek,
     motorun aslında NEYE göre daralttığını gizlemek olurdu.
     """
+    from engine.i18n import t
+
     if signature is None:
         return None
-
     upper, lower, converge = signature
-    ust = {-1: "alçalan tepeler", 0: "yatay direnç", 1: "yükselen tepeler"}[upper]
-    alt = {-1: "alçalan dipler", 0: "yatay destek", 1: "yükselen dipler"}[lower]
-    yon = {-1: "genişleyen", 0: "paralel", 1: "daralan"}[converge]
-    return f"{ust} · {alt} · {yon}"
+    return " · ".join(
+        (
+            t(f"env.upper.{int(upper)}", lang),  # type: ignore[arg-type]
+            t(f"env.lower.{int(lower)}", lang),  # type: ignore[arg-type]
+            t(f"env.conv.{int(converge)}", lang),  # type: ignore[arg-type]
+        )
+    )
 
 
-def describe_signature(signature: tuple | None) -> str | None:
+def describe_signature(signature: tuple | None, lang: str = "tr") -> str | None:
     """Yapısal imzayı okunur bir cümleye çevirir.
 
     Kullanıcının asıl şikâyeti *"çizdiğimi anlamıyor"*du. Motorun çizimden ne
@@ -692,30 +696,38 @@ def describe_signature(signature: tuple | None) -> str | None:
     (el titremesi fazladan bir tepe yarattıysa, omuzlar eşit çıkmadıysa)
     kullanıcı bunu görür ve yeniden çizer. Görünmeyen bir yorum, tartışılamaz
     bir yorumdur.
+
+    Metin katalogdan gelir (``engine.i18n``); imza dilden bağımsızdır ve
+    önbelleğe metin değil imza yazılır.
     """
+    from engine.i18n import t
+
     if signature is None:
         return None
 
     side, count, extreme, all_similar, others_similar = signature
-    uc = "tepe" if side > 0 else "dip"
-    en = "yüksek" if side > 0 else "derin"
-    parts = [f"{count} belirgin {uc}"]
+    L = lang  # type: ignore[assignment]
+    if side > 0:
+        what = t("sig.peaks" if count > 1 else "sig.peak", L)
+    else:
+        what = t("sig.troughs" if count > 1 else "sig.trough", L)
+    parts = [t("sig.count", L, n=count, what=what)]
 
     if count >= 2:
         if all_similar:
-            parts.append("hepsi benzer seviyede")
+            parts.append(t("sig.all_similar", L))
         else:
             if extreme == 0:
-                sira = "ilki"
+                who = t("sig.first", L)
             elif extreme == count - 1:
-                sira = "sonuncusu"
+                who = t("sig.last", L)
             elif count == 3 and extreme == 1:
-                sira = "ortadaki"
+                who = t("sig.middle", L)
             else:
-                sira = f"{extreme + 1}. sıradaki"
-            parts.append(f"{sira} en {en}")
+                who = t("sig.nth", L, k=extreme + 1)
+            parts.append(t("sig.highest" if side > 0 else "sig.deepest", L, who=who))
             if count >= 3 and others_similar:
-                parts.append("diğerleri benzer seviyede")
+                parts.append(t("sig.others_similar", L))
 
     return " · ".join(parts)
 
@@ -745,6 +757,9 @@ class FilterPlan:
     envelope_read: str | None
     apply_structure: bool
     apply_envelope: bool
+    #: Dilden bağımsız okumalar — önbelleğe bunlar yazılır, metin değil.
+    structure_signature: tuple | None = None
+    envelope_signature: tuple | None = None
 
 
 def filter_plan(
@@ -775,10 +790,13 @@ def filter_plan(
     if structure_yields and apply_envelope:
         apply_structure = False
 
+    env_sig = envelope_signature(q, strict=True) if apply_envelope else None
     return FilterPlan(
         structure_read=describe_signature(signature),
         structure_stable=bool(stable),
-        envelope_read=describe_envelope(envelope_signature(q, strict=True)) if apply_envelope else None,
+        envelope_read=describe_envelope(env_sig),
         apply_structure=apply_structure,
         apply_envelope=apply_envelope,
+        structure_signature=signature,
+        envelope_signature=env_sig,
     )

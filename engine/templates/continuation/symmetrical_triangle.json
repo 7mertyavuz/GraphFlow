@@ -39,5 +39,6 @@
     0.427409
   ],
   "icon": "symmetrical_triangle.svg",
-  "description_tr": "Simetrik daralma; yön kırılımla belli olur."
+  "description_tr": "Simetrik daralma; yön kırılımla belli olur.",
+  "description_en": "A symmetric contraction; the direction is set by the breakout."
 }

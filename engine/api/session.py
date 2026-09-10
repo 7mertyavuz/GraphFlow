@@ -41,13 +41,13 @@ def _key(session_id: str) -> str:
     return f"session:{session_id}:queries"
 
 
-def _envelope(queries: int) -> SessionInfo:
+def _envelope(queries: int, lang: str = "tr") -> SessionInfo:
     queries = max(1, queries)
     return SessionInfo(
         session_queries=queries,
         multiple_comparison_warning=queries >= WARN_AFTER_QUERIES,
         adjusted_alpha=BASE_ALPHA / queries,
-        warning_text=get_warning_text(queries),
+        warning_text=get_warning_text(queries, lang),
     )
 
 
@@ -55,7 +55,7 @@ def _seen_key(session_id: str, fingerprint: str) -> str:
     return f"session:{session_id}:seen:{fingerprint}"
 
 
-async def track_session(session_id: str, fingerprint: str | None = None) -> SessionInfo:
+async def track_session(session_id: str, fingerprint: str | None = None, lang: str = "tr") -> SessionInfo:
     """Yeni bir **hipotezi** sayar ve güncel zarfı döner.
 
     ``fingerprint`` verilirse aynı parmak izi ikinci kez geldiğinde sayaç
@@ -66,25 +66,23 @@ async def track_session(session_id: str, fingerprint: str | None = None) -> Sess
     if fingerprint is not None:
         seen = _seen_key(session_id, fingerprint)
         if await cache.get(seen):
-            return await read_session(session_id)
+            return await read_session(session_id, lang)
         await cache.set(seen, b"1", SESSION_TTL)
 
     # incr ilk çağrıda 1 döner ve TTL penceresini başlatır
     queries = await cache.incr(_key(session_id), SESSION_TTL)
-    return _envelope(queries)
+    return _envelope(queries, lang)
 
 
-async def read_session(session_id: str) -> SessionInfo:
+async def read_session(session_id: str, lang: str = "tr") -> SessionInfo:
     """Sayacı **artırmadan** okur (sayfalama, istatistik)."""
     cache = get_cache()
-    return _envelope(await cache.count(_key(session_id)))
+    return _envelope(await cache.count(_key(session_id)), lang)
 
 
-def get_warning_text(queries: int) -> str | None:
+def get_warning_text(queries: int, lang: str = "tr") -> str | None:
+    from engine.i18n import t
+
     if queries < WARN_AFTER_QUERIES:
         return None
-    return (
-        f"Bu oturumda {queries} farklı şekil denendi. Bonferroni düzeltilmiş "
-        f"anlamlılık eşiği α = {BASE_ALPHA / queries:.4f}; bu eşiği geçmeyen "
-        "bulgular şans eseri ortaya çıkmış olabilir."
-    )
+    return t("session.warning", lang, n=queries, alpha=f"{BASE_ALPHA / queries:.4f}")  # type: ignore[arg-type]
