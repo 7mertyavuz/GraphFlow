@@ -1071,7 +1071,7 @@ def test_no_candidate_is_an_honest_answer(obo_dataset):
     """Korpusta karşılığı olmayan yapı → 0 sonuç, uydurma değil (K-18)."""
     import numpy as np
 
-    from engine.search.constraints import structural_signature
+    from engine.search.constraints import prominent_extrema
 
     root, _ = obo_dataset
     engine = SearchEngine(root / "matrix")
@@ -1079,7 +1079,10 @@ def test_no_candidate_is_an_honest_answer(obo_dataset):
     t = np.linspace(0, 1, 32)
     exotic = np.sin(2 * np.pi * 5 * t)
     exotic = (exotic - exotic.mean()) / exotic.std()
-    assert structural_signature(exotic)[1] >= 4  # gerçekten çok tepeli
+    # Gerçekten çok tepeli. (İmza değil uç sayısı sorulur: tam simetrik
+    # sinüste tepe ve dip belirginlikleri eşittir, baskın taraf yoktur ve
+    # yapısal imza uydurulmaz. "Dürüst sıfır"ı eşik katmanı verir.)
+    assert len(prominent_extrema(exotic, 0.5)[0]) >= 4
 
     result = engine.search(exotic, timeframe=TF, tolerance="flexible", limit=12)
     assert result.total == 0
@@ -1118,9 +1121,17 @@ def test_structure_description_covers_the_library():
     from engine.search.constraints import describe_signature, structural_signature
     from engine.templates import load_all
 
+    from engine.search.constraints import dominant_side
+
     for template_id, template in load_all().items():
-        text = describe_signature(structural_signature(np.asarray(template.vector, dtype=np.float64)))
-        assert text, f"{template_id} için açıklama üretilemedi"
+        y = np.asarray(template.vector, dtype=np.float64)
+        text = describe_signature(structural_signature(y))
+        if text is None:
+            # Tek meşru sebep: tepe ve dip eşit belirgin, baskın taraf yok
+            # (yükselen/alçalan üçgen, yükselen takoz). Uydurulmaz — o
+            # şablonları trend çizgisi okuması karşılar (K-21).
+            assert dominant_side(y) == 0, f"{template_id} için açıklama üretilemedi"
+            continue
         assert "belirgin" in text
 
     # Ayırt edici olmalı: çift tepe ile OBO aynı cümleyi vermemeli
@@ -1331,8 +1342,9 @@ def test_kapi_kararsiz_sorguda_filtreyi_uygulamaz(obo_dataset):
     root, _ = obo_dataset
     engine = SearchEngine(root / "matrix")
 
+    # Flama: imzası TANIMLI ("1 belirgin tepe") ama kararlılığı %25.
     kararsiz = engine.search(
-        _canonical("ascending_triangle"), timeframe=TF, tolerance="flexible", limit=12
+        _canonical("pennant"), timeframe=TF, tolerance="flexible", limit=12
     )
     assert kararsiz.structure_stable is False
     assert kararsiz.structure_filtered is False, "kararsız imzayla eleme yapılmamalı"
@@ -1352,7 +1364,7 @@ def test_kapi_kapatilinca_eski_davranisa_donulur(obo_dataset):
     """
     root, _ = obo_dataset
     engine = SearchEngine(root / "matrix")
-    q = _canonical("ascending_triangle")
+    q = _canonical("pennant")
 
     kapali = engine.search(q, timeframe=TF, tolerance="flexible", limit=12, structure_gate=False)
     assert kapali.structure_filtered or kapali.structure_relaxed
@@ -1437,3 +1449,92 @@ def test_toplu_uc_tespiti_parcalama_sinirinda_tutarli():
     a = prominent_extrema_batch(V, 0.5, chunk=1024)
     b = prominent_extrema_batch(V, 0.5, chunk=7)
     assert np.array_equal(a[0], b[0]) and np.array_equal(a[1], b[1])
+
+
+# ---------------------------------------------------------------------------
+# Değişmezlik — şekil okuyan her fonksiyon (CLAUDE.md kuralı)
+# ---------------------------------------------------------------------------
+
+
+def _random_windows(seed: int, m: int = 400) -> np.ndarray:
+    V = np.random.default_rng(seed).normal(size=(m, 32))
+    return (V - V.mean(axis=1, keepdims=True)) / V.std(axis=1, keepdims=True)
+
+
+def test_yapisal_imza_dikey_cevirmeye_esdegisken():
+    """Ters çevrilen şeklin imzası, imzanın çevrilmişi olmalı.
+
+    Bulunan hata: baskın taraf eşitlikte (tepe sayısı = dip sayısı) HER ZAMAN
+    tepeleri seçiyordu. Rastgele pencerelerin %50'si eşitlikteydi ve hepsinde
+    çevirme tutarsızdı. Yükselen üçgenin çevrilmişi alçalan üçgendir; motor
+    birini yatay tarafından, ötekini eğimli tarafından okuyordu.
+    """
+    from engine.search.constraints import structural_signature
+
+    for y in _random_windows(42):
+        s, f = structural_signature(y), structural_signature(-y)
+        if s is None:
+            assert f is None
+        else:
+            assert f == (-s[0], *s[1:])
+
+
+def test_yapisal_imza_aynaya_esdegisken():
+    """Aynada en uç olanın sırası tersine döner, gerisi aynı kalır."""
+    from engine.search.constraints import structural_signature
+
+    for y in _random_windows(43):
+        s, m = structural_signature(y), structural_signature(y[::-1])
+        if s is None:
+            assert m is None
+        else:
+            side, count, extreme, all_sim, others_sim = s
+            assert m == (side, count, count - 1 - extreme, all_sim, others_sim)
+
+
+def test_zarf_imzasi_ayna_ve_cevirmeye_esdegisken():
+    """Ayna: eğimler işaret değiştirir. Çevirme: üst ↔ alt, yakınsama aynı."""
+    from engine.search.constraints import envelope_signature
+
+    for y in _random_windows(44):
+        s = envelope_signature(y)
+        m, f = envelope_signature(y[::-1]), envelope_signature(-y)
+        if s is None:
+            assert m is None and f is None
+            continue
+        assert m == tuple(-x for x in s)
+        assert f == (-s[1], -s[0], s[2])
+
+
+def test_birbirinin_aynasi_iki_formasyon_ayni_muameleyi_gorur():
+    """Yükselen üçgenin çevrilmişi alçalan üçgendir: okuma ve kararlılık eş olmalı."""
+    from engine.search.constraints import signature_stability, structural_signature
+
+    asc = _canonical("ascending_triangle")
+    desc = _canonical("descending_triangle")
+    flip = lambda s: None if s is None else (-s[0], *s[1:])
+
+    assert structural_signature(-asc) == flip(structural_signature(asc))
+    assert signature_stability(-asc) == pytest.approx(signature_stability(asc), abs=0.05)
+    assert signature_stability(desc) == pytest.approx(signature_stability(asc), abs=0.10)
+
+
+def test_asama2_ham_dtw_aynaya_degismez_ddtw_degil():
+    """Belgelenmiş bir özellik, hata değil — ama sessizce değişmemeli.
+
+    Ham DTW, sorgu ve aday birlikte aynalandığında aynı mesafeyi verir. DDTW
+    vermez: Keogh–Pazzani türev tahmincisi yarım adım geriye kaymıştır
+    (x = i² için gerçek türev 2i, tahmin 2i − 0,5). İleri yönde sorgu ve
+    aday aynı kaymayı yediği için eşleştirmede tutarlıdır; aynada sıralama
+    korelasyonu 0,92–0,97. Değiştirmek K-11'in metriğini ve F3 eşik
+    kalibrasyonunu değiştirir — bu test o kararın bilinçli verilmesini ister.
+    """
+    from engine.config import SAKOE_CHIBA_RADIUS as R
+    from engine.search.ddtw import ddtw_scores, derivative, dtw_scores
+
+    V = _random_windows(45, 101)
+    q, C = V[0], V[1:]
+    assert np.allclose(dtw_scores(q, C, R), dtw_scores(q[::-1].copy(), C[:, ::-1].copy(), R))
+
+    x = np.arange(8.0) ** 2
+    assert np.allclose(derivative(x), 2 * np.arange(1, 7) - 0.5), "tahminci değiştiyse K-11'i oku"

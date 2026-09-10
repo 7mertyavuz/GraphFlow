@@ -303,9 +303,43 @@ def dominant_side(y: np.ndarray, prominence: float = STRUCTURE_PROMINENCE) -> in
     aday haksız yere eleniyordu — ölçüldü, yükselen üçgen 431 eşleşmeden
     18'e düşüyordu; taraf sabitlenince 47'ye çıktı, dört formasyonun
     doğruluğu ise %100'de kaldı.
+
+    Eşitlikte (tepe sayısı = dip sayısı) yapıyı **daha belirgin uç** taşır.
+    Eskiden eşitlik kuralı ``>=`` idi, yani eşitlikte her zaman tepeler —
+    şekil ters çevrilse bile. Ölçüldü: rastgele pencerelerin %50'si eşitlik
+    durumunda ve hepsinde ``structural_signature(-y)`` ile
+    ``structural_signature(y)`` birbirinin çevrilmişi değildi. Somut sonucu:
+    yükselen üçgenin dikey çevrilmişi alçalan üçgenin ta kendisidir, ama
+    motor birini yatay direncinden (kararlılık %36), ötekini eğimli
+    tepelerinden (%81) okuyordu — birbirinin aynası iki formasyon farklı
+    muamele görüyordu.
+
+    Belirginlikler de eşitse hiçbir taraf baskın değildir: ``0`` döner ve
+    yapı uydurulmaz. Yazı-tura atan bir kural, çevrilince tura atar.
     """
     peaks, troughs = prominent_extrema(y, prominence)
-    return 1 if len(peaks) >= len(troughs) else -1
+    if len(peaks) != len(troughs):
+        return 1 if len(peaks) > len(troughs) else -1
+    y = np.asarray(y, dtype=np.float64)
+    top = max((_prominence_at(y, i, peak=True) for i in peaks), default=0.0)
+    bottom = max((_prominence_at(y, i, peak=False) for i in troughs), default=0.0)
+    if abs(top - bottom) <= 1e-9:
+        return 0
+    return 1 if top > bottom else -1
+
+
+def _prominence_at(y: np.ndarray, i: int, peak: bool) -> float:
+    """``prominent_extrema`` ile birebir aynı tanımla tek bir ucun belirginliği."""
+    left, right = y[:i], y[i + 1 :]
+    if peak:
+        hl, hr = left > y[i], right > y[i]
+        base_l = left[_nearest_left(hl) :].min() if hl.any() else left.min()
+        base_r = right[: int(np.argmax(hr)) + 1].min() if hr.any() else right.min()
+        return float(y[i] - max(base_l, base_r))
+    ll, lr = left < y[i], right < y[i]
+    base_l = left[_nearest_left(ll) :].max() if ll.any() else left.max()
+    base_r = right[: int(np.argmax(lr)) + 1].max() if lr.any() else right.max()
+    return float(min(base_l, base_r) - y[i])
 
 
 def side_signature(
@@ -349,6 +383,8 @@ def structural_signature(
 ) -> tuple | None:
     """Şeklin kendi baskın tarafındaki yapısal kimliği (taraf dahil)."""
     side = dominant_side(y, prominence)
+    if side == 0:
+        return None
     signature = side_signature(y, side, prominence, tol)
     return None if signature is None else (side, *signature)
 
@@ -370,6 +406,8 @@ def signature_mask(
     olmadığını sormamayı engeller.
     """
     side = dominant_side(query, prominence)
+    if side == 0:  # hiçbir taraf baskın değil — kural uydurulmaz
+        return None
     target = side_signature(query, side, prominence, tol)
     if target is None:
         return None
