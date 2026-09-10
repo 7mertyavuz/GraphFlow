@@ -223,3 +223,41 @@ python -m tools.f46_proxy_test --timeframe 4h \
 
 Toplam süre ~4 dakika. Motor her değiştiğinde koşulmalıdır; koşulmazsa
 "Bulgular" sayfası bunu söyler.
+
+---
+
+## Ek: değişmezlik taraması ve köken mekanizmasının ilk gerçek kullanımı
+
+CLAUDE.md'deki "şekil okuyan her fonksiyonun değişmezlik testi olmalı"
+kuralı, ayna hatasından sonra yalnız belirginlik için uygulanmıştı. Tüm
+fonksiyonlara uygulandı (2.000 rastgele pencere):
+
+| fonksiyon | ayna | dikey çevirme |
+|---|---|---|
+| `prominent_extrema` | %0 | %0 |
+| `structural_signature` | %0 | **%50,2** |
+| `envelope_signature` | %0 | %0 |
+| Aşama 2 · ham DTW | 3e-16 | 0 |
+| Aşama 2 · DDTW | sıra korel. 0,92–0,97 | 0 |
+
+**Yapısal imza — hata, düzeltildi.** Baskın taraf eşitlikte (tepe sayısı =
+dip sayısı) her zaman tepeleri seçiyordu; tutarsızlıkların 1004/1004'ü
+eşitlikteydi. Yükselen üçgenin dikey çevrilmişi alçalan üçgenin ta
+kendisidir, ama motor birini yatay tarafından (%36), ötekini eğimli
+tarafından (%81) okuyordu. Artık eşitlikte daha belirgin uç kazanır;
+belirginlikler de eşitse baskın taraf yoktur ve imza uydurulmaz.
+
+Ground truth'ta bire bir aynı (202/288). Bulgulara etkisi yalnız simetrik
+üçgende: kararlılığı %95 → %84, kapı kapandı, örneklem 1d 51 → 119, 4h
+193 → 450. Anlamlı hücre kümeleri **iki dilimde de değişmedi**; bütün
+aşama sayıları aynı.
+
+**DDTW — özellik, değiştirilmedi.** Keogh–Pazzani türev tahmincisi yarım
+adım geriye kaymış. K-11'e açık soru olarak yazıldı; metrik ve eşik
+kalibrasyonunu değiştireceği için karar ölçümle ve onayla verilecek.
+
+**Köken mekanizması ilk kez gerçekten çalıştı.** Düzeltme hiçbir sabiti
+değiştirmedi; parmak izi yine de değişti (`cb49511d` → `21d4d9ba`) ve
+dört tablo kendiliğinden *"Motor değişti (sabitler aynı — bir filtre ya da
+metrik kodu değişmiş)"* olarak işaretlendi. Yeniden üretildiler (~4,5 dk);
+köken dört tabloda da "bugünkü motor".

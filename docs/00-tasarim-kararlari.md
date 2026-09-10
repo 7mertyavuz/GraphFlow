@@ -616,6 +616,44 @@ F2 uygulamasında sentetik veriyle yapılan ölçüm, bu kararın **gerekçesini
 
 ---
 
+### Açık soru (Eylül 2026): türev tahmincisi zamanda simetrik değil
+
+Değişmezlik taramasında bulundu (docs/11, Ek). Ham DTW, sorgu ve aday
+birlikte aynalandığında aynı mesafeyi verir (azami fark 3e-16). DDTW
+vermez: Keogh–Pazzani tahmincisi
+
+```
+D_i = ((x_i − x_{i−1}) + (x_{i+1} − x_{i−1}) / 2) / 2
+```
+
+yarım adım **geriye kaymıştır** — x = i² için gerçek türev 2i, tahmin
+2i − 0,5. Aynada kayma ileriye döner. Ölçülen etki (4.000 aday):
+
+| sorgu | sıra korelasyonu (normal ↔ ayna) | ilk 50 ortak |
+|---|---|---|
+| OBO | 0,957 | 39/50 |
+| fincan-kulp | 0,915 | 32/50 |
+| yükselen üçgen | 0,961 | 37/50 |
+| boğa bayrağı | 0,966 | 39/50 |
+| çanak dip | 0,930 | 38/50 |
+
+**Hata değil, özellik.** İleri yönde sorgu ve aday aynı kaymayı yer; ölçüm
+tutarlıdır. Ama bir formasyon ile zaman-aynası (ör. fincan-kulp ile
+"kulp-fincan") hafifçe farklı bir metrikle puanlanıyor ve bu bilinçli bir
+tercih olarak hiç kaydedilmemişti.
+
+**Değiştirilmedi.** Merkezi fark `(x_{i+1} − x_{i−1}) / 2` zamanda
+antisimetriktir ve muhtemelen daha doğrudur, ama bu (a) Aşama 2
+metriğini, (b) metrik başına kalibre edilmiş eşikleri
+(`TOLERANCE_THRESHOLDS_BY_METRIC`) ve (c) F3'ün AUC karşılaştırmasını
+değiştirir. Karar ölçümle verilmeli: yeni metrik adı altında
+(`hybrid_central`) yazılır, `tools/ab_stage2` ve `tools/gt_benchmark` ile
+ölçülür, kazanırsa eşikleri F3 yöntemiyle yeniden kalibre edilir.
+`tests/test_search.py::test_asama2_ham_dtw_aynaya_degismez_ddtw_degil`
+tahmincinin sessizce değişmesini engeller.
+
+---
+
 ## K-12 — Zaman-Eşleştirmeli Baseline (Gölge Dağılım)
 
 **Karar:** Başarı oranı asla tek başına gösterilmez. Her zaman, **eşleşmelerle aynı takvim dönemlerinden örneklenmiş** bir kontrol grubuyla kıyaslanır.
