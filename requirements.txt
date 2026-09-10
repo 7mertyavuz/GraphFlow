@@ -5,22 +5,25 @@
 #
 #   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 #
-# Aşağıdaki sürümler 24 Ağustos 2026'da Python 3.12 üzerinde kurulup
-# 234 testin tamamıyla doğrulandı.
+# Aralıklar bir sonraki ANA sürümde kapanır: numpy 3 ya da pandas 4 çıktığında
+# temiz bir kurulum habersizce kırılmasın. Tam olarak doğrulanmış sürümler
+# requirements-lock.txt'dedir (temiz klon + boş sanal ortam + tüm testler).
 
-numpy>=2.0
-pandas>=2.2
+numpy>=2.0,<3
+pandas>=2.2,<4
+# pyarrow sık ana sürüm çıkarır ve Parquet API'si kararlıdır: üst sınır
+# kullanıcıları gereksizce kısıtlardı.
 pyarrow>=17.0
-requests>=2.32
+requests>=2.32,<3
 
 # F5 API katmanı
-fastapi>=0.115
-pydantic>=2.9
-uvicorn[standard]>=0.30
+fastapi>=0.115,<1
+pydantic>=2.9,<3
+uvicorn[standard]>=0.30,<1
 
 # Testler (fastapi.testclient httpx ister)
-pytest>=8.0
-httpx>=0.27
+pytest>=8.0,<10
+httpx>=0.27,<1
 
 # Opsiyonel — varsayılan önbellek süreç içidir, Redis gerekmez:
 # redis>=5.0
