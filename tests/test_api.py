@@ -853,3 +853,32 @@ def test_replikasyon_ters_isareti_saymaz(monkeypatch):
 
     files["f45_raw_4h.json"] = [row(+0.17, 0.05, 0.28)]
     assert api._replicated_cells() == [("pennant", "short", "2:1")]
+
+
+def test_parmak_izi_orkestrasyon_degisikligini_yakalar(monkeypatch):
+    """"Hangi filtre uygulanacak" kararı değişirse parmak izi de değişmeli.
+
+    Bulunan delik: sonda yapı taşlarını (imza, kararlılık, maske) sınıyordu,
+    kararı değil. "Yapısal filtre, zarf devredeyken çekilir" kuralı bağlanınca
+    varsayılan davranış değişti ama parmak izi aynı kaldı. Karar artık
+    constraints.filter_plan'de; motor ve parmak izi onu çağırır.
+    """
+    from engine import config
+    from engine.fingerprint import _behavior_digest
+
+    base = _behavior_digest()
+    monkeypatch.setattr(config, "STRUCTURE_YIELDS_TO_ENVELOPE", not config.STRUCTURE_YIELDS_TO_ENVELOPE)
+    assert _behavior_digest() != base
+
+
+def test_parmak_izi_sondanin_calistirmadigi_sabiti_de_yakalar(monkeypatch):
+    """Yüzdelik eşikleri gibi sondanın çalıştırmadığı sabitler de özete girer.
+
+    Eskiden sabitler yalnız raporlanıyordu; eşleşme kararı sondaya bakıyordu.
+    """
+    from engine import config
+    from engine.fingerprint import _behavior_digest
+
+    base = _behavior_digest()
+    monkeypatch.setattr(config, "NULL_PERCENTILES", {**config.NULL_PERCENTILES, "medium": 0.003})
+    assert _behavior_digest() != base

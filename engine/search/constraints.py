@@ -197,7 +197,7 @@ def prominent_extrema_batch(
     """(m, n) bool maskeler: belirgin tepeler ve dipler.
 
     ``prominent_extrema``nın vektörize hâli — aday listesi üzerinde Python
-    döngüsü yazılmaz (CLAUDE.md). Ölçüldü: 2.500 aday 250 ms → 6 ms.
+    döngüsü yazılmaz (CONTRIBUTING.md). Ölçüldü: 2.500 aday 250 ms → 6 ms.
 
     n = 32 sabit olduğu için O(n²) tensör formülasyonu ucuzdur; satırlar yine
     de parçalanır, yoksa (m, 32, 32) float64 dizileri 20 MB'ı aşar.
@@ -566,7 +566,7 @@ def envelope_signature(y: np.ndarray, strict: bool = False) -> tuple[int, int, i
 def _touch_masks(V: np.ndarray, width: int = ENVELOPE_TOUCH_WIDTH) -> tuple[np.ndarray, np.ndarray]:
     """(m, n) bool maskeler: her satırda üst ve alt zarfa dokunan iç noktalar.
 
-    Vektörize: aday listesi üzerinde Python döngüsü yazılmaz (CLAUDE.md).
+    Vektörize: aday listesi üzerinde Python döngüsü yazılmaz (CONTRIBUTING.md).
     Kenar doldurması ±inf'tir; iç noktalar için kesilmiş pencereyle birebir
     aynı sonucu verir, uç noktalar zaten dışlandığı için fark doğurmaz.
     """
@@ -718,3 +718,67 @@ def describe_signature(signature: tuple | None) -> str | None:
                 parts.append("diğerleri benzer seviyede")
 
     return " · ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Filtre planı — hangi katman uygulanacak (motor ve parmak izi AYNI kodu çalıştırır)
+# ---------------------------------------------------------------------------
+
+from dataclasses import dataclass  # noqa: E402
+
+from engine.config import (  # noqa: E402
+    ENVELOPE_FILTER,
+    ENVELOPE_MIN_STABILITY,
+    STRUCTURE_FILTER,
+    STRUCTURE_MIN_STABILITY,
+    STRUCTURE_STABILITY_GATE,
+    STRUCTURE_YIELDS_TO_ENVELOPE,
+)
+
+
+@dataclass(frozen=True)
+class FilterPlan:
+    """Bir sorgu için filtre kararı ve okumaları."""
+
+    structure_read: str | None
+    structure_stable: bool
+    envelope_read: str | None
+    apply_structure: bool
+    apply_envelope: bool
+
+
+def filter_plan(
+    q: np.ndarray,
+    structure_filter: bool = STRUCTURE_FILTER,
+    structure_gate: bool = STRUCTURE_STABILITY_GATE,
+    envelope_filter: bool = ENVELOPE_FILTER,
+    structure_yields: bool = STRUCTURE_YIELDS_TO_ENVELOPE,
+) -> FilterPlan:
+    """Sorgu hangi katmanlardan geçecek — K-20, K-21 ve alternatiflik kuralı.
+
+    Bu karar eskiden ``SearchEngine.search`` gövdesine gömülüydü ve motor
+    parmak izi onu GÖRMÜYORDU: parmak izi yapı taşlarını (imza, kararlılık,
+    maske) sınıyordu, "hangisi uygulanacak" kararını değil. Sonuç ölçüldü —
+    "yapısal filtre, zarf devredeyken çekilir" kuralı bağlandığında varsayılan
+    davranış değişti ama parmak izi aynı kaldı. Karar artık tek yerde; motor
+    ve parmak izi bu fonksiyonu çağırır.
+    """
+    q = np.asarray(q, dtype=np.float64)
+    signature = structural_signature(q)
+    stable = True if signature is None else signature_stability(q) >= STRUCTURE_MIN_STABILITY
+
+    # K-20: kararsız imzayla eleme yapılmaz.
+    apply_structure = bool(structure_filter) and not (structure_gate and not stable)
+    # K-21: zarf filtresi yalnız trend çizgisi okuması kararlıyken.
+    apply_envelope = bool(envelope_filter) and envelope_stability(q) >= ENVELOPE_MIN_STABILITY
+    # Alternatiflik: trend çizgisi okuması kararlıysa uç sayısı sorulmaz.
+    if structure_yields and apply_envelope:
+        apply_structure = False
+
+    return FilterPlan(
+        structure_read=describe_signature(signature),
+        structure_stable=bool(stable),
+        envelope_read=describe_envelope(envelope_signature(q, strict=True)) if apply_envelope else None,
+        apply_structure=apply_structure,
+        apply_envelope=apply_envelope,
+    )

@@ -31,26 +31,49 @@ import numpy as np
 
 from engine import config
 
-#: Örneklemi doğrudan belirleyen sabitler. Anlık görüntüsü raporlanır;
-#: karşılaştırmayı yapan asıl şey davranış özetidir.
+#: Örneklemi doğrudan belirleyen sabitler. Hem raporlanır HEM özete girer.
+#:
+#: Eskiden yalnız raporlanıyordu ve eşleşme kararı yalnız davranış sondasına
+#: bakıyordu: sondanın çalıştırmadığı bir sabiti (ör. yüzdelik eşikler)
+#: değiştirmek fark edilmezdi.
 SAMPLE_CONFIG_KEYS: tuple[str, ...] = (
+    # Aşama 1-2 ve eşikler
     "STAGE2_METRIC",
     "STAGE1_TOPK",
     "STAGE2_TOPK",
     "SAKOE_CHIBA_RADIUS",
+    "TOLERANCE_THRESHOLDS_BY_METRIC",
+    "NULL_PERCENTILES",
+    "NULL_SAMPLE_SIZE",
+    "NULL_SEED",
+    "NULL_MIN_SAMPLES",
     "OUTCOME_TOLERANCE",
+    "WINDOW_LENGTHS",
+    "DEFAULT_MIN_AMPLITUDE",
+    # NMS ve örneklem
+    "PRE_NMS_IOU",
+    "POST_NMS_IOU",
+    "MAX_RESULTS_PER_SYMBOL",
     "SEARCH_CACHE_MATCHES",
+    "MIN_EVENTS_FOR_CLAIM",
+    # Yapısal imza ve kapısı
     "STRUCTURE_FILTER",
     "STRUCTURE_STABILITY_GATE",
     "STRUCTURE_MIN_STABILITY",
     "STRUCTURE_PROMINENCE",
     "STRUCTURE_EQUAL_TOL",
+    "STRUCTURE_MIN_SURVIVORS",
+    "STRUCTURE_NOISE_SIGMA",
+    "STRUCTURE_STABILITY_DRAWS",
+    "STRUCTURE_STABILITY_SEED",
+    "STRUCTURE_YIELDS_TO_ENVELOPE",
+    # Zarf imzası ve kapısı
     "ENVELOPE_FILTER",
     "ENVELOPE_MIN_STABILITY",
     "ENVELOPE_SLOPE_THRESHOLD",
     "ENVELOPE_DEAD_BAND",
-    "POST_NMS_IOU",
-    "MAX_RESULTS_PER_SYMBOL",
+    "ENVELOPE_TOUCH_WIDTH",
+    "ENVELOPE_MIN_SURVIVORS",
 )
 
 #: Davranış sondası için sabit tohum ve boyut. Değiştirilirse tüm eski
@@ -75,6 +98,7 @@ def _behavior_digest() -> str:
         envelope_mask,
         envelope_signature,
         envelope_stability,
+        filter_plan,
         signature_mask,
         signature_stability,
         structural_signature,
@@ -96,6 +120,18 @@ def _behavior_digest() -> str:
             repr(envelope_signature(q, strict=True)),
             f"{envelope_stability(q):.4f}",
         ]
+        # Orkestrasyon: hangi katman uygulanacak. Bu satır yokken "yapısal
+        # filtre, zarf devredeyken çekilir" kuralı varsayılan davranışı
+        # değiştirdi ama parmak izi aynı kaldı — sonda yapı taşlarını
+        # sınıyordu, kararı değil. Argümanlar config'den ÇAĞRI anında okunur.
+        plan = filter_plan(
+            q,
+            structure_filter=config.STRUCTURE_FILTER,
+            structure_gate=config.STRUCTURE_STABILITY_GATE,
+            envelope_filter=config.ENVELOPE_FILTER,
+            structure_yields=config.STRUCTURE_YIELDS_TO_ENVELOPE,
+        )
+        parts.append(f"{plan.apply_structure}{plan.apply_envelope}{plan.structure_stable}")
         smask = signature_mask(q, probe)
         emask = envelope_mask(q, probe)
         parts.append("-" if smask is None else np.packbits(smask).tobytes().hex())
@@ -105,6 +141,8 @@ def _behavior_digest() -> str:
         scores = stage2_scores(q, probe, config.SAKOE_CHIBA_RADIUS, config.STAGE2_METRIC)
         parts.append(np.round(scores, 6).tobytes().hex())
         h.update("|".join(parts).encode())
+    # Sabitler de özete girer (yukarıdaki not).
+    h.update(repr(sorted(_config_snapshot().items())).encode())
     return h.hexdigest()[:16]
 
 

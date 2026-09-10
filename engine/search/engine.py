@@ -54,10 +54,8 @@ from engine.config import (
     STAGE2_METRIC,
     STAGE2_TOPK,
     ENVELOPE_FILTER,
-    ENVELOPE_MIN_STABILITY,
     ENVELOPE_MIN_SURVIVORS,
     STRUCTURE_FILTER,
-    STRUCTURE_MIN_STABILITY,
     STRUCTURE_MIN_SURVIVORS,
     STRUCTURE_STABILITY_GATE,
     STRUCTURE_YIELDS_TO_ENVELOPE,
@@ -73,14 +71,9 @@ from engine.matrix.build import (
 )
 from engine.matrix.npy_store import load_matrix
 from engine.search.constraints import (
-    describe_envelope,
-    describe_signature,
+    filter_plan,
     envelope_mask,
-    envelope_signature,
-    envelope_stability,
     signature_mask,
-    signature_stability,
-    structural_signature,
 )
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
@@ -504,29 +497,22 @@ class SearchEngine:
         #
         # Kural sorgudan türer — formasyon başına kod yok (K-04). Serbest
         # çizimde de çalışmasının sebebi bu: şablon meta-verisi gerekmiyor.
-        signature = structural_signature(q)
-        result.structure_read = describe_signature(signature)
-        if signature is not None:
-            result.structure_stable = (
-                signature_stability(q) >= STRUCTURE_MIN_STABILITY
-            )
-
-        # Kararsız imzayla eleme yapma (K-20 Eylül düzeltmesi). Kararlılık
-        # ölçülen faydayla birebir örtüşüyor: ground truth'ta kararlı imzada
-        # filtre 4/4 formasyonda iyileştiriyor (76/96 vs 61/96), kararsızda
-        # 6/8'inde kötüleştiriyor ve hiçbirinde iyileştirmiyor (93/191 vs
-        # 119/192). Zarar KESİNLİKTE değil DUYARLILIKTA olduğu için
-        # formation_audit onu göremiyordu.
-        if structure_gate and not result.structure_stable:
-            structure_filter = False
-
-        # Zarf kapısı burada, yapısal filtreden ÖNCE kararlaştırılır: iki
-        # katman üst üste değil, birbirinin alternatifidir (bkz. config
-        # STRUCTURE_YIELDS_TO_ENVELOPE). Trend çizgisi okuması kararlıysa
-        # formasyon eğimle tanımlıdır ve uç sayısı sorulmaz.
-        envelope_on = bool(envelope_filter) and envelope_stability(q) >= ENVELOPE_MIN_STABILITY
-        if structure_yields and envelope_on:
-            structure_filter = False
+        # Hangi katman uygulanacak: K-20 kapısı, K-21 kapısı ve alternatiflik
+        # kuralı tek bir saf fonksiyonda (constraints.filter_plan). Motor
+        # parmak izi de onu çağırır — karar burada gömülüyken parmak izi bir
+        # davranış değişikliğini kaçırmıştı.
+        plan = filter_plan(
+            q,
+            structure_filter=structure_filter,
+            structure_gate=structure_gate,
+            envelope_filter=envelope_filter,
+            structure_yields=structure_yields,
+        )
+        result.structure_read = plan.structure_read
+        result.structure_stable = plan.structure_stable
+        result.envelope_read = plan.envelope_read
+        structure_filter = plan.apply_structure
+        envelope_filter = plan.apply_envelope
 
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
@@ -547,10 +533,6 @@ class SearchEngine:
         # Kapı burada da geçerli (K-20 dersi): OBO'nun zarf imzası tanımlıdır
         # ama kararlılığı %41 — kapısız bir zarf filtresi dönüş ailesini
         # yazı-turayla elerdi.
-        envelope_filter = envelope_on
-        if envelope_filter:
-            result.envelope_read = describe_envelope(envelope_signature(q, strict=True))
-
         if envelope_filter and candidates.size:
             mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
