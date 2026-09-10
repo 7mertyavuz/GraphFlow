@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { type RegimeRow } from "@/services/endpoints";
 import { formatCount, formatPercent, formatR } from "@/utils/formatters";
@@ -10,10 +11,11 @@ import { formatCount, formatPercent, formatR } from "@/utils/formatters";
  * kaybeden bir formasyonu "çalışıyor" gösterir.
  */
 export function RegimeTable({ regimes }: { regimes: RegimeRow[] }) {
+  const { t } = useI18n();
   if (!regimes?.length) {
     return (
       <p className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">
-        Rejim kırılımı için yeterli olay yok.
+        {t.regime.none}
       </p>
     );
   }
@@ -23,10 +25,10 @@ export function RegimeTable({ regimes }: { regimes: RegimeRow[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-secondary/50 text-[11px] uppercase tracking-wide text-muted-foreground">
-            <th className="px-4 py-2.5 text-left font-medium">Dönem</th>
-            <th className="px-4 py-2.5 text-right font-medium">N</th>
-            <th className="px-4 py-2.5 text-right font-medium">Başarı</th>
-            <th className="px-4 py-2.5 text-right font-medium">Beklenti</th>
+            <th className="px-4 py-2.5 text-left font-medium">{t.regime.period}</th>
+            <th className="px-4 py-2.5 text-right font-medium">{t.regime.n}</th>
+            <th className="px-4 py-2.5 text-right font-medium">{t.regime.winRate}</th>
+            <th className="px-4 py-2.5 text-right font-medium">{t.regime.expectancy}</th>
           </tr>
         </thead>
         <tbody>
@@ -36,8 +38,8 @@ export function RegimeTable({ regimes }: { regimes: RegimeRow[] }) {
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{row.period}</span>
                   {row.insufficient && (
-                    <Badge tone="warn" title="MIN_REGIME_N altında: hücre yorumlanamaz">
-                      yetersiz örnek
+                    <Badge tone="warn" title={t.regime.insufficientTitle}>
+                      {t.regime.insufficient}
                     </Badge>
                   )}
                 </div>

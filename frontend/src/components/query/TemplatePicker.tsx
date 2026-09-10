@@ -5,15 +5,11 @@ import { Loader2, TrendingDown, TrendingUp } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTemplates } from "@/hooks/useGraphFlowApi";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { type Template } from "@/services/endpoints";
 
 import { ShapeThumb } from "./ShapeThumb";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  reversal: "Dönüş formasyonları",
-  continuation: "Devam formasyonları",
-};
 
 interface TemplatePickerProps {
   selectedId: string | null;
@@ -22,6 +18,11 @@ interface TemplatePickerProps {
 
 export function TemplatePicker({ selectedId, onSelect }: TemplatePickerProps) {
   const { data: templates, isLoading, error } = useTemplates();
+  const { t } = useI18n();
+  const categoryLabels: Record<string, string> = {
+    reversal: t.templates.reversal,
+    continuation: t.templates.continuation,
+  };
 
   if (isLoading) {
     return (
@@ -35,28 +36,28 @@ export function TemplatePicker({ selectedId, onSelect }: TemplatePickerProps) {
 
   if (error) {
     return (
-      <Alert tone="danger" title="Şablonlar alınamadı">
-        API çalışıyor mu? <code className="kbd">uvicorn engine.api.main:app</code>
+      <Alert tone="danger" title={t.templates.loadFailed}>
+        {t.templates.apiRunning} <code className="kbd">uvicorn engine.api.main:app</code>
       </Alert>
     );
   }
 
   if (!templates?.length) {
-    return <Alert tone="info">Şablon kütüphanesi boş.</Alert>;
+    return <Alert tone="info">{t.templates.empty}</Alert>;
   }
 
-  const categories = Array.from(new Set(templates.map((t) => t.category)));
+  const categories = Array.from(new Set(templates.map((tpl) => tpl.category)));
 
   return (
     <div className="space-y-4">
       {categories.map((category) => (
         <div key={category} className="space-y-2">
           <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {CATEGORY_LABELS[category] ?? category}
+            {categoryLabels[category] ?? category}
           </h4>
           <div className="grid grid-cols-2 gap-2">
             {templates
-              .filter((t) => t.category === category)
+              .filter((tpl) => tpl.category === category)
               .map((template) => {
                 const active = template.id === selectedId;
                 const Bias = template.bias === "bearish" ? TrendingDown : TrendingUp;
@@ -99,10 +100,11 @@ export function TemplatePicker({ selectedId, onSelect }: TemplatePickerProps) {
 }
 
 export function TemplatePickerFallback() {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="size-4 animate-spin" />
-      Şablonlar yükleniyor…
+      {t.templates.loading}
     </div>
   );
 }

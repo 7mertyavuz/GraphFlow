@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   ArrowRight,
@@ -13,82 +15,67 @@ import { ShapeThumb } from "@/components/query/ShapeThumb";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
-const STEPS = [
-  {
-    icon: ScanSearch,
-    title: "Şekli tarif edin",
-    body: "Formasyonu çizin ya da 14 kanonik şablondan birini seçin. İkisi de aynı 32 noktalık vektöre iner — kural motoru yoktur.",
-  },
-  {
-    icon: Ruler,
-    title: "Motor ölçer",
-    body: "Kosinüs ön elemesi, ardından DDTW + ham DTW karması. Eşik, sorgunun kendi null dağılımından türetilir; motor 'eşleşme yok' diyebilir.",
-  },
-  {
-    icon: Sigma,
-    title: "Sonrası raporlanır",
-    body: "ATR tabanlı üçlü bariyer, ay-bloklu bootstrap ve zaman-eşleştirmeli gölge dağılım. Baseline'sız hiçbir oran gösterilmez.",
-  },
-];
+const STEP_ICONS = [ScanSearch, Ruler, Sigma];
 
-const SHAPES = [
-  { label: "Omuz-Baş-Omuz", values: [0, 0.35, 0.15, 0.75, 0.2, 0.5, 0.05] },
-  { label: "Çift dip", values: [0.9, 0.25, 0.05, 0.5, 0.08, 0.35, 0.95] },
-  { label: "Fincan-kulp", values: [0.85, 0.4, 0.1, 0.05, 0.15, 0.5, 0.8, 0.6, 1] },
-  { label: "Yükselen takoz", values: [0.1, 0.5, 0.25, 0.65, 0.45, 0.8, 0.62, 0.9] },
+const SHAPE_VALUES = [
+  [0, 0.35, 0.15, 0.75, 0.2, 0.5, 0.05],
+  [0.9, 0.25, 0.05, 0.5, 0.08, 0.35, 0.95],
+  [0.85, 0.4, 0.1, 0.05, 0.15, 0.5, 0.8, 0.6, 1],
+  [0.1, 0.5, 0.25, 0.65, 0.45, 0.8, 0.62, 0.9],
 ];
 
 export default function Home() {
+  const { t } = useI18n();
   return (
     <main className="flex flex-1 flex-col">
       <section className="mx-auto w-full max-w-[1100px] px-4 pb-14 pt-16 lg:px-6 lg:pt-24">
         <div className="flex flex-col items-center text-center">
           <Badge tone="brand" className="mb-6 px-3 py-1">
             <span className="size-1.5 rounded-full bg-brand" />
-            Görsel formasyon arama motoru
+            {t.home.badge}
           </Badge>
 
           <h1 className="max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight sm:text-6xl">
-            Bir şekil çizin,{" "}
+            {t.home.headlineStart}{" "}
             <span className="bg-gradient-to-r from-brand to-sky-200 bg-clip-text text-transparent">
-              piyasa onu nerede yaşadıysa
+              {t.home.headlineHighlight}
             </span>{" "}
-            gösterelim.
+            {t.home.headlineEnd}
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            GraphFlow, 2017&apos;den bugüne tüm Binance geçmişinde çizdiğiniz
-            formasyonun benzerlerini bulur ve o formasyondan sonra{" "}
-            <span className="text-foreground">gerçekte ne olduğunu</span>{" "}
-            güven aralıklarıyla raporlar.
+            {t.home.leadStart}{" "}
+            <span className="text-foreground">{t.home.leadHighlight}</span>{" "}
+            {t.home.leadEnd}
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
             <Link href="/radar" className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
               <Radar className="size-4" />
-              Canlı radar
+              {t.home.radarCta}
             </Link>
             <Link
               href="/backtest"
               className={cn(buttonVariants({ variant: "outline", size: "lg" }), "gap-2 px-5")}
             >
               <LineChart className="size-4" />
-              Tarihsel analiz
+              {t.home.backtestCta}
             </Link>
           </div>
 
           <div className="mt-14 grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
-            {SHAPES.map((shape) => (
+            {SHAPE_VALUES.map((values, i) => (
               <div
-                key={shape.label}
+                key={i}
                 className="panel flex flex-col gap-2 p-3 transition-colors hover:border-brand/30"
               >
                 <div className="h-12">
-                  <ShapeThumb values={shape.values} />
+                  <ShapeThumb values={values} />
                 </div>
-                <span className="text-[11px] text-muted-foreground">{shape.label}</span>
+                <span className="text-[11px] text-muted-foreground">{t.home.shapes[i]}</span>
               </div>
             ))}
           </div>
@@ -97,8 +84,8 @@ export default function Home() {
 
       <section className="mx-auto w-full max-w-[1100px] px-4 pb-16 lg:px-6">
         <div className="grid gap-4 md:grid-cols-3">
-          {STEPS.map((step, index) => {
-            const Icon = step.icon;
+          {t.home.steps.map((step, index) => {
+            const Icon = STEP_ICONS[index];
             return (
               <Card key={step.title}>
                 <CardBody className="space-y-3">
@@ -122,11 +109,9 @@ export default function Home() {
           <div className="flex gap-3">
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warp" />
             <div className="space-y-1">
-              <p className="text-sm font-medium text-warp">Bu bir sinyal ürünü değildir</p>
+              <p className="text-sm font-medium text-warp">{t.home.notSignalTitle}</p>
               <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
-                52 testin 50&apos;si eleme aşamalarından geçemedi. Hangi bulgunun
-                hangi aşamada düştüğünü olduğu gibi yayınlıyoruz — asıl bilimsel
-                değer orada.
+                {t.home.notSignalBody}
               </p>
             </div>
           </div>
@@ -134,7 +119,7 @@ export default function Home() {
             href="/bulgular"
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 gap-1.5")}
           >
-            Bulgular
+            {t.home.findingsCta}
             <ArrowRight className="size-3.5" />
           </Link>
         </div>

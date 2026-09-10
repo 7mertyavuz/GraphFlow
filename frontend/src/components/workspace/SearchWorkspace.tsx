@@ -13,6 +13,7 @@ import {
   usePaginatedSearch,
   useSearchStats,
 } from "@/hooks/useGraphFlowApi";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { errorMessage } from "@/services/apiClient";
 import {
   type Direction,
@@ -25,9 +26,8 @@ const RADAR_REFRESH_MS = 5 * 60_000;
 
 interface SearchWorkspaceProps {
   mode: SearchRequest["mode"];
-  title: string;
-  description: string;
-  submitLabel: string;
+  /** Sayfa metinlerinin anahtarı (i18n/messages.ts → workspace). */
+  copy: "radar" | "backtest";
   /** Tarihsel modda "sonra ne oldu" paneli gösterilir. */
   withOutcome?: boolean;
 }
@@ -39,13 +39,9 @@ interface SearchWorkspaceProps {
  * (K-15). İki ayrı ekran yazmak, Radar'da görülen bir eşleşmenin Backtest'te
  * bulunamadığı tutarsızlıkların kapısını açardı.
  */
-export function SearchWorkspace({
-  mode,
-  title,
-  description,
-  submitLabel,
-  withOutcome = false,
-}: SearchWorkspaceProps) {
+export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorkspaceProps) {
+  const { t } = useI18n();
+  const { title, description, submit: submitLabel } = t.workspace[copy];
   const [searchId, setSearchId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [direction, setDirection] = useState<Direction>("long");
@@ -105,7 +101,7 @@ export function SearchWorkspace({
           isPending={createSearch.isPending}
           errorMessage={
             createSearch.error
-              ? errorMessage(createSearch.error, "Arama başarısız oldu.")
+              ? errorMessage(createSearch.error, t.workspace.searchFailed, t.errors.network)
               : null
           }
           onSubmit={run}
@@ -131,15 +127,14 @@ export function SearchWorkspace({
         />
 
         {hasSearched && page.staleWarning && (
-          <Alert tone="warn" title="Veri bayat">
-            Depodaki en yeni bar tazelik sınırının gerisinde. Sonuçlar güncel
-            piyasayı yansıtmayabilir; yeni veri indirmek için{" "}
+          <Alert tone="warn" title={t.workspace.staleTitle}>
+            {t.workspace.staleBody}{" "}
             <code className="kbd">python -m engine.ingest.download</code>.
           </Alert>
         )}
 
         {hasSearched && page.warning && (
-          <Alert tone="warn" title="Yapısal benzerlik bulunamadı">
+          <Alert tone="warn" title={t.workspace.noStructureTitle}>
             {page.warning}
           </Alert>
         )}

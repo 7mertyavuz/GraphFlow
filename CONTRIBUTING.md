@@ -55,6 +55,7 @@ These are not missing features; they were chosen against, with reasons.
 - **No bare numbers.** The API returns `StatEnvelope` (value, interval, unit); the UI formats by unit.
 - **Expectancy (R) is the headline metric, not win rate** — win rate can be manipulated by widening the stop.
 - **No rate without a baseline.** If a shadow distribution is unavailable, show why instead of the number.
+- **User-facing text exists in two languages.** Interface strings go in `frontend/src/i18n/messages.ts` (the English object is typed against the Turkish one, so a missing key fails the build); texts produced by the server go in `engine/i18n.py`. The server caches *data* (signatures, warning codes), never text — a cached Radar result is rendered in each client's language.
 - **Warnings travel in the response.** Distinctiveness, data freshness and multiple-comparison warnings are produced by the engine; the UI neither invents nor hides them.
 - **Normalization happens on the server only.** The client sends raw drawing points; there must be exactly one normalization.
 

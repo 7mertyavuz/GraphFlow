@@ -4,6 +4,7 @@ import { Loader2, SearchX, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { type Match } from "@/services/endpoints";
 
 import { MatchCard } from "./MatchCard";
@@ -27,6 +28,7 @@ export function MatchGrid({
   onLoadMore,
   hasSearched,
 }: MatchGridProps) {
+  const { t } = useI18n();
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3">
@@ -41,8 +43,8 @@ export function MatchGrid({
     return (
       <Placeholder
         icon={Sparkles}
-        title="Henüz arama yapılmadı"
-        body="Soldan bir formasyon çizin veya kütüphaneden seçin, ardından taramayı başlatın."
+        title={t.grid.notYetTitle}
+        body={t.grid.notYetBody}
       />
     );
   }
@@ -51,8 +53,8 @@ export function MatchGrid({
     return (
       <Placeholder
         icon={SearchX}
-        title="Eşleşme bulunamadı"
-        body="Motor 'eşleşme yok' diyebilir — bu bir hata değil, kalibre edilmiş bir cevaptır. Toleransı esnetin, min. genliği düşürün veya daha belirgin bir formasyon deneyin."
+        title={t.grid.noneTitle}
+        body={t.grid.noneBody}
       />
     );
   }
@@ -73,7 +75,7 @@ export function MatchGrid({
         <div className="flex justify-center pt-2">
           <Button variant="outline" onClick={onLoadMore} disabled={isFetchingMore} className="gap-2">
             {isFetchingMore && <Loader2 className="size-4 animate-spin" />}
-            Daha fazla göster
+            {t.grid.more}
           </Button>
         </div>
       )}

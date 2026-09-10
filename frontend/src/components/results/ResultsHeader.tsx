@@ -3,6 +3,7 @@
 import { Clock, Database, RefreshCw, ScanEye, TrendingUp, TriangleAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { formatCount, formatDate, formatDecimal, formatRelative } from "@/utils/formatters";
 
 interface ResultsHeaderProps {
@@ -51,6 +52,7 @@ export function ResultsHeader({
   envelopeRead = null,
   envelopeFiltered = false,
 }: ResultsHeaderProps) {
+  const { t } = useI18n();
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -60,9 +62,9 @@ export function ResultsHeader({
           <p className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <ScanEye className="size-3.5 shrink-0 text-brand" />
             <span>
-              Motor şeklinizi şöyle okudu:{" "}
+              {t.results.engineRead}{" "}
               <span className="text-foreground">{structureRead}</span>
-              {structureFiltered && " — sonuçlar bu yapıyla sınırlı"}
+              {structureFiltered && t.results.limitedByStructure}
             </span>
           </p>
         )}
@@ -70,9 +72,9 @@ export function ResultsHeader({
           <p className="mt-1 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <TrendingUp className="size-3.5 shrink-0 text-brand" />
             <span>
-              Trend çizgileri:{" "}
+              {t.results.trendLines}{" "}
               <span className="text-foreground">{envelopeRead}</span>
-              {" — sonuçlar bu düzenle sınırlı"}
+              {t.results.limitedByTrend}
             </span>
           </p>
         )}
@@ -80,16 +82,11 @@ export function ResultsHeader({
           <p className="mt-1 inline-flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
             <TriangleAlert className="mt-px size-3.5 shrink-0" />
             <span>
-              Tepe/dip okuması kararsız: aynı şekli biraz farklı çizerseniz
-              farklı okunabilir. Üçgen, takoz ve flama gibi formasyonları
-              tanımlayan şey tepe sayısı değil trend çizgilerinin eğimidir.{" "}
+              {t.results.unstableStart}{" "}
               <span className="text-foreground">
-                {envelopeFiltered
-                  ? "Bu yüzden eleme tepe/dip düzenine göre değil, yukarıdaki trend çizgilerine göre yapıldı"
-                  : "Bu yüzden sonuçlar bu okumaya göre daraltılmadı"}
+                {envelopeFiltered ? t.results.unstableByTrend : t.results.unstableNoNarrow}
               </span>{" "}
-              — kararsız bir okumayla eleme yapmak gerçek formasyonları da
-              siliyordu (ölçüldü: yakalama oranı %45 → %57).
+              {t.results.unstableEnd}
             </span>
           </p>
         )}
@@ -98,17 +95,17 @@ export function ResultsHeader({
       {hasSearched && (
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="brand" className="tabular">
-            {formatCount(total)} eşleşme
+            {t.results.matches(formatCount(total))}
           </Badge>
           {refreshedAt !== null && (
             <Badge tone="outline" className="tabular gap-1">
               <RefreshCw className="size-3" />
-              {formatRelative(refreshedAt)} tarandı
+              {t.results.scanned(formatRelative(refreshedAt))}
             </Badge>
           )}
           {shown > 0 && shown < total && (
             <Badge tone="outline" className="tabular">
-              {formatCount(shown)} gösteriliyor
+              {t.results.showing(formatCount(shown))}
             </Badge>
           )}
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground tabular">
@@ -118,7 +115,7 @@ export function ResultsHeader({
           {dataAsOf > 0 && (
             <span
               className="flex items-center gap-1 text-[11px] text-muted-foreground tabular"
-              title="Deponun gördüğü en yeni bar"
+              title={t.results.dataAsOfTitle}
             >
               <Database className="size-3" />
               {formatDate(dataAsOf)}

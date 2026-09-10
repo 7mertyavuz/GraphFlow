@@ -55,6 +55,7 @@ Bunlar eksik özellik değil, gerekçesiyle verilmiş kararlardır.
 - **Çıplak sayı yok.** API `StatEnvelope` döndürür (değer, aralık, birim); arayüz birime göre biçimlendirir.
 - **Başrol metrik beklentidir (R), kazanma oranı değil** — kazanma oranı stop genişletilerek manipüle edilebilir.
 - **Baseline'sız oran yok.** Gölge dağılım yoksa sayı yerine neden gösterilemediği yazılır.
+- **Kullanıcıya görünen metin iki dildedir.** Arayüz metinleri `frontend/src/i18n/messages.ts`'e (İngilizce nesne Türkçe'ye göre tiplenir, eksik anahtar derlemeyi kırar), sunucunun ürettiği metinler `engine/i18n.py`'ye yazılır. Sunucu önbelleğe *veri* (imza, uyarı kodu) yazar, asla metin — önbellekteki bir Radar sonucu her istemcinin dilinde üretilir.
 - **Uyarılar yanıtın içindedir.** Ayırt edicilik, veri tazeliği ve çoklu karşılaştırma uyarılarını motor üretir; arayüz uydurmaz ve gizlemez.
 - **Normalizasyon yalnız sunucuda.** İstemci ham çizim noktası gönderir; tek bir normalizasyon olmalıdır.
 

@@ -94,13 +94,13 @@ To try it quickly on a subset, add `--limit-symbols 50` to the download step. Th
 
 ## Using it
 
-> The interface is currently in Turkish; the labels below are given as *Turkish (English)*.
+The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
 
-1. **Draw** a shape on the canvas (*Çiz*) — left to right; going back overwrites — or open *Kütüphane* (Library) and pick a formation.
-2. Choose the **timeframe** (*4 saat* / *1 gün*) and **tolerance** (*Katı · Orta · Esnek* — Strict · Medium · Flexible). Tolerance is a percentile of the query's own null distribution, not a fake "% similarity".
+1. **Draw** a shape on the canvas — left to right; going back overwrites — or open **Library** and pick a formation.
+2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a percentile of the query's own null distribution, not a fake "% similarity".
 3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
-4. In **Backtest**, the *Sonra ne oldu?* (What happened next?) panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the shadow baseline and the edge with a confidence interval. Small samples are flagged instead of shown as headline numbers.
-5. The *Bulgular* (Findings) page lists every test, the stage where each finding was eliminated, and which engine version produced the numbers.
+4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the shadow baseline and the edge with a confidence interval. Small samples are flagged instead of shown as headline numbers.
+5. The **Findings** page lists every test, the stage where each finding was eliminated, and which engine version produced the numbers.
 
 ## Verifying the engine yourself
 

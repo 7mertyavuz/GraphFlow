@@ -13,11 +13,28 @@ export const apiClient = axios.create({
   timeout: 60_000,
 });
 
+/** Arayüz dili — sunucu kullanıcı metinlerini (okuma, uyarı, hüküm) bu dilde üretir. */
+let apiLanguage = "tr";
+
+export function setApiLanguage(lang: string): void {
+  apiLanguage = lang;
+}
+
 /**
  * Oturum kimliği her istekte gider: sunucu denenen şekil sayısını sayar ve
  * Bonferroni düzeltilmiş α'yı yanıtla birlikte döner (çoklu karşılaştırma).
  */
 apiClient.interceptors.request.use((config) => {
+  // Dil başlığı oturumdan bağımsızdır: kimlik yokken de gitmeli.
+  if (config.headers instanceof AxiosHeaders) {
+    config.headers.set("Accept-Language", apiLanguage);
+  } else {
+    config.headers = AxiosHeaders.from({
+      ...(config.headers as Record<string, string> | undefined),
+      "Accept-Language": apiLanguage,
+    });
+  }
+
   const sessionId = getOrCreateSessionId();
   if (!sessionId) return config;
 
@@ -34,14 +51,12 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-/** Sunucunun Türkçe `detail` mesajını yüzeye çıkarır. */
-export function errorMessage(error: unknown, fallback: string): string {
+/** Sunucunun `detail` mesajını yüzeye çıkarır; ağ hatası için çağıranın metni. */
+export function errorMessage(error: unknown, fallback: string, networkMessage?: string): string {
   if (axios.isAxiosError(error)) {
     const detail = error.response?.data?.detail;
     if (typeof detail === "string") return detail;
-    if (error.code === "ERR_NETWORK") {
-      return "API'ye ulaşılamıyor. Sunucu çalışıyor mu? (uvicorn engine.api.main:app)";
-    }
+    if (error.code === "ERR_NETWORK" && networkMessage) return networkMessage;
   }
   return fallback;
 }

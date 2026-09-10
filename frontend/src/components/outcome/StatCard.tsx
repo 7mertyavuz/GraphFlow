@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { type StatEnvelope } from "@/services/endpoints";
 import { formatCI, formatCount, formatDecimal, formatStat } from "@/utils/formatters";
@@ -23,7 +24,9 @@ interface StatCardProps {
 export function StatCard({ label, hint, envelope, emphasis }: StatCardProps) {
   const { value, ci95, unit, significant, n_events, n_months, null: nullValue, shadow } = envelope;
   const reference = shadow ?? nullValue;
-  const referenceLabel = shadow !== null && shadow !== undefined ? "Gölge dağılım" : "Teorik null";
+  const { t } = useI18n();
+  const referenceLabel =
+    shadow !== null && shadow !== undefined ? t.stat.shadow : t.stat.theoreticalNull;
 
   const positive = Number.isFinite(value) && value > (reference ?? 0);
   const tone = !significant ? "muted" : positive ? "up" : "down";
@@ -41,7 +44,7 @@ export function StatCard({ label, hint, envelope, emphasis }: StatCardProps) {
           {hint && <p className="mt-0.5 text-[11px] text-muted-foreground/70">{hint}</p>}
         </div>
         <Badge tone={significant ? (positive ? "up" : "down") : "outline"}>
-          {significant ? "anlamlı" : "anlamsız"}
+          {significant ? t.stat.significant : t.stat.notSignificant}
         </Badge>
       </div>
 
@@ -56,25 +59,31 @@ export function StatCard({ label, hint, envelope, emphasis }: StatCardProps) {
         {formatStat(value, unit)}
       </div>
 
-      <CIBar value={value} ci={ci95} reference={reference} unit={unit} />
+      <CIBar
+        value={value}
+        ci={ci95}
+        reference={reference}
+        unit={unit}
+        referenceTitle={t.stat.reference(formatStat(reference, unit))}
+      />
 
       <dl className="space-y-1 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
-        <Row term="%95 GA" desc={formatCI(ci95, unit)} mono />
-        <Row term="Yöntem" desc={CI_METHODS[envelope.ci_method] ?? envelope.ci_method} />
+        <Row term={t.stat.ci95} desc={formatCI(ci95, unit)} mono />
+        <Row term={t.stat.method} desc={t.stat.ciMethods[envelope.ci_method] ?? envelope.ci_method} />
         {reference !== null && reference !== undefined && (
           <Row term={referenceLabel} desc={formatStat(reference, unit)} mono />
         )}
         <Row
-          term="Bağımsız N"
-          desc={`${formatCount(n_events)}${n_months ? ` · ${n_months} ay` : ""}`}
+          term={t.stat.independentN}
+          desc={`${formatCount(n_events)}${n_months ? ` · ${t.stat.months(n_months)}` : ""}`}
           mono
         />
         {envelope.design_effect !== null && envelope.design_effect !== undefined && (
           <Row
-            term="Tasarım etkisi"
+            term={t.stat.designEffect}
             desc={formatDecimal(envelope.design_effect, 2)}
             mono
-            title="Ay içi korelasyon düzeltmesi; 1'den büyükse iid bootstrap belirsizliği eksik ölçerdi"
+            title={t.stat.designEffectTitle}
           />
         )}
       </dl>
@@ -87,12 +96,6 @@ export function StatCard({ label, hint, envelope, emphasis }: StatCardProps) {
     </div>
   );
 }
-
-const CI_METHODS: Record<string, string> = {
-  bootstrap: "bootstrap",
-  wilson: "Wilson",
-  block_bootstrap: "ay-bloklu bootstrap",
-};
 
 function Row({
   term,
@@ -118,12 +121,13 @@ function CIBar({
   value,
   ci,
   reference,
-  unit,
+  referenceTitle,
 }: {
   value: number;
   ci: number[];
   reference: number | null | undefined;
   unit: string;
+  referenceTitle: string;
 }) {
   const points = [value, ...(ci ?? []), reference ?? 0].filter((v) =>
     Number.isFinite(v)
@@ -158,7 +162,7 @@ function CIBar({
           <div
             className="absolute top-1/2 h-4 w-px -translate-y-1/2 bg-muted-foreground"
             style={{ left: `${refPos}%` }}
-            title={`karşılaştırma tabanı: ${formatStat(reference, unit)}`}
+            title={referenceTitle}
           />
         )}
         <div

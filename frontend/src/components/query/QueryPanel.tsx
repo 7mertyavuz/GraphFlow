@@ -10,34 +10,19 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { useDraw } from "@/hooks/useDraw";
+import { useI18n } from "@/i18n/LanguageProvider";
 import {
   type SearchRequest,
   type Template,
   type Timeframe,
   type Tolerance,
 } from "@/services/endpoints";
+import { formatAmplitude } from "@/utils/formatters";
 import { isFlat } from "@/utils/shape";
 
 import { DrawPad } from "./DrawPad";
 import { ShapeThumb } from "./ShapeThumb";
 import { TemplatePicker } from "./TemplatePicker";
-
-const TIMEFRAMES = [
-  { value: "4h" as Timeframe, label: "4 saat", hint: "Kısa vadeli formasyonlar" },
-  { value: "1d" as Timeframe, label: "1 gün", hint: "Uzun vadeli formasyonlar" },
-];
-
-/** DTW mesafesi yüzde değildir: kademe, uydurma bir "%85 benzerlik" yerine. */
-const TOLERANCES = [
-  { value: "strict" as Tolerance, label: "Katı", hint: "Yalnızca çok yakın eşleşmeler" },
-  { value: "medium" as Tolerance, label: "Orta", hint: "Dengeli" },
-  { value: "flexible" as Tolerance, label: "Esnek", hint: "Daha fazla, daha gevşek eşleşme" },
-];
-
-const SOURCES = [
-  { value: "draw" as const, label: "Çiz", icon: Pencil },
-  { value: "template" as const, label: "Kütüphane", icon: Library },
-];
 
 interface QueryPanelProps {
   mode: SearchRequest["mode"];
@@ -61,6 +46,22 @@ export function QueryPanel({
   const [minAmplitude, setMinAmplitude] = useState<number[]>([10]);
 
   const draw = useDraw();
+  const { t } = useI18n();
+
+  const timeframes = [
+    { value: "4h" as Timeframe, label: t.query.tf4h, hint: t.query.tf4hHint },
+    { value: "1d" as Timeframe, label: t.query.tf1d, hint: t.query.tf1dHint },
+  ];
+  // DTW mesafesi yüzde değildir: kademe, uydurma bir "%85 benzerlik" yerine (K-17).
+  const tolerances = [
+    { value: "strict" as Tolerance, label: t.query.strict, hint: t.query.strictHint },
+    { value: "medium" as Tolerance, label: t.query.medium, hint: t.query.mediumHint },
+    { value: "flexible" as Tolerance, label: t.query.flexible, hint: t.query.flexibleHint },
+  ];
+  const sources = [
+    { value: "draw" as const, label: t.query.draw, icon: Pencil },
+    { value: "template" as const, label: t.query.library, icon: Library },
+  ];
 
   const usingTemplate = source === "template" && template !== null;
   const drawnFlat = source === "draw" && draw.series.length > 1 && isFlat(draw.series);
@@ -95,9 +96,9 @@ export function QueryPanel({
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-2">
-          <CardTitle>Sorgu şekli</CardTitle>
+          <CardTitle>{t.query.title}</CardTitle>
           <Segmented
-            options={SOURCES}
+            options={sources}
             value={source}
             onChange={(value) => {
               setSource(value);
@@ -105,7 +106,7 @@ export function QueryPanel({
             }}
             size="sm"
             className="w-[168px]"
-            ariaLabel="Sorgu kaynağı"
+            ariaLabel={t.query.sourceAria}
           />
         </CardHeader>
         <CardBody className="space-y-3">
@@ -126,9 +127,8 @@ export function QueryPanel({
           )}
 
           {drawnFlat && (
-            <Alert tone="warn" title="Düz çizim">
-              Şekil taşımayan bir sorgu aranamaz (σ ≈ 0). Yükseliş, düşüş veya
-              bir dönüş çizin.
+            <Alert tone="warn" title={t.query.flatTitle}>
+              {t.query.flatBody}
             </Alert>
           )}
 
@@ -150,24 +150,21 @@ export function QueryPanel({
 
       <Card>
         <CardHeader>
-          <CardTitle>Filtreler</CardTitle>
+          <CardTitle>{t.query.filters}</CardTitle>
         </CardHeader>
         <CardBody className="space-y-5">
-          <Field label="Zaman dilimi">
-            <Segmented options={TIMEFRAMES} value={timeframe} onChange={setTimeframe} size="sm" />
+          <Field label={t.query.timeframe}>
+            <Segmented options={timeframes} value={timeframe} onChange={setTimeframe} size="sm" />
+          </Field>
+
+          <Field label={t.query.tolerance} hint={t.query.toleranceHint}>
+            <Segmented options={tolerances} value={tolerance} onChange={setTolerance} size="sm" />
           </Field>
 
           <Field
-            label="Tolerans"
-            hint="Eşik, sorgunun kendi null dağılımından türetilir — yüzdelik dilim."
-          >
-            <Segmented options={TOLERANCES} value={tolerance} onChange={setTolerance} size="sm" />
-          </Field>
-
-          <Field
-            label="Min. genlik"
-            value={`%${minAmplitude[0]}`}
-            hint="Pencere içindeki toplam hareket. Düşük genlikli gürültüyü eler."
+            label={t.query.minAmplitude}
+            value={formatAmplitude(minAmplitude[0]).replace(/[.,]0(?=%|$)/, "")}
+            hint={t.query.minAmplitudeHint}
           >
             <Slider
               value={minAmplitude}
@@ -190,14 +187,12 @@ export function QueryPanel({
             ) : (
               <Search className="size-4" />
             )}
-            {isPending ? "Taranıyor…" : submitLabel}
+            {isPending ? t.query.scanning : submitLabel}
           </Button>
 
           {!ready && !isPending && (
             <p className="text-center text-[11px] text-muted-foreground">
-              {source === "draw"
-                ? "Aramak için bir şekil çizin."
-                : "Aramak için kütüphaneden bir formasyon seçin."}
+              {source === "draw" ? t.query.drawToSearch : t.query.pickToSearch}
             </p>
           )}
 

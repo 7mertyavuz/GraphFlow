@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChart } from "@/hooks/useGraphFlowApi";
+import { useI18n } from "@/i18n/LanguageProvider";
 import { type ChartResponse, type Match } from "@/services/endpoints";
 import {
   formatAmplitude,
@@ -46,6 +47,7 @@ interface MatchCardProps {
  * Geometrinin tamamı sunucudan gelir — arayüz koordinat uydurmaz.
  */
 export function MatchCard({ match, searchId }: MatchCardProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const contextRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -162,12 +164,12 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
       <figcaption className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold">{match.symbol}</span>
-          <Badge tone="brand" className="tabular" title="Sorgunun null dağılımındaki yüzdelik dilim">
+          <Badge tone="brand" className="tabular" title={t.card.percentileTitle}>
             {formatPercentile(match.percentile)}
           </Badge>
         </div>
         <span className="shrink-0 text-[10px] text-muted-foreground tabular">
-          {match.timeframe} · {match.window_length} bar
+          {match.timeframe} · {t.card.bars(match.window_length)}
         </span>
       </figcaption>
 
@@ -184,7 +186,7 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
         )}
         {isError && (
           <div className="absolute inset-0 flex items-center justify-center text-[11px] text-muted-foreground">
-            Grafik yüklenemedi
+            {t.card.chartFailed}
           </div>
         )}
       </div>
@@ -194,13 +196,13 @@ export function MatchCard({ match, searchId }: MatchCardProps) {
           {formatDate(match.start_time)} → {formatDate(match.end_time)}
         </span>
         <div className="flex shrink-0 items-center gap-2 tabular">
-          <span title="Pencere içi toplam hareket">{formatAmplitude(match.amplitude)}</span>
+          <span title={t.card.amplitudeTitle}>{formatAmplitude(match.amplitude)}</span>
           <span className="text-border">|</span>
-          <span title="Pearson korelasyonu (Aşama 1 skoru)">r {formatDecimal(match.score, 2)}</span>
+          <span title={t.card.correlationTitle}>r {formatDecimal(match.score, 2)}</span>
           {typeof data?.warp_amount === "number" && data.warp_amount > 2 && (
             <span
               className="text-warp"
-              title="Yüksek bükülme: eşleşme ağır zaman esnetmesiyle kuruldu"
+              title={t.card.warpTitle}
             >
               ↔ {formatDecimal(data.warp_amount, 1)}
             </span>

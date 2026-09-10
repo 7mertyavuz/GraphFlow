@@ -94,6 +94,8 @@ Hızlıca bir alt kümeyle denemek için indirme adımına `--limit-symbols 50` 
 
 ## Kullanım kılavuzu
 
+Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle değiştirilir (ilk ziyarette tarayıcı dilini izler).
+
 1. **Çiz** sekmesinde kanvasa bir şekil çizin — soldan sağa; geri dönmek o bölgenin üstüne yazar — ya da **Kütüphane**'den bir formasyon seçin.
 2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.

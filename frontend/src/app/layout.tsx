@@ -11,9 +11,11 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GraphFlow — görsel formasyon arama motoru",
+  // Sunucu meta verisi dil bilmez; istemcide LanguageProvider başlığı seçilen
+  // dile göre günceller.
+  title: "GraphFlow — visual chart pattern search",
   description:
-    "Bir formasyon çizin, gerçek piyasa verisinde benzerlerini bulun ve o formasyondan sonra geçmişte ne olduğunu baseline'lı olarak görün.",
+    "Draw a chart pattern, find where the market drew it in real data, and see what happened next against a baseline.",
 };
 
 export default function RootLayout({

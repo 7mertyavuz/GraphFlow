@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Eraser, MousePointer2 } from "lucide-react";
 
+import { useI18n } from "@/i18n/LanguageProvider";
 import { type Point } from "@/utils/shape";
 
 interface DrawPadProps {
@@ -35,6 +36,7 @@ export function DrawPad({
   onClear,
   height = 260,
 }: DrawPadProps) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -164,11 +166,12 @@ export function DrawPad({
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 text-center">
             <MousePointer2 className="size-5 text-muted-foreground" />
             <p className="text-sm font-medium text-muted-foreground">
-              Formasyonu buraya çizin
+              {t.drawpad.placeholderTitle}
             </p>
             <p className="max-w-[220px] text-xs text-muted-foreground/70">
-              Soldan sağa tek hamlede çizin. Fiyat seviyesi değil,{" "}
-              <span className="text-brand">şeklin kendisi</span> aranır.
+              {t.drawpad.placeholderStart}{" "}
+              <span className="text-brand">{t.drawpad.placeholderHighlight}</span>{" "}
+              {t.drawpad.placeholderEnd}
             </p>
           </div>
         )}
@@ -176,7 +179,7 @@ export function DrawPad({
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="tabular">
-          {empty ? "Çizim bekleniyor" : `${points.length} nokta`}
+          {empty ? t.drawpad.waiting : t.drawpad.points(points.length)}
         </span>
         <button
           type="button"
@@ -185,7 +188,7 @@ export function DrawPad({
           className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
         >
           <Eraser className="size-3.5" />
-          Temizle
+          {t.drawpad.clear}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useI18n } from "@/i18n/LanguageProvider";
 import { type ReturnDistribution } from "@/services/endpoints";
 import { formatPercent, formatR } from "@/utils/formatters";
 
@@ -19,26 +20,29 @@ interface ReturnBandProps {
  * bariyerlere oturuyor — veriden değil, bariyer ayarından geliyor.
  */
 export function ReturnBand({ distribution }: ReturnBandProps) {
+  const { t } = useI18n();
   const { median, share_positive, shadow_median, shadow_share_positive } = distribution;
   if (!Number.isFinite(median)) return null;
 
   return (
     <div className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Ortalamanın gizlediği
+        {t.band.title}
       </h4>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Cell
-          label="Medyan sonuç"
-          hint="Olayların yarısı bunun altında kapandı"
+          label={t.band.median}
+          hint={t.band.medianHint}
+          shadowLabel={t.band.shadow}
           value={formatR(median)}
           shadow={shadow_median === null || shadow_median === undefined ? null : formatR(shadow_median)}
           negative={median < 0}
         />
         <Cell
-          label="Artıda kapanan"
-          hint="Kazanma oranından farklı: zaman bariyerinden yeşil çıkanlar da dahil"
+          label={t.band.positive}
+          hint={t.band.positiveHint}
+          shadowLabel={t.band.shadow}
           value={formatPercent(share_positive, 1)}
           shadow={
             shadow_share_positive === null || shadow_share_positive === undefined
@@ -57,12 +61,14 @@ function Cell({
   hint,
   value,
   shadow,
+  shadowLabel,
   negative,
 }: {
   label: string;
   hint: string;
   value: string;
   shadow: string | null;
+  shadowLabel: string;
   negative: boolean;
 }) {
   return (
@@ -77,7 +83,7 @@ function Cell({
       </div>
       {shadow && (
         <div className="mt-1 flex items-baseline justify-between gap-2">
-          <span className="text-[11px] text-muted-foreground/70">Gölge dağılım</span>
+          <span className="text-[11px] text-muted-foreground/70">{shadowLabel}</span>
           <span className="tabular text-[11px] text-muted-foreground">{shadow}</span>
         </div>
       )}

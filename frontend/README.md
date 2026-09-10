@@ -16,6 +16,7 @@ The GraphFlow web interface: Radar (live), Backtest (historical) and Findings pa
 - **Data:** TanStack Query v5 (`useInfiniteQuery` for pagination), axios
 - **Charts:** TradingView Lightweight Charts v5
 - **API types:** generated from the FastAPI schema with `openapi-typescript`
+- **Languages:** English and Turkish, no i18n dependency — `src/i18n/messages.ts` (typed dictionary) and `src/i18n/LanguageProvider.tsx` (TR/EN toggle, browser-language default, `Accept-Language` sent to the API)
 
 ### Run
 
@@ -41,7 +42,8 @@ src/components/
   workspace/       SearchWorkspace — shared body of Radar and Backtest
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId
-src/services/      apiClient (session header), endpoints
+src/i18n/          messages (tr/en), LanguageProvider
+src/services/      apiClient (session + language headers), endpoints
 src/utils/         formatters, shape (display only)
 ```
 
@@ -80,6 +82,7 @@ GraphFlow web arayüzü: Radar (canlı), Backtest (tarihsel) ve Bulgular sayfala
 - **Veri:** TanStack Query v5 (sayfalama için `useInfiniteQuery`), axios
 - **Grafik:** TradingView Lightweight Charts v5
 - **API tipleri:** FastAPI şemasından `openapi-typescript` ile üretilir
+- **Diller:** Türkçe ve İngilizce, i18n bağımlılığı olmadan — `src/i18n/messages.ts` (tipli sözlük) ve `src/i18n/LanguageProvider.tsx` (TR/EN düğmesi, tarayıcı dili varsayılanı, API'ye `Accept-Language`)
 
 ### Çalıştırma
 
@@ -105,7 +108,8 @@ src/components/
   workspace/       SearchWorkspace — Radar ve Backtest'in ortak gövdesi
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId
-src/services/      apiClient (oturum başlığı), endpoints
+src/i18n/          messages (tr/en), LanguageProvider
+src/services/      apiClient (oturum ve dil başlıkları), endpoints
 src/utils/         formatters, shape (yalnız görselleştirme)
 ```
 

@@ -21,12 +21,20 @@ import {
   type SearchRequest,
   type SearchResponse,
 } from "@/services/endpoints";
+import { useI18n } from "@/i18n/LanguageProvider";
 
 export const PAGE_SIZE = 12;
 
+/*
+ * Sunucunun ürettiği metinleri taşıyan sorguların anahtarı DİLİ içerir: dil
+ * değişince aynı veri yeni dilde yeniden istenir (engine/i18n.py — sunucu
+ * önbelleğinde metin değil veri durduğu için bu ucuzdur).
+ */
+
 export function useTemplates() {
+  const { lang } = useI18n();
   return useQuery({
-    queryKey: ["templates"],
+    queryKey: ["templates", lang],
     queryFn: getTemplates,
     staleTime: Infinity, // şablon kütüphanesi sürüm başına sabittir
   });
@@ -42,16 +50,18 @@ export function useHealth() {
 }
 
 export function useFindings() {
-  return useQuery({ queryKey: ["findings"], queryFn: getFindings, staleTime: Infinity });
+  const { lang } = useI18n();
+  return useQuery({ queryKey: ["findings", lang], queryFn: getFindings, staleTime: Infinity });
 }
 
 export function useCreateSearch() {
   const queryClient = useQueryClient();
+  const { lang } = useI18n();
   return useMutation({
     mutationFn: (payload: SearchRequest) => createSearch(payload),
     onSuccess: (data) => {
       // İlk sayfa zaten yanıtta: aynı veriyi ikinci kez çekmeyelim.
-      queryClient.setQueryData(["search", data.search_id, PAGE_SIZE], {
+      queryClient.setQueryData(["search", data.search_id, PAGE_SIZE, lang], {
         pages: [data],
         pageParams: [0],
       });
@@ -64,8 +74,9 @@ export function useCreateSearch() {
  * skorlamaz, sunucudaki arama havuzundan sonraki dilimi ister (K-08).
  */
 export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
+  const { lang } = useI18n();
   const query = useInfiniteQuery({
-    queryKey: ["search", searchId, limit],
+    queryKey: ["search", searchId, limit, lang],
     enabled: Boolean(searchId),
     initialPageParam: 0,
     queryFn: ({ pageParam }) => getSearch(searchId as string, pageParam as number, limit),
@@ -110,8 +121,9 @@ export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
 }
 
 export function useSearchStats(searchId: string | null, direction: Direction = "long") {
+  const { lang } = useI18n();
   return useQuery({
-    queryKey: ["search", searchId, "stats", direction],
+    queryKey: ["search", searchId, "stats", direction, lang],
     queryFn: () => getSearchStats(searchId as string, direction),
     enabled: Boolean(searchId),
     retry: false,
