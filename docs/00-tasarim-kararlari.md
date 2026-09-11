@@ -852,6 +852,40 @@ Normal_Skor = DTW_Mesafesi / Hizalama_Yolu_Uzunluğu
 
 **Aşama 1'de sorun yok:** Kosinüs benzerliği zaten 32 boyuta indirgenmiş vektörler üzerinde çalıştığı için doğal olarak kıyaslanabilirdir.
 
+### 14.3. Null örneklem büyüklüğü — Eylül 2026 eki
+
+**Karar:** Sorgu-göreli null dağılımı uzunluk başına **20.000** pencereden
+kurulur (`NULL_SAMPLE_SIZE`; önce 2.000).
+
+**Problem:** Eşik null'un derin bir yüzdeliğidir — "orta" %0,25, "katı"
+%0,05. 2.000'lik örneklemde bu ~5. en küçük değer ve tek bir değerdir; sıra
+istatistiği o derinlikte gürültülüdür. Veri ve motor sabitken yalnız null
+tohumunu değiştirmek, orta toleransta eşleşme sayısını 1d'de %12, 4h'de %9
+(değişim katsayısı) oynatıyordu; F4.5'in 1d'de "%95'te anlamlı" hücre sayısı
+beş tohumda **3 ile 12** arasındaydı. Belgelerde dört kez kaydedilen
+"anlamlı hücrelerin kimliği değişti" gözleminin bir kısmı bu gürültüydü.
+
+**Ölçüm** ([12-null-orneklemi.md](12-null-orneklemi.md)): 20.000'de değişim
+katsayısı 1d 0,048 · 4h 0,021; anlamlı hücre sayısı 1d 5–9, 4h 8–11. Ground
+truth aynı kodla 606/864 → 624/864 (kötüleşme yok). Her tohumda ve iki
+dilimde ayakta kalan tek hücre `yükselen takoz long 2:1`.
+
+**Bedel ve karşılığı:** Aşama 2'nin DTW çekirdeği ×3,7 hızlandırıldı (çıktı
+bit düzeyinde aynı, parmak izi değişmedi); 20.000'lik null soğuk aramada
+1d ~0,6 sn, 4h ~0,8 sn. Sıcak arama değişmez (null önbellekte).
+
+**Reddedilen alternatifler:**
+
+- *40.000:* 1d değişim katsayısı 0,028 ama soğuk arama ~1 sn'nin üstünde —
+  getirisi azalan bölge.
+- *Kaskadlı null* (büyük örneklemde yalnız kosinüste en üsttekilere DTW):
+  ölçüldü, geçersiz — DTW'nin en küçük 50 değerini kapsamak için 20.000'lik
+  kosinüs sırasında 11.067'ye inmek gerekiyor.
+
+**Kural:** Motor ayarları arasındaki doğruluk kıyasları null gürültüsünün
+üstünde olmalı. n = 2.000'le ölçülmüş 10–20'lik (/288) ground truth
+farkları bu gürültünün içindeydi.
+
 ---
 
 ## K-15 — Tek Motor, İki Mod

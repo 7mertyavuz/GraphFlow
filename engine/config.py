@@ -387,7 +387,22 @@ TOLERANCE_THRESHOLDS: Final[dict[str, float]] = TOLERANCE_THRESHOLDS_BY_METRIC[S
 # ---------------------------------------------------------------------------
 
 #: Pencere uzunluğu **başına** çekilecek rastgele pencere sayısı.
-NULL_SAMPLE_SIZE: Final[int] = 2_000
+#:
+#: Eşik bu örneklemin DERİN bir yüzdeliğidir: "orta" %0,25 → 2.000'lik
+#: örneklemde ~5. en küçük değer, "katı" %0,05 → tek bir değer. Bu kadar
+#: derin sıra istatistiği gürültülüdür ve hangi pencerelerin çekildiğini
+#: yalnız tohum belirler. Ölçüldü (Eylül 2026, 6 şablon × 6 tohum, veri ve
+#: motor sabit, yalnız NULL_SEED değişiyor): orta toleransta eşleşme sayısının
+#: değişim katsayısı n = 2.000'de 1d 0,124 · 4h 0,087 (flama 334–552),
+#: n = 20.000'de 1d 0,048 · 4h 0,021. Matris 4 ikiz sembol eksilince bile
+#: satır indeksleri kaydığı için null yeniden çekiliyor ve anlamlı hücre
+#: kümesi değişiyordu — "sınırdaki bulgu kırılgandır" (F4.7) kaydındaki
+#: oynamanın bir kısmı verinin değil bu gürültünün eseriydi.
+#:
+#: Bedel: soğuk aramada 1d ~230 → ~610 ms, 4h ~370 → ~770 ms (DTW çekirdeği
+#: ×3,7 hızlandırıldıktan sonra); null önbellekte olduğu için sıcak arama
+#: değişmez, kütüphane şablonları açılışta ısıtılır (§15).
+NULL_SAMPLE_SIZE: Final[int] = 20_000
 
 #: Null örneklemi sabit tohumlu → aynı sorgu aynı sonucu verir (tekrarlanabilirlik).
 NULL_SEED: Final[int] = 20_260_731
@@ -397,7 +412,7 @@ NULL_MIN_SAMPLES: Final[int] = 200
 
 #: Null dağılımı (sorgu, uzunluk, metrik, maske) başına sabittir; önbellek
 #: Radar'ın 5 dakikalık cron döngüsünde ilk çağrı dışındaki maliyeti kaldırır.
-#: Girdi başına ~16 KB.
+#: Girdi başına ~160 KB (20.000 float64) → dolu önbellek ~20 MB.
 NULL_CACHE_SIZE: Final[int] = 128
 
 #: Tolerans kademeleri artık null dağılımının yüzdelik dilimleridir.

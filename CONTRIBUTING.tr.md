@@ -45,6 +45,7 @@ Bunlar eksik özellik değil, gerekçesiyle verilmiş kararlardır.
 
 - **Bir "zarar" bulgusu bir "kazanç" bulgusu kadar güç ister.** 12'de 3'lük bir fark gürültüdür (standart hata ≈ 1,7). Mimari değiştirmeden önce yeterli örneklemle ölçün.
 - **Kesinlik filtreyi aklar, duyarlılık suçlar.** `tools/formation_audit` yalnız motorun *döndürdüğüne* bakar — bir filtrenin sildiği gerçek formasyonları göremez. Her filtrenin bedelini, enjekte edilmiş ground truth'a karşı duyarlılığı da ölçen `tools/gt_benchmark` ile ölçün.
+- **Bir fark motorun kendi gürültüsünü aşmalı.** Arama eşiği rastgele bir null örnekleminin derin bir yüzdeliğidir; 2.000 örnekle yalnız tohumu değiştirmek anlamlı bulgu sayısını 3 ile 12 arasında oynatıyordu (docs/12). Ground truth'ta ~11/288'lik fark tek bir standart hatadır. Sınırdaki bir sonucu iyileşme ya da bulgu saymadan önce birkaç null tohumuyla sınayın (`tools/null_sensitivity`).
 - **Filtreyi kendi ölçütüyle ölçmeyin.** Eğime dayanan bir filtre, eğime dayanan bir denetimde her zaman iyi görünür. Ground truth kullanın.
 - **Denetçi denetlenir.** `tools/formation_audit --cross` sıfır köşegen dışı kabul raporlamalıdır; her şeye evet diyen denetçi %100 raporlar ve hiçbir şey ölçmez.
 - **Değişmezlik testi yazın.** Şekil okuyan her fonksiyonun ayna / çevirme / ölçek / seviye değişmezliği testi olmalı. Şekilleri ve aynalarını farklı okutan bir belirginlik hatası (pencerelerin %83'ü) çekirdekte aylarca durdu, çünkü hiçbir doğruluk ölçümü "aynı girdi aynı cevabı veriyor mu" diye sormuyordu.

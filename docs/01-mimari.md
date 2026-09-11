@@ -928,6 +928,7 @@ geçersiz kaldı). Her ölçümün bir aracı vardır:
 | — *ölçülen*, 4h **sıcak** | **294–325 ms** | API üzerinden uçtan uca; yapısal filtre vektörize edildikten sonra |
 | — *ölçülen*, 4h **soğuk** | **537–595 ms** | ilk çağrı: sorgunun null dağılımı hesaplanıyor |
 | — *ölçülen*, 1d sıcak | ~211 ms (medyan) | |
+| — *ölçülen*, 1d / 4h **soğuk**, null 20.000 (Eylül 2026) | **~610 / ~770 ms** | 6 şablon medyanı; K-14.3 |
 
 **Soğuk/sıcak farkı bütçede yoktu ve dürüstçe kayda geçiriliyor.** F3.5'in
 sorgu-göreli null kalibrasyonu, her yeni şekil için uzunluk başına 2.000
@@ -935,6 +936,13 @@ rastgele pencereyi Aşama 2'den geçirir; bu ilk çağrıya ~180 ms ekler ve
 sonraki çağrılarda önbellekten gelir (`NULL_CACHE_SIZE`). Bütçe yazıldığında
 bu katman yoktu. Radar'da mesele değil (sonuç zaten önbellekli, 1,2 ms);
 Backtest'te ilk sorgu 500 ms sınırını ~%15 aşıyordu.
+
+**Null 20.000'e çıktı (Eylül 2026, K-14.3).** 2.000'lik null'un eşiği,
+tohumdan tohuma eşleşme sayısını %9–12 oynatacak kadar gürültülüydü. DTW
+çekirdeği ×3,7 hızlandırıldı (çıktı bit düzeyinde aynı), null 10 katına
+çıktı: soğuk arama 1d ~610 ms, 4h ~770 ms. Kütüphane şablonları açılışta
+ısıtıldığı için bu yalnız serbest çizimin ve grafik sorgusunun ilk
+aramasına düşer — bütçeyi bilerek aşan, kayda geçirilmiş bir takas.
 
 **Çözüldü — açılışta ısıtma.** Kütüphane şablonları sabit ve sayılı olduğu
 için null dağılımları açılışta arka planda hesaplanıyor

@@ -45,6 +45,7 @@ These are not missing features; they were chosen against, with reasons.
 
 - **A "harm" finding needs as much power as a "gain" finding.** A difference of 3 out of 12 is noise (standard error ≈ 1.7). Measure with enough samples before changing architecture.
 - **Precision clears a filter; recall convicts it.** `tools/formation_audit` only sees what the engine *returned* — it cannot see true patterns a filter removed. Measure every filter's cost with `tools/gt_benchmark`, which reports recall against injected ground truth.
+- **A difference must clear the engine's own noise.** The search threshold is a deep percentile of a random null sample; with 2,000 samples, changing only the seed moved the number of significant findings between 3 and 12 (docs/12). A ground-truth difference of ~11/288 is one standard error. Check a borderline result against several null seeds (`tools/null_sensitivity`) before calling it an improvement or a finding.
 - **Don't measure a filter with its own criterion.** A slope-based filter will always look good on a slope-based audit. Use ground truth.
 - **Audit the auditor.** `tools/formation_audit --cross` must report zero off-diagonal accepts; an auditor that says yes to everything reports 100% and measures nothing.
 - **Write invariance tests.** Every function that reads a shape needs mirror / flip / scale / level invariance tests. A prominence bug that made shapes and their mirror images read differently (83% of windows) survived in the core for months because no accuracy metric asks "does the same input give the same answer?".
