@@ -882,6 +882,13 @@ bit düzeyinde aynı, parmak izi değişmedi); 20.000'lik null soğuk aramada
   ölçüldü, geçersiz — DTW'nin en küçük 50 değerini kapsamak için 20.000'lik
   kosinüs sırasında 11.067'ye inmek gerekiyor.
 
+**Çekiliş pencere kimliğiyle (aynı ek):** örneklem satır indeksiyle değil,
+her pencerenin `(symbol_id, end_time, uzunluk, tohum)` kimliğinden türeyen
+sabit anahtarla çekilir (alt-k). Havuzdan 4 sembol çıkınca eski yöntem 1d'de
+null'un %89'unu, 4h'de %98'ini yeniden çekiyordu; yenisi %100'ünü koruyor.
+Veri tazelemek ya da evreni değiştirmek eşiği yalnız değişen pencereler
+kadar oynatır.
+
 **Kural:** Motor ayarları arasındaki doğruluk kıyasları null gürültüsünün
 üstünde olmalı. n = 2.000'le ölçülmüş 10–20'lik (/288) ground truth
 farkları bu gürültünün içindeydi.

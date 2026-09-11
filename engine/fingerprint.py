@@ -141,6 +141,15 @@ def _behavior_digest() -> str:
         scores = stage2_scores(q, probe, config.SAKOE_CHIBA_RADIUS, config.STAGE2_METRIC)
         parts.append(np.round(scores, 6).tobytes().hex())
         h.update("|".join(parts).encode())
+    # Null çekilişi: eşiği belirleyen örneklem. Çekiliş yöntemi satır
+    # indeksinden pencere kimliğine geçtiğinde her sonuç değişti ama sonda
+    # bunu görmüyordu — sabitler aynıydı (üçüncü kapsama deliği, docs/12).
+    from engine.search.null_sample import null_sample
+
+    sids = np.repeat(np.arange(40), 50)
+    times = np.tile(np.arange(50, dtype=np.int64) * 86_400_000, 40)
+    rows = null_sample(sids, times, sids % 3 != 0, 200, 64, config.NULL_SEED)
+    h.update(rows.tobytes())
     # Sabitler de özete girer (yukarıdaki not).
     h.update(repr(sorted(_config_snapshot().items())).encode())
     return h.hexdigest()[:16]

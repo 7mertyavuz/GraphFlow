@@ -112,7 +112,10 @@ Aynı kod, yalnız null örneklemi farklı:
 | **toplam** | 606/864 | **624/864** |
 
 Doğruluk kötüleşmiyor: toplamda +18 (+2,1 puan), en çok en gerçekçi zeminde
-(+13). Tek tek hiçbiri anlamlı değil (288 denemede standart hata ~11).
+(+13). Not: ground truth korpusları uzunluk başına ~19.000 pencere (64
+sembol × 900 bar / adım 3); n = 20.000'de null **tüm havuzdur**. Kıyas bu
+yüzden "2.000'lik örneklem vs tüm havuz"dur — ve pencere kimliğiyle çekiliş
+bu korpuslarda sonucu değiştirmez (ölçüldü: 214 / 199 / 211, aynı). Tek tek hiçbiri anlamlı değil (288 denemede standart hata ~11).
 Dikkat: n = 2.000 sütunu önceki kayıttaki değerlerden (203 / 209 / 209, K-21
 eki) 10–20 sonuç sapıyor — aynı gürültü, ground truth ölçümünün kendisinde.
 Motor ayarları arasındaki "kazanç/kayıp" kıyasları bundan sonra
@@ -133,7 +136,30 @@ içindeydi.
   `STRUCTURE_MIN_SURVIVORS`'ın altına düşünce filtre tümden gevşiyor
   (tasarım gereği, uyarıyla). Daha kesin eşik bunu seyrekleştiriyor ama
   kaldırmıyor.
-- **İndeks tabanlı çekiliş.** Null hâlâ satır indeksiyle çekiliyor; veri
-  değişince örneklem yeniden karılıyor. 20.000'de bunun etkisi küçük (eşik
-  gürültüsü %2–5), ama pencere kimliğiyle (sembol, zaman) çekmek veri
-  eklemeyi null'dan bağımsız kılardı.
+- ~~**İndeks tabanlı çekiliş.**~~ **Çözüldü:** null artık pencere
+  kimliğiyle çekiliyor (`engine/search/null_sample.py`, alt-k örneklemesi:
+  her pencereye `(symbol_id, end_time, uzunluk, tohum)`'dan sabit bir
+  anahtar, örneklem en küçük k anahtar). Ölçüm — havuzdan rastgele 4
+  sembol çıkarılınca:
+
+  | | null örnekleminden kalan | öteki sembollerin eşleşme sayısı değişimi |
+  |---|---|---|
+  | 1d, satır indeksi (eski) | **%11,4** | medyan %3,3 · en çok **%18** |
+  | 1d, pencere kimliği (yeni) | **%100** | medyan %0,0 · en çok %1,0 |
+  | 4h, satır indeksi (eski) | **%1,6** | medyan %2,4 · en çok %3,5 |
+  | 4h, pencere kimliği (yeni) | **%100** | medyan %0,3 · en çok %0,4 |
+
+  Eski yöntem 4 sembol düşünce örneklemin neredeyse tamamını yeniden
+  çekiyordu. İkizler düştüğünde bulguların değişmesinin mekanizması buydu;
+  artık bir sembolü evrenden çıkarmak ya da veri eklemek null'u yalnız
+  değişen pencereler kadar oynatır. Çekiliş yöntemi motor parmak izine de
+  girdi — girmeseydi bu değişiklik bütün sonuçları değiştirip bulguları
+  "güncel motor" diye göstermeye devam ederdi (üçüncü kapsama deliği).
+
+  Yeni çekilişle bulgular yeniden üretildi (başka çekilişler, aynı
+  büyüklük): 1d'de 6 hücre %95'te, 1'i Bonferroni'de (yükselen takoz long
+  2:1, edge −0,404R [−0,824; −0,006]); 4h'de 7 / 1 (flama short 2:1). Beş
+  tohumda: 1d 4–12, 4h 7–11 anlamlı hücre; yükselen takoz long 2:1 **5/5**
+  tohumda iki dilimde replike ediyor, 1d'de 4/5 tohumda Bonferroni'yi
+  geçiyor; flama short 2:1 3/5 tohumda replike ediyor. Beş tohum da bir
+  örneklemdir — aralıkların kendisi kaba.

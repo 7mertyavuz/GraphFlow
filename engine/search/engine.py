@@ -79,6 +79,7 @@ from engine.search.constraints import (
 )
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
+from engine.search.null_sample import null_sample
 from engine.search.source import ChartWindow, excluded
 from engine.search.stage1_cosine import prepare_query, top_k
 
@@ -293,15 +294,12 @@ class MatrixHandle:
 
         Örneklem **aranabilir popülasyondan** çekilir (likidite/genlik maskesi
         uygulanmış hâli) — null, "rastgele bir aday" anlamına gelmeli.
-        Tohum sabit: aynı sorgu iki kez çalıştırıldığında aynı eşiği verir.
+        Çekiliş pencere KİMLİĞİYLE yapılır (``null_sample``): bir sembol
+        havuzdan düşünce örneklemin geri kalanı aynen kalır. Satır indeksiyle
+        çekilen eski hâli 4 sembol düşünce 1d'de örneklemin %89'unu, 4h'de
+        %98'ini yeniden çekiyordu (docs/12).
         """
-        pool = np.flatnonzero(mask) if mask is not None else np.arange(len(self))
-        if pool.size == 0:
-            return pool
-        if pool.size <= sample_size:
-            return pool
-        rng = np.random.default_rng(seed + self.length)
-        return np.sort(rng.choice(pool, size=sample_size, replace=False))
+        return null_sample(self.symbol_id, self.end_time, mask, sample_size, self.length, seed)
 
     def base_mask(
         self, mode: Mode, min_amplitude: float | None, require_liquid: bool
