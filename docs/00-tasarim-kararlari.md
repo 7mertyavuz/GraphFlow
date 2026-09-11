@@ -1167,6 +1167,8 @@ aday kümesindedir), böylece katman açılırsa eşikler sessizce kaymaz.
 | 23 | İki bileşenli zarf imzası (yakınsamasız) | (terk edildi) | Ölü: takoz sorgusunda ilk 50'nin 50'si imzayı zaten taşıyor (K-21) |
 | 24 | Merkezi fark türevi (`hybrid_central`) | (bağlanmadı) | Aynaya simetrik ama AUC'de 108 hücrenin 105'inde geride; ground truth'ta 610/864 vs 614/864 (K-11) |
 | 25 | Yapısal ve zarf filtresini üst üste uygulamak | (terk edildi) | Düşen takozda gerçek formasyonların üçte birini eliyordu; 2.000 derinlikte duyarlılık %67 vs %96 (K-21 eki) |
+| 26 | Null örneklemi 2.000 / kaskadlı null | 20.000, tam DTW | 2.000'de eşik tohumun zar atışı (anlamlı hücre 1d'de 3–12); kaskad DTW alt kuyruğunu kapsamıyor (K-14.3) |
+| 27 | "Oluşan formasyon" uyarısı (%75 olgunlukta) | (yapılmadı) | Gerçek devam, aynı ayın rastgele devamından şablona daha yakın değil; görünen sinyal (flama, bayrak) oynaklık düşüşü — büyüklük eşitlenince kayboluyor (docs/13) |
 
 ---
 
