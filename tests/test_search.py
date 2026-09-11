@@ -222,6 +222,45 @@ def test_banded_dtw_matches_reference_dp():
         assert length[i] == ref_l
 
 
+def test_banded_dtw_esitlikte_yol_secimi_sabit():
+    """Eşitlikte hangi komşunun seçildiği yol uzunluğunu, o da normalize
+    mesafeyi belirler (K-14). Kural: yukarı, çapraz, sol — ilk minimum.
+
+    Tamsayılı girdiler eşitliği bol üretir; hızlandırılmış çekirdek bu kuralı
+    değiştirseydi mesafe aynı kalıp yol uzunluğu (ve sıralama) değişirdi.
+    """
+
+    def reference(a, b, r):
+        m = len(a)
+        D = np.full((m, m), np.inf)
+        L = np.zeros((m, m), dtype=int)
+        for i in range(m):
+            for j in range(max(0, i - r), min(m, i + r + 1)):
+                cost = (a[i] - b[j]) ** 2
+                if i == 0:
+                    D[0, j] = cost + (D[0, j - 1] if j > 0 else 0.0)
+                    L[0, j] = 1 + (L[0, j - 1] if j > 0 else 0)
+                    continue
+                opts = [
+                    (D[i - 1, j], L[i - 1, j]),
+                    (D[i - 1, j - 1] if j > 0 else np.inf, L[i - 1, j - 1] if j > 0 else 0),
+                    (D[i, j - 1] if j > 0 else np.inf, L[i, j - 1] if j > 0 else 0),
+                ]
+                best = min(range(3), key=lambda t: opts[t][0])  # ilk minimum
+                D[i, j], L[i, j] = opts[best][0] + cost, opts[best][1] + 1
+        return D[m - 1, m - 1], L[m - 1, m - 1]
+
+    rng = np.random.default_rng(11)
+    a = rng.integers(-2, 3, size=32).astype(float)
+    B = rng.integers(-2, 3, size=(40, 32)).astype(float)
+    for r in (1, SAKOE_CHIBA_RADIUS):
+        dist, length = banded_dtw_batch(a, B, r)
+        for i in range(B.shape[0]):
+            ref_d, ref_l = reference(a, B[i], r)
+            assert dist[i] == ref_d
+            assert length[i] == ref_l
+
+
 def test_ddtw_is_zero_for_identical_series():
     q = z(shape("cup_and_handle", 32))
     assert ddtw_scores(q, q[None, :])[0] == pytest.approx(0.0, abs=1e-12)
