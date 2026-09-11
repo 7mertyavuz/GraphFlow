@@ -1082,3 +1082,48 @@ def test_eleme_sebebi_ile_istatistik_filtresi_ayni_koddan():
         [_event(1, t0, 40, atr) for t0 in (5, 50, 300) for atr in (0.1, 5.0, np.nan)]
     )
     assert (eligible(events, store) == (ineligible_reasons(events, store) == "")).all()
+
+
+# ---------------------------------------------------------------------------
+# İkiz (türev) varlık filtresi
+# ---------------------------------------------------------------------------
+
+
+def _series(values, start: int = 0):
+    import pandas as pd
+
+    return pd.Series(np.asarray(values, dtype=np.float64), index=np.arange(start, start + len(values)))
+
+
+def test_ikiz_kisa_gecmisli_olan_duser_asil_kalir():
+    """WBTCUSDT ≈ BTCUSDT: aynı fiyat serisi; geçmişi kısa olan (ikiz) düşer."""
+    from engine.matrix.universe_filter import twin_pairs
+
+    rng = np.random.default_rng(5)
+    base = 100 * np.exp(np.cumsum(rng.normal(0, 0.03, 900)))
+    twin = base[300:] * np.exp(rng.normal(0, 0.0005, 600))      # 300 gün sonra listelendi
+    other = 50 * np.exp(np.cumsum(rng.normal(0, 0.03, 900)))     # bağımsız
+    # Oran paritesi (ANCBTC ~ ANCUSDT gibi): yüksek ama ikiz düzeyinde değil.
+    ratio = base * np.exp(np.cumsum(rng.normal(0, 0.008, 900)))
+
+    pairs = twin_pairs(
+        {"BTCUSDT": _series(base), "WBTCUSDT": _series(twin, 300), "XUSDT": _series(other), "RBTC": _series(ratio)}
+    )
+    assert [(t, o) for t, o, _ in pairs] == [("WBTCUSDT", "BTCUSDT")]
+    assert pairs[0][2] > 0.99
+
+
+def test_ikiz_tespiti_fiyat_sicramasina_ve_kisa_ortakliga_kanmaz():
+    from engine.matrix.universe_filter import twin_pairs
+
+    rng = np.random.default_rng(9)
+    a = 100 * np.exp(np.cumsum(rng.normal(0, 0.03, 600)))
+    b = 70 * np.exp(np.cumsum(rng.normal(0, 0.03, 600)))
+    b_jump = b.copy()
+    b_jump[300:] *= 1000.0      # redenominasyon: korelasyonu tek başına sürüklememeli
+    a_jump = a.copy()
+    a_jump[300:] *= 1000.0
+    assert twin_pairs({"A": _series(a_jump), "B": _series(b_jump)}) == []
+
+    # Birebir aynı ama yalnız 100 ortak gün: ikizlik iddiası için az.
+    assert twin_pairs({"A": _series(a), "C": _series(a[:100] * 2)}) == []

@@ -37,7 +37,7 @@ Most open-source pattern tools are rule-based detectors that tell you a pattern 
 - **You draw the query.** Freehand sketches are normalized server-side (scale and level invariant), and the engine tells you how it read your drawing: *"3 prominent peaks · the middle one highest · the others at similar levels"*.
 - **Every statistic has a baseline.** Outcomes are compared against a time-matched shadow sample of random windows from the same months — not against zero.
 - **Honest uncertainty.** Month-block bootstrap confidence intervals, Bonferroni correction across all 56 tests, and results reported for *every* template, not just the ones that look good.
-- **Survivorship-free data.** The universe includes delisted pairs from the Binance archive.
+- **Survivorship-free data.** The universe includes delisted pairs from the Binance archive. Stablecoins, leveraged tokens and *twins* (wrapped tokens such as WBTC that trade as the same price series as their original) are removed by measured rules, so one price move is never counted twice.
 - **Measured, not assumed.** Every filter in the engine was A/B-tested against injected ground truth before it was switched on — and several were rejected.
 
 ## The honest finding

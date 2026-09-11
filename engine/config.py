@@ -202,6 +202,21 @@ PEG_MIN_RATIO: Final[float] = 0.80
 #: yeniden kullanılmasıdır.
 PRICE_CONTINUITY_MAX_RATIO: Final[float] = 10.0
 
+#: **İkiz (türev) varlık** filtresi: günlük getirisi evrendeki başka bir
+#: sembolünkiyle bu korelasyonun üstünde olan ve daha KISA geçmişe sahip
+#: parite evrenden düşer (WBTCUSDT ≈ BTCUSDT, WBETHUSDT ≈ ETHUSDT). Peg
+#: filtresi WBTCBTC'yi (≈1,0) yakalıyordu ama WBTCUSDT 1,0'a değil BTC'ye
+#: sabitli — BTC ile aynı fiyat serisidir.
+#:
+#: Ölçüm (1d, 1.065 sembol, ≥180 ortak gün): 0,97 üstünde yalnız 5 çift —
+#: BNSOL/SOL 0,9992 · WBTC/BTC 0,9987 · WBETH/ETH 0,9986 · BETH/ETH 0,9975,
+#: sonra ANCBTC/ANCUSDT 0,9771 (farklı seri: biri BTC'ye oran). Eşik bu
+#: boşluğun ortasında, seçim hassas değil. Etkisi: 28 hücrede 9.981
+#: eşleşmenin 40'ı ikiz sembolde, 9'u aslıyla aynı dönemde (çift sayım);
+#: Radar ve grafik sorgusunda ise ikiz, aslının en üst "benzeri" çıkıyordu.
+TWIN_MIN_CORR: Final[float] = 0.99
+TWIN_MIN_OVERLAP_BARS: Final[int] = 180
+
 #: Kaldıraçlı token sonekleri (BTCUPUSDT, ETHDOWNUSDT...). Bunlar spot parite
 #: değil, **çürüyen türev ürünlerdir**: periyodik yeniden fiyatlandırma yaptıkları
 #: için tek barda 100.000x "hareket" üretirler. Evrenden düşerler.

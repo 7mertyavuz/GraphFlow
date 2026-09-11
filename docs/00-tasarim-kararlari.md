@@ -796,6 +796,38 @@ Böylece hem 2018 hem 2025 verisi adilce temsil edilir, hem de "işlem açılama
 
 **Neden likidite filtresi zorunlu:** Filtre olmadan ilk 12 sonucun yarısı, slipaj yüzünden hiç kimsenin işlem açamayacağı ölü paritelerden gelir ve arayüzü kirletir.
 
+### 13.3. İkiz (türev) varlıklar — Eylül 2026 eki
+
+**Karar:** Günlük getirisi evrendeki başka bir paritenin getirisiyle
+**0,99'un üstünde** korele olan ve **daha kısa geçmişe** sahip parite evrenden
+düşer (`TWIN_MIN_CORR`, en az 180 ortak gün). Tespit veriyle yapılır, isim
+listesiyle değil (`engine/matrix/universe_filter.py:twin_pairs`).
+
+**Problem:** Peg filtresi (F3.5) `WBTCBTC`'yi yakalıyordu — fiyatı 1,0'a
+sabitli. Ama `WBTCUSDT` 1,0'a değil BTC'ye sabitlidir: BTCUSDT ile **aynı
+fiyat serisidir**. Evrende kalınca:
+
+- Radar'da ve grafikten sorguda aslının en üst "benzeri" ikizi çıkıyordu
+  ("BTC'ye en çok ne benziyor?" → WBTC) — bilgi taşımayan bir sonuç.
+- Tarihsel modda aynı fiyat hareketi iki "bağımsız" olay sayılabiliyordu
+  (K-09'un sembol-ötesi hâli).
+
+**Ölçüm (1d, 1.065 sembol):** 0,97 üstünde yalnız 5 çift vardı — BNSOL/SOL
+0,9992 · WBTC/BTC 0,9987 · WBETH/ETH 0,9986 · BETH/ETH 0,9975 · sonra
+ANCBTC/ANCUSDT 0,9771 (farklı seri: biri BTC'ye oran). Eşik bu boşluğun
+ortasında. İstatistiğe etkisi küçüktü: 28 hücrede 9.981 eşleşmenin 40'ı ikiz
+sembolde, 9'u aslıyla aynı dönemde (çift sayım). Matris yeniden kurulunca
+yalnız ikizlerin satırları düştü; kalan pencereler birebir aynı, likidite
+bayrağı satırların ~%0,07'sinde değişti (aylık üst %40 kesiti 4 sembol
+eksilince kayar).
+
+**Reddedilen alternatif:** isim listesi (`W*`, `B*ETH`…). Sistematik değil —
+`BNSOL` hiçbir önek kuralına uymuyor, ve yeni bir sarmalanmış token listeye
+eklenene kadar sessizce evrende kalırdı. Ölçüt davranıştır: aynı fiyat serisi.
+
+**Neden kısa geçmişli olan düşer:** asıl daha önce listelenmiştir (BTC,
+WBTC'den yıllar önce vardı); uzun geçmişi tutmak veriyi korur.
+
 ---
 
 ## K-14 — Çoklu Çözünürlük ve Skor Kıyaslanabilirliği

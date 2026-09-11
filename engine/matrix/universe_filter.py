@@ -17,6 +17,12 @@ oranı 0,96'nın üstünde 19 parite var, 0,30 ile 0,96 arasında hiç yok.
 Yakalananlar arasında sarmalanmış varlıklar da vardır (``WBTCBTC``,
 ``RENBTCBTC``, ``BTCBBTC``): onlar da kendi dayanağına sabitlidir ve aynı
 sorunu üretir.
+
+**İkizler.** Aynı sarmalanmış varlığın USDT paritesi (``WBTCUSDT``) 1,0'a
+değil dayanağına sabitlidir; peg filtresi onu göremez. Onu ``detect_twins``
+yakalar: günlük getirisi başka bir sembolünkiyle neredeyse birebir olan ve
+daha kısa geçmişe sahip parite. İkiz evrende kalırsa aynı fiyat hareketi iki
+"bağımsız" olay sayılır (K-09) ve Radar'da aslının en üst benzeri çıkar.
 """
 
 from __future__ import annotations
@@ -32,6 +38,9 @@ from engine.config import (
     META_DIR,
     PEG_MIN_RATIO,
     PEG_TOLERANCE,
+    PRICE_CONTINUITY_MAX_RATIO,
+    TWIN_MIN_CORR,
+    TWIN_MIN_OVERLAP_BARS,
 )
 from engine.ingest.store import read_json, read_klines, write_json_atomic
 
@@ -97,6 +106,80 @@ def detect_pegged(
     return sorted(found)
 
 
+def twin_pairs(
+    closes: dict[str, "pd.Series"],
+    min_corr: float = TWIN_MIN_CORR,
+    min_overlap: int = TWIN_MIN_OVERLAP_BARS,
+) -> list[tuple[str, str, float]]:
+    """Getirisi neredeyse birebir olan (ikiz, asıl, korelasyon) üçlüleri.
+
+    ``closes``: sembol → açılış zamanıyla indekslenmiş kapanış serisi.
+    Korelasyon yalnız iki serinin ORTAK günleri üzerinden hesaplanır
+    (vektörize: tek matris çarpımı; 1.065 sembolde ~2 sn). Fiyat sıçraması
+    (redenominasyon) getirisi yok sayılır — tek bir 1000x bar korelasyonu
+    tek başına belirlerdi. İkizden hangisinin düşeceği: geçmişi KISA olan;
+    asıl daha önce listelenmiştir (BTC, WBTC'den önce vardı).
+    """
+    import pandas as pd
+
+    series = {s: c for s, c in closes.items() if len(c) >= min_overlap}
+    if len(series) < 2:
+        return []
+    frame = pd.DataFrame(
+        {s: np.log(c.astype(np.float64).where(c > 0)).diff() for s, c in series.items()}
+    )
+    x = frame.to_numpy(dtype=np.float64, copy=True)
+    x[np.abs(x) > np.log(PRICE_CONTINUITY_MAX_RATIO)] = np.nan
+    names = list(frame.columns)
+    history = {s: int(np.isfinite(frame[s]).sum()) for s in names}
+
+    m = np.isfinite(x).astype(np.float64)
+    z = np.where(m > 0, x, 0.0)
+    n = m.T @ m
+    safe_n = np.maximum(n, 1.0)
+    sx = (z.T @ m) / safe_n  # [i, j]: i'nin ortak günlerdeki ortalaması
+    sxx = ((z * z).T @ m) / safe_n
+    sxy = (z.T @ z) / safe_n
+    cov = sxy - sx * sx.T
+    with np.errstate(invalid="ignore", divide="ignore"):
+        corr = cov / np.sqrt((sxx - sx * sx) * (sxx - sx * sx).T)
+
+    iu, ju = np.triu_indices(len(names), 1)
+    hit = (n[iu, ju] >= min_overlap) & (corr[iu, ju] > min_corr)
+    out: list[tuple[str, str, float]] = []
+    for i, j in zip(iu[hit], ju[hit]):
+        a, b = names[i], names[j]
+        twin, original = (a, b) if (history[a], b) < (history[b], a) else (b, a)
+        out.append((twin, original, float(corr[i, j])))
+    return sorted(out, key=lambda t: -t[2])
+
+
+def detect_twins(
+    symbols: Iterable[str],
+    root: Path | None = None,
+    timeframes: Sequence[str] = ("1d",),
+) -> list[str]:
+    """Evrenden düşecek ikizler. Tespit GÜNLÜK veriyle yapılır ve iki zaman
+    dilimine aynen uygulanır: ikizlik varlığın özelliğidir, dilimin değil;
+    4h'nin gürültülü getirisi eşiği farklı yerde kesip iki evreni
+    ayrıştırabilirdi. Günlük veri yoksa (yalnız 4h indirilmiş bir depo)
+    sıradaki dilime düşülür."""
+    symbols = list(symbols)
+    closes: dict = {}
+    for timeframe in timeframes:
+        closes = {}
+        for symbol in symbols:
+            df = read_klines(symbol, timeframe, root, columns=["open_time", "close"])
+            if not df.empty:
+                closes[symbol] = df.set_index("open_time")["close"]
+        if len(closes) >= 2:
+            break
+    pairs = twin_pairs(closes)
+    for twin, original, c in pairs:
+        log.info("ikiz: %s ≈ %s (korelasyon %.4f) — %s düşer", twin, original, c, twin)
+    return sorted({twin for twin, _, _ in pairs})
+
+
 def filter_universe(
     symbols: Sequence[str],
     timeframe: str,
@@ -106,6 +189,11 @@ def filter_universe(
     """(kalanlar, düşenler) döndürür ve düşenleri diske kaydeder."""
     pegged = detect_pegged(symbols, timeframe, root)
     pegged += [s for s in symbols if s not in set(pegged) and is_leveraged_token(s)]
+    # İkizler günlük veriyle bulunur (bkz. detect_twins). Kök ``.../klines/<tf>``
+    # değil ``.../klines`` olduğundan günlük dosyalar aynı kökten okunur.
+    pegged += detect_twins(
+        [s for s in symbols if s not in set(pegged)], root, timeframes=("1d", timeframe)
+    )
     pegged = sorted(set(pegged))
     kept = [s for s in symbols if s not in set(pegged)]
 

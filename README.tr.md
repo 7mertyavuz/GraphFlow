@@ -37,7 +37,7 @@ Açık kaynaktaki formasyon araçlarının çoğu, bir formasyonun *var olduğun
 - **Sorguyu siz çizersiniz.** Serbest çizim sunucuda normalize edilir (ölçek ve seviye değişmez) ve motor çiziminizi nasıl okuduğunu söyler: *"3 belirgin tepe · ortadaki en yüksek · diğerleri benzer seviyede"*.
 - **Her istatistiğin bir baseline'ı vardır.** Sonuçlar sıfırla değil, aynı aylardan çekilmiş rastgele pencerelerden oluşan zaman-eşleştirmeli bir gölge örneklemle karşılaştırılır.
 - **Dürüst belirsizlik.** Ay-bloklu bootstrap güven aralıkları, 56 testin tamamı üzerinde Bonferroni düzeltmesi ve iyi görünenler değil **tüm** şablonlar için sonuç.
-- **Survivorship bias yok.** Evren, Binance arşivinden delist edilmiş pariteleri de içerir.
+- **Survivorship bias yok.** Evren, Binance arşivinden delist edilmiş pariteleri de içerir. Stablecoin'ler, kaldıraçlı tokenlar ve *ikizler* (WBTC gibi aslıyla aynı fiyat serisi olan sarmalanmış tokenlar) ölçülmüş kurallarla düşer; aynı fiyat hareketi iki kez sayılmaz.
 - **Varsayılmaz, ölçülür.** Motordaki her filtre, açılmadan önce enjekte edilmiş ground truth'a karşı A/B testinden geçti — birkaçı reddedildi.
 
 ## Dürüst bulgu
