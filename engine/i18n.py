@@ -240,6 +240,16 @@ MESSAGES: dict[str, dict[str, str]] = {
         "tr": "F4.7 — zaman dilimi çaprazlaması",
         "en": "F4.7 — timeframe cross-check",
     },
+    "stage.f47.robust": {
+        "tr": (
+            " Bu sayı tek bir null çekilişinindir; {seeds} çekilişin hepsinde replike "
+            "eden: {cells} (tohum kararlılığı tablosu)."
+        ),
+        "en": (
+            " This count comes from a single null draw; replicated in all {seeds} "
+            "draws: {cells} (see the seed-stability table)."
+        ),
+    },
     "stage.f47.desc": {
         "tr": (
             "Aynı 56 test 1d ve 4h'de ayrı ayrı koşuldu. Sayılan: iki dilimde de "

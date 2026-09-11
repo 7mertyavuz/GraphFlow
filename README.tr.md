@@ -103,7 +103,7 @@ Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle
 2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
 4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, gölge baseline'ı ve güven aralığıyla edge'i gösterir. Küçük örneklemler başlık sayısı olarak değil, uyarıyla gösterilir. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını gösterir (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) — gölge örneklemin fanıyla aynı eksende. Kontrol grubu olmayan bir fan, piyasanın o dönemde zaten yaptığını formasyonun eseri sayar. Her eşleşme kartı da seçili konfigürasyon ve yönde **o olayın kendi sonucunu** gösterir (hedef / stop / zaman aşımı, R, çıkış barı) — ya da neden *sayılmadığını* (önceki bir olayın ileri penceresiyle örtüşme, işlem maliyeti tabanı, listelemeden hemen sonra). Başlıktaki beklenti, sayılan kartların tam ortalamasıdır.
-5. **Bulgular** sayfası her testi, her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
+5. **Bulgular** sayfası her testi, her hücrenin kaç bağımsız null çekilişinde ayakta kaldığını (yalnız bazı çekilişlerde anlamlı olan hücre bulgu değil zar atışı olarak işaretlenir), her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
 
 ## Motoru kendiniz doğrulayın
 

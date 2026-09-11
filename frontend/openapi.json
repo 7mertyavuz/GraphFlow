@@ -885,6 +885,16 @@
             "type": "boolean",
             "title": "Stale",
             "default": false
+          },
+          "stability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeedStability"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -1576,6 +1586,55 @@
         ],
         "title": "SearchResponse"
       },
+      "SeedStability": {
+        "properties": {
+          "seeds": {
+            "type": "integer",
+            "title": "Seeds"
+          },
+          "null_sample": {
+            "type": "integer",
+            "title": "Null Sample"
+          },
+          "engine_match": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Match"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/StabilityRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seeds",
+          "null_sample",
+          "rows"
+        ],
+        "title": "SeedStability",
+        "description": "F4.5'in 56 testi, null tohumu değiştirilerek (docs/12).\n\nArama eşiği rastgele bir null örnekleminin derin yüzdeliğidir; tek bir\nçekilişle \"anlamlı\" görünen hücre başka bir çekilişte düşebilir. Tek\ntohumla gösterilen bir tablo bunu gizler."
+      },
       "SessionInfo": {
         "properties": {
           "session_queries": {
@@ -1651,6 +1710,106 @@
         ],
         "title": "SourceInfo",
         "description": "Sorgunun hangi parçadan kurulduğu ve motorun ondan ne okuduğu."
+      },
+      "StabilityCell": {
+        "properties": {
+          "timeframe": {
+            "type": "string",
+            "title": "Timeframe"
+          },
+          "edge": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edge"
+          },
+          "ci95": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci95"
+          },
+          "n_events": {
+            "type": "integer",
+            "title": "N Events",
+            "default": 0
+          },
+          "significant": {
+            "type": "boolean",
+            "title": "Significant",
+            "default": false
+          },
+          "seeds_significant": {
+            "type": "integer",
+            "title": "Seeds Significant",
+            "default": 0
+          },
+          "seeds_bonferroni": {
+            "type": "integer",
+            "title": "Seeds Bonferroni",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "timeframe"
+        ],
+        "title": "StabilityCell",
+        "description": "Bir hücrenin tek zaman dilimindeki sonucu ve tohumlar arası kararlılığı."
+      },
+      "StabilityRow": {
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "title": "Template Id"
+          },
+          "template": {
+            "type": "string",
+            "title": "Template"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "config": {
+            "type": "string",
+            "title": "Config"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/StabilityCell"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "seeds_replicated": {
+            "type": "integer",
+            "title": "Seeds Replicated",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "template_id",
+          "template",
+          "direction",
+          "config",
+          "cells"
+        ],
+        "title": "StabilityRow"
       },
       "StatEnvelope": {
         "properties": {

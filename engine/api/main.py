@@ -39,6 +39,9 @@ from engine.api.schemas import (
     ReturnDistribution,
     SearchRequest,
     SearchResponse,
+    SeedStability,
+    StabilityCell,
+    StabilityRow,
     StatEnvelope,
     TemplateResponse,
 )
@@ -50,6 +53,7 @@ from engine.config import (
     RETURN_MATCH_BAND_SIGMA,
     TIMEFRAMES,
     N_POINTS,
+    NULL_SAMPLE_SIZE,
     REFINE_MATCHES,
     REFINE_TOP_N,
     SEARCH_CACHE_MATCHES,
@@ -902,7 +906,7 @@ def _describe_cells(cells: list[tuple], lang: str = "tr") -> str:
     )
 
 
-def _finding_stages(lang: str = "tr") -> list[FindingStage]:
+def _finding_stages(lang: str = "tr", stability: SeedStability | None = None) -> list[FindingStage]:
     """Eleme zinciri sayıları — **ölçüm dosyalarından**, elle değil.
 
     Bu sayılar önceden sabit kodluydu ve veriyle çelişiyordu (ör. F4.5
@@ -939,8 +943,29 @@ def _finding_stages(lang: str = "tr") -> list[FindingStage]:
         stage("f46", sum(1 for r in f46_primary if r.get("edge_is_significant")), len(f46_primary), cells=tested),
         stage("f46b", sum(1 for r in f46_primary if r.get("edge_significant_bonferroni")), len(f46_primary)),
         stage("f46r", len(f46_survivors), len(f46_primary), cells=_describe_cells(f46_survivors, L)),
-        stage("f47", len(replicated), len(f45_raw), cells=_describe_cells(replicated, L)),
+        _with_robust(
+            stage("f47", len(replicated), len(f45_raw), cells=_describe_cells(replicated, L)),
+            stability,
+            L,
+        ),
     ]
+
+
+def _with_robust(stage: FindingStage, stability: SeedStability | None, lang: str) -> FindingStage:
+    """F4.7'nin tek-çekiliş sayısının yanına her çekilişte replike edenleri ekler.
+
+    Yayımlanan replikasyon sayısı tek bir null çekilişinindir (docs/12);
+    yalnız o sayıyı göstermek, şanslı bir çekilişi bulgu gibi sunmaktır.
+    """
+    if stability is None or stability.engine_match is not True or not stability.rows:
+        return stage
+    robust = [
+        (r.template_id, r.direction, r.config)
+        for r in stability.rows
+        if r.seeds_replicated == stability.seeds
+    ]
+    extra = t("stage.f47.robust", lang, seeds=stability.seeds, cells=_describe_cells(robust, lang))  # type: ignore[arg-type]
+    return stage.model_copy(update={"desc": stage.desc + extra})
 
 
 #: Ölçüm tabloları ve köken dosyaları. f4/f45 tabloları kökenlerini
@@ -1004,6 +1029,79 @@ def _findings_provenance(lang: str = "tr") -> list[FindingProvenance]:
     return out
 
 
+def _seed_stability(lang: str = "tr") -> SeedStability | None:
+    """Tohum kararlılığı tablosu — ``tools/null_sensitivity`` çıktısından.
+
+    Yalnız motorun GÜNCEL null büyüklüğündeki koşular sayılır; başka bir
+    büyüklükle yapılmış bir koşu bugünkü motorun kararlılığını anlatmaz.
+    Köken motor parmak iziyle denetlenir, tıpkı öteki tablolar gibi.
+    Satırlar yayımlanan tablodan (varsayılan tohum) edge ve GA taşır;
+    kararlılık sayıları onların yanında durur, yerine geçmez.
+    """
+    from engine.fingerprint import compare
+
+    path = DATA_DIR / "f3" / "null_sensitivity.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+    except Exception:  # pragma: no cover - rapor dosyası opsiyonel
+        log.warning("null_sensitivity.json okunamadı", exc_info=True)
+        data = None
+    if not isinstance(data, dict):
+        return None
+    runs = [r for r in data.get("runs", []) if r.get("null_sample") == NULL_SAMPLE_SIZE]
+    if not runs:
+        return None
+
+    timeframes = [tf for tf in ("1d", "4h") if all(tf in r for r in runs)]
+    published = {
+        "1d": {(r["sablon"], r["yon"], r["konf"]): r for r in _load_findings_file("f45_raw.json")},
+        "4h": {(r["sablon"], r["yon"], r["konf"]): r for r in _load_findings_file("f45_raw_4h.json")},
+    }
+    matches = [compare((data.get("provenance") or {}).get(tf, {}).get("fingerprint"), lang) for tf in timeframes]
+    engine_match: bool | None = True
+    reason = None
+    for match, why in matches:
+        if match is not True:
+            engine_match, reason = match, why
+            break
+
+    keys = sorted({tuple(k.split("|")) for r in runs for tf in timeframes for k in r[tf].get("tested", [])})
+    rows: list[StabilityRow] = []
+    for direction, template_id, config in keys:
+        key = "|".join((direction, template_id, config))
+        cells = []
+        for tf in timeframes:
+            pub = published.get(tf, {}).get((template_id, direction, config), {})
+            lo, hi = pub.get("blok_alt"), pub.get("blok_ust")
+            cells.append(StabilityCell(
+                timeframe=tf,
+                edge=pub.get("edge"),
+                ci95=[lo, hi] if lo is not None and hi is not None else None,
+                n_events=int(pub.get("N") or 0),
+                significant=_block_significant(pub) if pub else False,
+                seeds_significant=sum(1 for r in runs if key in r[tf].get("sig95", {})),
+                seeds_bonferroni=sum(1 for r in runs if key in r[tf].get("bonferroni", [])),
+            ))
+        rows.append(StabilityRow(
+            template_id=template_id,
+            template=_template_name(template_id, lang),
+            direction=direction,
+            config=config,
+            cells=cells,
+            seeds_replicated=sum(1 for r in runs if key in r.get("replicated", [])),
+        ))
+    # Sağlam olan üstte: replikasyon, sonra en kararlı dilim.
+    rows.sort(key=lambda r: (-r.seeds_replicated, -max((c.seeds_significant for c in r.cells), default=0),
+                             r.template_id, r.direction, r.config))
+    return SeedStability(
+        seeds=len(runs),
+        null_sample=NULL_SAMPLE_SIZE,
+        engine_match=engine_match,
+        reason=reason,
+        rows=rows,
+    )
+
+
 @app.get("/api/findings", response_model=FindingsResponse)
 def get_findings(lang: str = Depends(get_lang)):
     """F4 → F4.6 elemesi: kaç bulgunun hangi aşamada düştüğü.
@@ -1011,7 +1109,8 @@ def get_findings(lang: str = Depends(get_lang)):
     Ürün ilkesi gereği elenen bulgular da raporlanır; "anlamlı 2 sonuç"
     cümlesi, 52 testin 50'sinin elendiği bilgisi olmadan yanıltıcıdır.
     """
-    stages = _finding_stages(lang)
+    stability = _seed_stability(lang)
+    stages = _finding_stages(lang, stability)
 
     full_table: list[dict] = []
     f46_file = DATA_DIR / "f3" / "f46_raw.json"
@@ -1026,7 +1125,9 @@ def get_findings(lang: str = Depends(get_lang)):
         stages=stages,
         full_table=full_table,
         provenance=provenance,
-        stale=any(p.engine_match is not True for p in provenance),
+        stability=stability,
+        stale=any(p.engine_match is not True for p in provenance)
+        or (stability is not None and stability.engine_match is not True),
         methodology=t(
             "methodology",
             lang,  # type: ignore[arg-type]

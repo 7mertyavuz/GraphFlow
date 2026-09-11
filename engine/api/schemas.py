@@ -334,6 +334,45 @@ class FindingProvenance(BaseModel):
     reason: str | None = None
 
 
+class StabilityCell(BaseModel):
+    """Bir hücrenin tek zaman dilimindeki sonucu ve tohumlar arası kararlılığı."""
+
+    timeframe: str
+    #: Yayımlanan tablodaki (varsayılan tohum) edge ve %95 ay-bloklu GA.
+    edge: float | None = None
+    ci95: list[float] | None = None
+    n_events: int = 0
+    significant: bool = False
+    #: Kaç null tohumunda %95'te / Bonferroni'de anlamlı (``seeds`` üzerinden).
+    seeds_significant: int = 0
+    seeds_bonferroni: int = 0
+
+
+class StabilityRow(BaseModel):
+    template_id: str
+    template: str
+    direction: str
+    config: str
+    cells: list[StabilityCell]
+    #: Kaç tohumda 1d ve 4h'de aynı yönde anlamlı (F4.7 replikasyonu).
+    seeds_replicated: int = 0
+
+
+class SeedStability(BaseModel):
+    """F4.5'in 56 testi, null tohumu değiştirilerek (docs/12).
+
+    Arama eşiği rastgele bir null örnekleminin derin yüzdeliğidir; tek bir
+    çekilişle "anlamlı" görünen hücre başka bir çekilişte düşebilir. Tek
+    tohumla gösterilen bir tablo bunu gizler.
+    """
+
+    seeds: int
+    null_sample: int
+    engine_match: bool | None = None
+    reason: str | None = None
+    rows: list[StabilityRow]
+
+
 class FindingsResponse(BaseModel):
     stages: list[FindingStage]
     full_table: list[dict]
@@ -343,6 +382,9 @@ class FindingsResponse(BaseModel):
     #: gizleyemez: bayat bir istatistiği güncelmiş gibi göstermek, dürüstlük
     #: sayfasının anlatmaya çalıştığı şeyin tam tersidir.
     stale: bool = False
+    #: Tohum kararlılığı; ölçüm dosyası yoksa ya da güncel null büyüklüğünde
+    #: koşu içermiyorsa None (arayüz nedenini yazar, tabloyu uydurmaz).
+    stability: SeedStability | None = None
 
 
 class HealthResponse(BaseModel):

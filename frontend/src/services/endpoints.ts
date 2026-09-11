@@ -20,6 +20,8 @@ export function ledgerKey(row: { symbol_id: number; end_idx: number; window_leng
 export type Template = components["schemas"]["TemplateResponse"];
 export type ChartResponse = components["schemas"]["ChartResponse"];
 export type FindingsResponse = components["schemas"]["FindingsResponse"];
+export type SeedStability = components["schemas"]["SeedStability"];
+export type StabilityRow = components["schemas"]["StabilityRow"];
 export type HealthResponse = components["schemas"]["HealthResponse"];
 export type SessionInfo = components["schemas"]["SessionInfo"];
 export type ChartSource = components["schemas"]["ChartSource"];

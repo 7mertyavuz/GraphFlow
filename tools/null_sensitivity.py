@@ -11,9 +11,13 @@ değiştirir (veri, motor, istatistik aynı) ve F4.5'i yeniden koşar:
 * 1d ve 4h'de aynı yönde anlamlı hücreler (F4.7 replikasyonu) tohumdan
   tohuma nasıl değişiyor.
 
-Sonuç ``data/f3/null_sensitivity.json``.
+Sonuç ``data/f3/null_sensitivity.json`` — Bulgular sayfasının "tohum
+kararlılığı" tablosu buradan okunur (yalnız motorun GÜNCEL null
+büyüklüğündeki koşular; köken motor parmak iziyle denetlenir). Başka
+büyüklükleri kıyaslamak araştırma koşusudur ve ayrı dosyaya yazılır:
 
-    python -m tools.null_sensitivity --sizes 2000 20000 --seeds 5
+    python -m tools.null_sensitivity                          # sayfa için
+    python -m tools.null_sensitivity --sizes 2000 20000 --out null_study.json
 """
 
 from __future__ import annotations
@@ -25,7 +29,8 @@ import time
 from functools import partialmethod
 
 import engine.search.engine as search_engine
-from engine.config import DATA_DIR, NULL_SEED
+from engine.config import DATA_DIR, NULL_SAMPLE_SIZE, NULL_SEED
+from engine.fingerprint import provenance
 from engine.outcome.metrics import bonferroni_level
 from tools.run_outcomes import _significant, run
 
@@ -64,7 +69,12 @@ def measure(sizes: list[int], seeds: list[int], timeframes=TIMEFRAMES) -> dict:
                         "|".join(k) for k, r in cells_b.items() if _significant(r["blok_alt"], r["blok_ust"])
                     )
                     n_events = {"|".join(k): int(r["N"]) for k, r in cells.items()}
-                    row[tf] = {"sig95": sig95, "bonferroni": sig_b, "n": n_events}
+                    row[tf] = {
+                        "sig95": sig95,
+                        "bonferroni": sig_b,
+                        "n": n_events,
+                        "tested": sorted("|".join(k) for k in cells),
+                    }
                     log.info(
                         "n=%d tohum=%d %s: %%95 %d · Bonferroni %d (%.0f sn)",
                         size, seed, tf, len(sig95), len(sig_b), time.time() - t0,
@@ -76,7 +86,15 @@ def measure(sizes: list[int], seeds: list[int], timeframes=TIMEFRAMES) -> dict:
     finally:
         search_engine.SearchEngine.search = original_search
         search_engine.NULL_SEED = NULL_SEED
-    return {"sizes": sizes, "seeds": seeds, "timeframes": list(timeframes), "runs": runs}
+    return {
+        "sizes": sizes,
+        "seeds": seeds,
+        "timeframes": list(timeframes),
+        "runs": runs,
+        # Motorun kendisi (null büyüklüğü koşu başına ``null_sample``'da):
+        # /api/findings bunu bugünkü motorla karşılaştırır.
+        "provenance": {tf: provenance(tf) for tf in timeframes},
+    }
 
 
 def summarize(result: dict) -> list[str]:
@@ -106,9 +124,10 @@ def summarize(result: dict) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--sizes", nargs="+", type=int, default=[2_000, 20_000])
+    p.add_argument("--sizes", nargs="+", type=int, default=[NULL_SAMPLE_SIZE])
     p.add_argument("--seeds", type=int, default=5, help="tohum sayısı (NULL_SEED'den başlayarak)")
     p.add_argument("--timeframes", nargs="+", default=list(TIMEFRAMES))
+    p.add_argument("--out", default="null_sensitivity.json", help="data/f3 altındaki dosya adı")
     p.add_argument("--log-level", default="INFO")
     args = p.parse_args(argv)
     logging.basicConfig(level=args.log_level.upper(), format="%(asctime)s %(message)s")
@@ -118,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
 
     seeds = [NULL_SEED + k for k in range(args.seeds)]
     result = measure(args.sizes, seeds, tuple(args.timeframes))
-    out = DATA_DIR / "f3" / "null_sensitivity.json"
+    out = DATA_DIR / "f3" / args.out
     out.write_text(json.dumps(result, indent=1, ensure_ascii=False), encoding="utf-8")
     print("\n".join(summarize(result)))
     print(f"yazıldı: {out}")

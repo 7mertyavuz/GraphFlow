@@ -287,6 +287,7 @@ export interface components {
              * @default false
              */
             stale: boolean;
+            stability?: components["schemas"]["SeedStability"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -553,6 +554,26 @@ export interface components {
             results: components["schemas"]["MatchResponse"][];
             session: components["schemas"]["SessionInfo"];
         };
+        /**
+         * SeedStability
+         * @description F4.5'in 56 testi, null tohumu değiştirilerek (docs/12).
+         *
+         *     Arama eşiği rastgele bir null örnekleminin derin yüzdeliğidir; tek bir
+         *     çekilişle "anlamlı" görünen hücre başka bir çekilişte düşebilir. Tek
+         *     tohumla gösterilen bir tablo bunu gizler.
+         */
+        SeedStability: {
+            /** Seeds */
+            seeds: number;
+            /** Null Sample */
+            null_sample: number;
+            /** Engine Match */
+            engine_match?: boolean | null;
+            /** Reason */
+            reason?: string | null;
+            /** Rows */
+            rows: components["schemas"]["StabilityRow"][];
+        };
         /** SessionInfo */
         SessionInfo: {
             /** Session Queries */
@@ -581,6 +602,56 @@ export interface components {
             query_vector: number[];
             /** Excluded Overlap */
             excluded_overlap: number;
+        };
+        /**
+         * StabilityCell
+         * @description Bir hücrenin tek zaman dilimindeki sonucu ve tohumlar arası kararlılığı.
+         */
+        StabilityCell: {
+            /** Timeframe */
+            timeframe: string;
+            /** Edge */
+            edge?: number | null;
+            /** Ci95 */
+            ci95?: number[] | null;
+            /**
+             * N Events
+             * @default 0
+             */
+            n_events: number;
+            /**
+             * Significant
+             * @default false
+             */
+            significant: boolean;
+            /**
+             * Seeds Significant
+             * @default 0
+             */
+            seeds_significant: number;
+            /**
+             * Seeds Bonferroni
+             * @default 0
+             */
+            seeds_bonferroni: number;
+        };
+        /** StabilityRow */
+        StabilityRow: {
+            /** Template Id */
+            template_id: string;
+            /** Template */
+            template: string;
+            /** Direction */
+            direction: string;
+            /** Config */
+            config: string;
+            /** Cells */
+            cells: components["schemas"]["StabilityCell"][];
+            /**
+             * Seeds Replicated
+             * @default 0
+             */
+            seeds_replicated: number;
         };
         /**
          * StatEnvelope

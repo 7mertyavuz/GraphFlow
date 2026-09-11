@@ -121,10 +121,13 @@ içindeydi.
 
 ## Açık kalan
 
-- **Sınırdaki hücreler hâlâ oynuyor.** Bulgular sayfası her hücreyi tek bir
-  null çekilişiyle gösteriyor. Dürüst gösterim, anlamlılığı tohumlar
-  arasında sayan bir kararlılık sütunudur (`tools/null_sensitivity` bu
-  ölçümü üretiyor; sayfaya bağlanmadı).
+- ~~**Sınırdaki hücreler hâlâ oynuyor.**~~ **Bağlandı:** Bulgular sayfasında
+  "tohum kararlılığı" tablosu — 56 testin her biri için 1d ve 4h'de kaç
+  çekilişte %95'te / Bonferroni'de anlamlı ve kaç çekilişte replike ettiği,
+  yayımlanan edge ve GA'nın yanında. F4.7 aşamasının metni tek-çekiliş
+  sayısının yanına her çekilişte replike edenleri ekler. Ölçüm
+  `python -m tools.null_sensitivity` ile üretilir; köken motor parmak
+  iziyle denetlenir, motor değişirse tablo "bayat" işaretlenir.
 - **Katı toleransta yapısal filtre uçurumu.** OBO katı toleransta tohumların
   bazılarında 12–20, bazılarında 110+ sonuç: hayatta kalan aday
   `STRUCTURE_MIN_SURVIVORS`'ın altına düşünce filtre tümden gevşiyor

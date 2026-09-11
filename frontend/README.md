@@ -39,6 +39,7 @@ src/components/
   query/           DrawPad, TemplatePicker, ChartSourcePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
   outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
+  findings/        StabilityTable (seed stability of the 56 tests)
   workspace/       SearchWorkspace — shared body of Radar and Backtest
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId
@@ -105,6 +106,7 @@ src/components/
   query/           DrawPad, TemplatePicker, ChartSourcePicker, ShapeThumb, QueryPanel
   results/         MatchCard, MatchGrid, ResultsHeader
   outcome/         StatCard, ReturnBand, FanChart, RegimeTable, OutcomePanel, SessionNotice
+  findings/        StabilityTable (56 testin tohum kararlılığı)
   workspace/       SearchWorkspace — Radar ve Backtest'in ortak gövdesi
   ui/              button, slider, tooltip, card, badge, alert, segmented, skeleton
 src/hooks/         useDraw, useGraphFlowApi, useSessionId

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { StabilityTable } from "@/components/findings/StabilityTable";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFindings } from "@/hooks/useGraphFlowApi";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -78,6 +79,8 @@ export default function FindingsPage() {
               })}
             </CardBody>
           </Card>
+
+          <StabilityTable stability={data.stability} />
 
           {data.provenance && data.provenance.length > 0 && (
             <Card>

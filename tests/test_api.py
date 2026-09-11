@@ -764,6 +764,102 @@ def test_bonferroni_cannot_increase_the_significant_count():
     assert bonf["significant"] <= block["significant"]
 
 
+def _stability_fixture(tmp_path, fingerprint_ok: bool = True):
+    import json as _json
+
+    from engine.config import NULL_SAMPLE_SIZE
+    from engine.fingerprint import provenance
+
+    f3 = tmp_path / "f3"
+    f3.mkdir()
+
+    def raw(edge_a, lo_a, hi_a):
+        return [
+            {"yon": "long", "sablon": "rising_wedge", "konf": "2:1", "N": 150, "edge": edge_a,
+             "blok_alt": lo_a, "blok_ust": hi_a, "olculebilir": True},
+            {"yon": "short", "sablon": "pennant", "konf": "1:1", "N": 400, "edge": 0.01,
+             "blok_alt": -0.1, "blok_ust": 0.12, "olculebilir": True},
+        ]
+
+    (f3 / "f45_raw.json").write_text(_json.dumps(raw(-0.5, -0.9, -0.12)))
+    (f3 / "f45_raw_4h.json").write_text(_json.dumps(raw(-0.2, -0.35, -0.05)))
+    a, b = "long|rising_wedge|2:1", "short|pennant|1:1"
+
+    def run(size, sig_1d, bonf_1d, sig_4h, replicated):
+        tested = sorted([a, b])
+        return {
+            "null_sample": size,
+            "1d": {"sig95": {k: -1 for k in sig_1d}, "bonferroni": bonf_1d, "n": {}, "tested": tested},
+            "4h": {"sig95": {k: -1 for k in sig_4h}, "bonferroni": [], "n": {}, "tested": tested},
+            "replicated": replicated,
+        }
+
+    prov = {tf: provenance(tf) for tf in ("1d", "4h")}
+    # Yayımlanan tablolar da kökenini taşır; kökensiz tablo "bilinmiyor"dur.
+    (f3 / "f45_meta.json").write_text(_json.dumps(prov["1d"]))
+    (f3 / "f45_meta_4h.json").write_text(_json.dumps(prov["4h"]))
+    if not fingerprint_ok:
+        prov["4h"]["fingerprint"] = {"behavior": "0000", "config": {}}
+    data = {
+        "runs": [
+            run(NULL_SAMPLE_SIZE, [a], [a], [a], [a]),
+            run(NULL_SAMPLE_SIZE, [a], [a], [a], [a]),
+            run(NULL_SAMPLE_SIZE, [a, b], [], [], []),
+            # Başka null büyüklüğü: bugünkü motorun kararlılığını anlatmaz.
+            run(NULL_SAMPLE_SIZE // 10, [b], [b], [b], [b]),
+        ],
+        "provenance": prov,
+    }
+    (f3 / "null_sensitivity.json").write_text(_json.dumps(data))
+    return tmp_path
+
+
+def test_tohum_kararliligi_yalniz_guncel_null_buyuklugunden(tmp_path):
+    """Tek çekilişle 'anlamlı' görünen hücre başka çekilişte düşebilir (docs/12);
+    sayfa her hücrenin kaç tohumda ayakta kaldığını gösterir."""
+    root = _stability_fixture(tmp_path)
+    with patch("engine.api.main.DATA_DIR", root):
+        body = client.get("/api/findings", headers={"Accept-Language": "en"}).json()
+
+    st = body["stability"]
+    assert st["seeds"] == 3 and st["engine_match"] is True
+    assert body["stale"] is False
+    first, second = st["rows"]
+    # Sağlam olan üstte: replikasyonu en çok tohumda olan.
+    assert (first["template_id"], first["direction"], first["config"]) == ("rising_wedge", "long", "2:1")
+    assert first["template"] == "Rising Wedge"
+    assert first["seeds_replicated"] == 2
+    one_day, four_hour = first["cells"]
+    assert one_day["timeframe"] == "1d" and one_day["seeds_significant"] == 3
+    assert one_day["seeds_bonferroni"] == 2
+    assert one_day["edge"] == -0.5 and one_day["ci95"] == [-0.9, -0.12] and one_day["significant"]
+    assert four_hour["seeds_significant"] == 2
+    # Başka büyüklükteki koşu sayılmadı: pennant yalnız 1 tohumda.
+    assert second["cells"][0]["seeds_significant"] == 1
+    assert second["seeds_replicated"] == 0
+
+    # F4.7'nin tek-çekiliş sayısı yalnız bırakılmaz: her çekilişte replike
+    # eden hücre — burada hiçbiri (2/3) — metinde söylenir.
+    f47 = next(s for s in body["stages"] if s["stage"].startswith("F4.7"))
+    assert "all 3 draws" in f47["desc"]
+
+
+def test_tohum_kararliligi_bayat_motoru_saklamaz(tmp_path):
+    root = _stability_fixture(tmp_path, fingerprint_ok=False)
+    with patch("engine.api.main.DATA_DIR", root):
+        body = client.get("/api/findings").json()
+    assert body["stability"]["engine_match"] is False
+    assert body["stability"]["reason"]
+    assert body["stale"] is True
+
+
+def test_tohum_kararliligi_dosyasi_yoksa_uydurulmaz(tmp_path):
+    (tmp_path / "f3").mkdir()
+    with patch("engine.api.main.DATA_DIR", tmp_path):
+        body = client.get("/api/findings").json()
+    assert body["stability"] is None
+
+
 # ---------------------------------------------------------------------------
 # Radar önbelleği (docs/01-mimari.md §6)
 # ---------------------------------------------------------------------------
