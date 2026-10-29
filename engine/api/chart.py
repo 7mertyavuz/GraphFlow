@@ -110,10 +110,13 @@ def build_chart(
 
     # Bağlam: formasyon nereden geldi, sonrasında ne oldu. Pencere uzunluğuyla
     # orantılıdır — 24 barlık bayrağa 100 bar bağlam eklemek formasyonu
-    # görünmez yapar.
-    pad = int(round(CHART_CONTEXT_RATIO * (end - start + 1)))
+    # görünmez yapar. İleri bağlam (post_pad >= 0,55 × L) üçlü bariyerin
+    # zaman ufkunu (T = 0,5 × L) tamamen kapsar.
+    length = end - start + 1
+    pad = int(round(CHART_CONTEXT_RATIO * length))
+    post_pad = max(pad, int(round(0.55 * length)))
     lo = max(0, start - pad)
-    hi = min(n_bars - 1, end + pad)
+    hi = min(n_bars - 1, end + post_pad)
 
     times = store.open_time[off + lo : off + hi + 1]
     opens = store.open[off + lo : off + hi + 1]

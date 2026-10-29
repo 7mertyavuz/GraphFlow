@@ -574,9 +574,9 @@ def test_chart_highlight_is_relative_to_returned_bars():
 
     assert 0 <= chart.highlight_start < chart.highlight_end < len(chart.ohlcv)
     assert chart.highlight_end - chart.highlight_start == 23
-    # Bağlam barları: formasyon nereden geldi, sonra ne oldu
+    # Bağlam barları: formasyon nereden geldi, sonra ne oldu (en az T = 0,5 × L ileri bar)
     assert chart.highlight_start > 0
-    assert chart.highlight_end < len(chart.ohlcv) - 1
+    assert (len(chart.ohlcv) - 1) - chart.highlight_end >= 12
 
 
 def test_chart_times_are_real_seconds():

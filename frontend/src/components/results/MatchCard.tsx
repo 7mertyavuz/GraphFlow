@@ -19,7 +19,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useChart } from "@/hooks/useGraphFlowApi";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { type ChartResponse, type LedgerRow, type Match } from "@/services/endpoints";
+import {
+  type ChartResponse,
+  type Direction,
+  type LedgerRow,
+  type Match,
+} from "@/services/endpoints";
 import {
   formatAmplitude,
   formatDate,
@@ -43,6 +48,7 @@ interface MatchCardProps {
   /** Backtest'te: bu eşleşmenin istatistikteki yeri (sayıldı mı, sonucu). */
   ledger?: LedgerRow | null;
   config?: string | null;
+  direction?: Direction;
   directionLabel?: string;
   onSearchSimilar?: (match: Match) => void;
 }
@@ -59,6 +65,7 @@ export function MatchCard({
   searchId,
   ledger,
   config,
+  direction = "long",
   directionLabel,
   onSearchSimilar,
 }: MatchCardProps) {
@@ -264,6 +271,7 @@ export function MatchCard({
           data={data}
           ledger={ledger}
           config={config}
+          direction={direction}
           directionLabel={directionLabel}
           onClose={() => setExpanded(false)}
           onSearchSimilar={
@@ -285,6 +293,7 @@ function ExpandedMatchModal({
   data,
   ledger,
   config,
+  direction = "long",
   directionLabel,
   onClose,
   onSearchSimilar,
@@ -293,12 +302,16 @@ function ExpandedMatchModal({
   data: ChartResponse;
   ledger?: LedgerRow | null;
   config?: string | null;
+  direction?: Direction;
   directionLabel?: string;
   onClose: () => void;
   onSearchSimilar?: () => void;
 }) {
   const { t } = useI18n();
   const modalChartRef = useRef<HTMLDivElement>(null);
+  const hasBarriers = Boolean(ledger && config && match.atr > 0);
+  const countedResult =
+    ledger?.status === "counted" && config ? ledger.outcomes?.[config] : undefined;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -323,7 +336,7 @@ function ExpandedMatchModal({
         vertLines: { color: "rgba(148,163,184,0.08)" },
         horzLines: { color: "rgba(148,163,184,0.08)" },
       },
-      rightPriceScale: { borderVisible: true, scaleMargins: { top: 0.12, bottom: 0.12 } },
+      rightPriceScale: { borderVisible: true, scaleMargins: { top: 0.14, bottom: 0.14 } },
       timeScale: { borderVisible: true, visible: true, timeVisible: true },
       crosshair: { mode: 0 },
       handleScale: true,
@@ -391,12 +404,97 @@ function ExpandedMatchModal({
       data.warped_overlay.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]
     );
 
+    // Backtest modunda Triple-Barrier seviyeleri (C0, TP, SL ve çıkış izi)
+    const i0 = data.highlight_end;
+    const c0 = bars[i0]?.close;
+    if (
+      ledger &&
+      config &&
+      Number.isFinite(c0) &&
+      c0 > 0 &&
+      Number.isFinite(match.atr) &&
+      match.atr > 0 &&
+      i0 < bars.length - 1
+    ) {
+      const dirSign = direction === "short" ? -1 : 1;
+      const kTp = config.startsWith("2:") ? 2.0 : 1.0;
+      const kSl = 1.0;
+      const tpPrice = c0 + dirSign * kTp * match.atr;
+      const slPrice = Math.max(1e-9, c0 - dirSign * kSl * match.atr);
+
+      const horizonBars = Math.max(1, Math.round(0.5 * match.window_length));
+      const exitOffset = countedResult
+        ? Math.min(horizonBars, Math.max(1, countedResult.exit_bar))
+        : horizonBars;
+      const iEnd = Math.min(bars.length - 1, i0 + exitOffset);
+
+      if (iEnd > i0) {
+        const tStart = bars[i0].time as Time;
+        const tEnd = bars[iEnd].time as Time;
+
+        const entryLine = chart.addSeries(LineSeries, {
+          color: COLORS.axis,
+          lineWidth: 1,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        entryLine.setData([
+          { time: tStart, value: c0 },
+          { time: tEnd, value: c0 },
+        ]);
+
+        const tpLine = chart.addSeries(LineSeries, {
+          color: COLORS.up,
+          lineWidth: 2,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          crosshairMarkerVisible: false,
+        });
+        tpLine.setData([
+          { time: tStart, value: tpPrice },
+          { time: tEnd, value: tpPrice },
+        ]);
+
+        const slLine = chart.addSeries(LineSeries, {
+          color: COLORS.down,
+          lineWidth: 2,
+          lineStyle: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          crosshairMarkerVisible: false,
+        });
+        slLine.setData([
+          { time: tStart, value: slPrice },
+          { time: tEnd, value: slPrice },
+        ]);
+
+        if (countedResult) {
+          const exitPrice = Math.max(1e-9, c0 + dirSign * countedResult.r * match.atr);
+          const exitPath = chart.addSeries(LineSeries, {
+            color: countedResult.r >= 0 ? COLORS.up : COLORS.down,
+            lineWidth: 2,
+            lineStyle: 0,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: true,
+          });
+          exitPath.setData([
+            { time: tStart, value: c0 },
+            { time: tEnd, value: exitPrice },
+          ]);
+        }
+      }
+    }
+
     chart.timeScale().fitContent();
 
     return () => {
       chart.remove();
     };
-  }, [data]);
+  }, [data, ledger, config, direction, match.atr, match.window_length, countedResult]);
 
   return (
     <div
@@ -458,13 +556,27 @@ function ExpandedMatchModal({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3 text-[11px]">
+          <div className="flex flex-wrap items-center gap-3 text-[11px]">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-3 bg-[#38bdf8]" /> Blueprint
             </span>
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-3 bg-[#fbbf24]" /> DTW
             </span>
+            {hasBarriers && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-0.5 w-3 border-t border-dashed border-[#94a3b8]" />{" "}
+                  {t.card.barrierEntry}
+                </span>
+                <span className="flex items-center gap-1.5 text-up">
+                  <span className="inline-block h-0.5 w-3 bg-[#34d399]" /> {t.card.barrierTp}
+                </span>
+                <span className="flex items-center gap-1.5 text-down">
+                  <span className="inline-block h-0.5 w-3 bg-[#f87171]" /> {t.card.barrierSl}
+                </span>
+              </>
+            )}
           </div>
         </div>
 

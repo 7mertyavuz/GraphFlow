@@ -34,18 +34,38 @@ const MAX_POINTS = 2_000;
  * el, y değerlerinin x sırasına dizilmesine yani kullanıcının çizmediği bir
  * şeklin aranmasına yol açıyordu.
  */
-export type DrawMode = "freehand" | "polyline";
+export type DrawMode = "freehand" | "polyline" | "spline";
 
-function densifyVertices(verts: Point[], samplesPerSeg = 32): Point[] {
+function densifyVertices(
+  verts: Point[],
+  mode: DrawMode = "polyline",
+  samplesPerSeg = 32
+): Point[] {
   if (verts.length < 2) return verts.slice();
   const out: Point[] = [];
   for (let i = 0; i < verts.length - 1; i++) {
-    const a = verts[i];
-    const b = verts[i + 1];
-    const steps = Math.max(4, Math.round(Math.abs(b.x - a.x) * samplesPerSeg * 4));
+    const p0 = verts[Math.max(0, i - 1)];
+    const p1 = verts[i];
+    const p2 = verts[i + 1];
+    const p3 = verts[Math.min(verts.length - 1, i + 2)];
+    const steps = Math.max(6, Math.round(Math.abs(p2.x - p1.x) * samplesPerSeg * 4));
     for (let s = 0; s < steps; s++) {
       const t = s / steps;
-      out.push({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+      const x = p1.x + t * (p2.x - p1.x);
+      if (mode === "spline" && verts.length >= 3) {
+        const t2 = t * t;
+        const t3 = t2 * t;
+        // Catmull-Rom y(t) — yumuşak çanak, fincan-kulp veya OBO çizimi için
+        const yRaw =
+          0.5 *
+          (2 * p1.y +
+            (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+        out.push({ x, y: Math.min(1, Math.max(0, yRaw)) });
+      } else {
+        out.push({ x, y: p1.y + t * (p2.y - p1.y) });
+      }
     }
   }
   out.push(verts[verts.length - 1]);
@@ -55,12 +75,28 @@ function densifyVertices(verts: Point[], samplesPerSeg = 32): Point[] {
 export function useDraw() {
   const [points, setPoints] = useState<Point[]>([]);
   const [vertices, setVertices] = useState<Point[]>([]);
-  const [drawMode, setDrawMode] = useState<DrawMode>("freehand");
+  const [drawMode, setDrawModeState] = useState<DrawMode>("freehand");
+  const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
   const buffer = useRef<Point[]>([]);
   const pointerId = useRef<number | null>(null);
   const frame = useRef<number | null>(null);
+
+  const setDrawMode = useCallback((nextMode: DrawMode) => {
+    setDrawModeState(nextMode);
+    setHoverPoint(null);
+    if (nextMode === "polyline" || nextMode === "spline") {
+      setVertices((prev) => {
+        if (prev.length >= 2) {
+          const dense = densifyVertices(prev, nextMode);
+          buffer.current = dense;
+          setPoints(dense);
+        }
+        return prev;
+      });
+    }
+  }, []);
 
   /** Boyama en fazla kare başına bir kez: pointermove'da state güncellemek
    *  uzun darbelerde kareyi düşürüyor, düşen kare de nokta kaybettiriyordu. */
@@ -137,21 +173,23 @@ export function useDraw() {
       if (!measurable(rect)) return;
       const pt = toLocal(event.clientX, event.clientY, rect);
 
-      if (drawMode === "polyline") {
+      if (drawMode === "polyline" || drawMode === "spline") {
         setVertices((prev) => {
           const filtered = prev.filter((v) => v.x < pt.x - MIN_STEP);
           const next = [...filtered, pt];
-          const dense = densifyVertices(next);
+          const dense = densifyVertices(next, drawMode);
           buffer.current = dense;
           setPoints(dense);
           return next;
         });
+        setHoverPoint(null);
         return;
       }
 
       pointerId.current = event.pointerId;
       // Yeni bir çizim eskisini siler: iki ayrı formasyon tek sorgu olamaz.
       setVertices([]);
+      setHoverPoint(null);
       buffer.current = [pt];
       setPoints(buffer.current.slice());
       setIsDrawing(true);
@@ -162,9 +200,16 @@ export function useDraw() {
 
   const move = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      if ((drawMode === "polyline" || drawMode === "spline") && pointerId.current === null) {
+        if (measurable(rect)) {
+          setHoverPoint(toLocal(event.clientX, event.clientY, rect));
+        }
+        return;
+      }
+
       if (pointerId.current !== event.pointerId) return;
 
-      const rect = event.currentTarget.getBoundingClientRect();
       // Tarayıcı hızlı darbelerde pointermove'ları birleştirir; birleşenleri
       // açmadan çizilen keskin köşeler kesilir.
       const native = event.nativeEvent;
@@ -177,8 +222,12 @@ export function useDraw() {
       }
       flush();
     },
-    [flush, push, toLocal]
+    [drawMode, flush, push, toLocal]
   );
+
+  const leave = useCallback(() => {
+    setHoverPoint(null);
+  }, []);
 
   const end = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
@@ -201,6 +250,7 @@ export function useDraw() {
     pointerId.current = null;
     buffer.current = [];
     setVertices([]);
+    setHoverPoint(null);
     setPoints([]);
     setIsDrawing(false);
   }, [cancelFrame]);
@@ -209,12 +259,12 @@ export function useDraw() {
     setVertices((prev) => {
       if (prev.length === 0) return prev;
       const next = prev.slice(0, -1);
-      const dense = next.length >= 2 ? densifyVertices(next) : next.slice();
+      const dense = next.length >= 2 ? densifyVertices(next, drawMode) : next.slice();
       buffer.current = dense;
       setPoints(dense);
       return next;
     });
-  }, []);
+  }, [drawMode]);
 
   const setSeries = useCallback(
     (values: number[]) => {
@@ -228,6 +278,7 @@ export function useDraw() {
       }));
       cancelFrame();
       setVertices([]);
+      setHoverPoint(null);
       buffer.current = mapped;
       setPoints(mapped);
     },
@@ -255,6 +306,7 @@ export function useDraw() {
   return {
     points,
     vertices,
+    hoverPoint,
     drawMode,
     setDrawMode,
     undoVertex,
@@ -263,6 +315,7 @@ export function useDraw() {
     isDrawing,
     start,
     move,
+    leave,
     end,
     reset,
     setSeries,

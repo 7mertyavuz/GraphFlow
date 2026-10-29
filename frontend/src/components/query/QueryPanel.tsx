@@ -147,6 +147,7 @@ export function QueryPanel({
             <DrawPad
               points={draw.points}
               vertices={draw.vertices}
+              hoverPoint={draw.hoverPoint}
               drawMode={draw.drawMode}
               onDrawModeChange={draw.setDrawMode}
               onUndoVertex={draw.undoVertex}
@@ -154,6 +155,7 @@ export function QueryPanel({
               onPointerDown={draw.start}
               onPointerMove={draw.move}
               onPointerUp={draw.end}
+              onPointerLeave={draw.leave}
               onClear={() => {
                 draw.reset();
                 setTemplate(null);

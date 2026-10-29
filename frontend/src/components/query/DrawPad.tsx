@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eraser, MousePointer2, PenTool, Spline, Undo2 } from "lucide-react";
+import { Eraser, MousePointer2, Pencil, PenTool, Spline, Undo2 } from "lucide-react";
 
 import { type DrawMode } from "@/hooks/useDraw";
 import { useI18n } from "@/i18n/LanguageProvider";
@@ -11,6 +11,7 @@ import { analyzeDrawing, type Point } from "@/utils/shape";
 interface DrawPadProps {
   points: Point[];
   vertices?: Point[];
+  hoverPoint?: Point | null;
   drawMode?: DrawMode;
   onDrawModeChange?: (mode: DrawMode) => void;
   onUndoVertex?: () => void;
@@ -18,6 +19,7 @@ interface DrawPadProps {
   onPointerDown: (event: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerUp: (event: React.PointerEvent<HTMLCanvasElement>) => void;
+  onPointerLeave?: () => void;
   onClear: () => void;
   height?: number;
 }
@@ -36,6 +38,7 @@ interface DrawPadProps {
 export function DrawPad({
   points,
   vertices = [],
+  hoverPoint = null,
   drawMode = "freehand",
   onDrawModeChange,
   onUndoVertex,
@@ -43,6 +46,7 @@ export function DrawPad({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onPointerLeave,
   onClear,
   height = 260,
 }: DrawPadProps) {
@@ -117,8 +121,29 @@ export function DrawPad({
     const toX = (p: Point) => p.x * width;
     const toY = (p: Point) => (1 - p.y) * height;
 
-    // Tek köşe varsa (polyline modunda ilk tıklama) nokta göster
+    const isVertexMode = drawMode === "polyline" || drawMode === "spline";
+    const drawGhostSegment = () => {
+      if (!isVertexMode || vertices.length === 0 || !hoverPoint) return;
+      const lastV = vertices[vertices.length - 1];
+      if (hoverPoint.x <= lastV.x) return;
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,189,248,0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(toX(lastV), toY(lastV));
+      ctx.lineTo(toX(hoverPoint), toY(hoverPoint));
+      ctx.stroke();
+      ctx.fillStyle = "rgba(56,189,248,0.65)";
+      ctx.beginPath();
+      ctx.arc(toX(hoverPoint), toY(hoverPoint), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    // Tek köşe varsa (polyline/spline modunda ilk tıklama) nokta + hayalet çizgi göster
     if (points.length === 0 && vertices.length === 1) {
+      drawGhostSegment();
       ctx.fillStyle = "#38bdf8";
       ctx.beginPath();
       ctx.arc(toX(vertices[0]), toY(vertices[0]), 4.5, 0, Math.PI * 2);
@@ -141,8 +166,21 @@ export function DrawPad({
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Canlı zarf (trend çizgisi) ve direk önizlemesi (K-21 / K-22)
+    // Canlı zarf (trend çizgisi), direk (K-22) ve parabolik çanak (K-24) önizlemesi
     if (analysis) {
+      if (analysis.parabolicCurve && analysis.parabolicCurve.length >= 2) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(192,132,252,0.85)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        analysis.parabolicCurve.forEach((p, idx) => {
+          if (idx === 0) ctx.moveTo(toX(p), toY(p));
+          else ctx.lineTo(toX(p), toY(p));
+        });
+        ctx.stroke();
+        ctx.restore();
+      }
       if (analysis.poleLine) {
         ctx.save();
         ctx.strokeStyle = "rgba(251,191,36,0.75)";
@@ -167,6 +205,8 @@ export function DrawPad({
         ctx.restore();
       }
     }
+
+    drawGhostSegment();
 
     // Çizgi
     ctx.beginPath();
@@ -198,8 +238,8 @@ export function DrawPad({
       }
     }
 
-    // Kırık çizgi köşe tutamaçları
-    if (drawMode === "polyline" && vertices.length > 0) {
+    // Kırık çizgi / yumuşak eğri köşe tutamaçları
+    if (isVertexMode && vertices.length > 0) {
       for (const v of vertices) {
         ctx.fillStyle = "#0f172a";
         ctx.strokeStyle = "#38bdf8";
@@ -217,34 +257,35 @@ export function DrawPad({
       ctx.arc(toX(last), toY(last), 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [points, vertices, drawMode, analysis, width, height]);
+  }, [points, vertices, hoverPoint, drawMode, analysis, width, height]);
 
   const empty = points.length < 2 && vertices.length === 0;
   const liveSummary = lang === "en" ? analysis?.summaryEn : analysis?.summaryTr;
+  const liveBadge = lang === "en" ? analysis?.badgeEn : analysis?.badgeTr;
 
   return (
     <div className="space-y-2">
       {onDrawModeChange && (
-        <div className="flex items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <div className="inline-flex rounded-md border border-border bg-secondary/40 p-0.5">
             <button
               type="button"
               onClick={() => onDrawModeChange("freehand")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
                 drawMode === "freehand"
                   ? "bg-brand/15 text-brand"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Spline className="size-3" />
+              <Pencil className="size-3" />
               {t.drawpad.modeFreehand}
             </button>
             <button
               type="button"
               onClick={() => onDrawModeChange("polyline")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
                 drawMode === "polyline"
                   ? "bg-brand/15 text-brand"
                   : "text-muted-foreground hover:text-foreground"
@@ -253,9 +294,22 @@ export function DrawPad({
               <PenTool className="size-3" />
               {t.drawpad.modePolyline}
             </button>
+            <button
+              type="button"
+              onClick={() => onDrawModeChange("spline")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                drawMode === "spline"
+                  ? "bg-brand/15 text-brand"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Spline className="size-3" />
+              {t.drawpad.modeSpline}
+            </button>
           </div>
 
-          {drawMode === "polyline" && onUndoVertex && (
+          {(drawMode === "polyline" || drawMode === "spline") && onUndoVertex && (
             <button
               type="button"
               onClick={onUndoVertex}
@@ -276,6 +330,7 @@ export function DrawPad({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onPointerLeave={onPointerLeave}
           className="block w-full cursor-crosshair touch-none select-none"
           style={{ height }}
         />
@@ -285,9 +340,11 @@ export function DrawPad({
             <p className="text-sm font-medium text-muted-foreground">
               {t.drawpad.placeholderTitle}
             </p>
-            <p className="max-w-[220px] text-xs text-muted-foreground/70">
+            <p className="max-w-[230px] text-xs text-muted-foreground/70">
               {drawMode === "polyline" ? (
                 t.drawpad.polylineHint
+              ) : drawMode === "spline" ? (
+                t.drawpad.splineHint
               ) : (
                 <>
                   {t.drawpad.placeholderStart}{" "}
@@ -301,10 +358,24 @@ export function DrawPad({
       </div>
 
       {liveSummary && (
-        <div className="flex items-center gap-1.5 rounded-md border border-brand/20 bg-brand/[0.06] px-2.5 py-1.5 text-[11px]">
-          <span className="size-1.5 shrink-0 rounded-full bg-brand" />
-          <span className="text-muted-foreground">{t.drawpad.livePreview}</span>
-          <span className="truncate font-medium text-foreground">{liveSummary}</span>
+        <div className="flex items-center justify-between gap-2 rounded-md border border-brand/20 bg-brand/[0.06] px-2.5 py-1.5 text-[11px]">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="size-1.5 shrink-0 rounded-full bg-brand" />
+            <span className="shrink-0 text-muted-foreground">{t.drawpad.livePreview}</span>
+            <span className="truncate font-medium text-foreground">{liveSummary}</span>
+          </div>
+          {liveBadge && (
+            <span
+              className={cn(
+                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                analysis?.stable
+                  ? "bg-emerald-500/15 text-emerald-400"
+                  : "bg-amber-500/15 text-amber-300"
+              )}
+            >
+              {liveBadge}
+            </span>
+          )}
         </div>
       )}
 

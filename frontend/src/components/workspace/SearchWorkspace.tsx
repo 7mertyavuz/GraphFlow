@@ -198,6 +198,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
           hasSearched={hasSearched}
           ledger={withOutcome ? ledger : null}
           config={activeConfig}
+          direction={direction}
           directionLabel={direction === "long" ? t.outcome.long : t.outcome.short}
           onSearchSimilar={handleSearchSimilar}
         />
