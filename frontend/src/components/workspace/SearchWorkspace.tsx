@@ -17,9 +17,11 @@ import { useI18n } from "@/i18n/LanguageProvider";
 import { errorMessage } from "@/services/apiClient";
 import {
   ledgerKey,
+  type BaselineMode,
   type Direction,
   type LedgerRow,
   type Match,
+  type OutcomeCondition,
   type SearchRequest,
   type SessionInfo,
   type Timeframe,
@@ -50,12 +52,19 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
   const [searchId, setSearchId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [direction, setDirection] = useState<Direction>("long");
+  const [baseline, setBaseline] = useState<BaselineMode>("standard");
+  const [condition, setCondition] = useState<OutcomeCondition>("all");
   const [configName, setConfigName] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
 
   const createSearch = useCreateSearch();
   const page = usePaginatedSearch(searchId);
-  const stats = useSearchStats(withOutcome ? searchId : null, direction);
+  const stats = useSearchStats(
+    withOutcome ? searchId : null,
+    direction,
+    baseline,
+    condition
+  );
 
   // Son sorgu: Radar kendini yenilerken aynı yükü tekrar gönderir.
   const lastPayload = useRef<SearchRequest | null>(null);
@@ -185,6 +194,10 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
             onDirectionChange={setDirection}
             configName={activeConfig}
             onConfigChange={setConfigName}
+            baseline={baseline}
+            onBaselineChange={setBaseline}
+            condition={condition}
+            onConditionChange={setCondition}
           />
         )}
 

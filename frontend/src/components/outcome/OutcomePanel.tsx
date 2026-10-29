@@ -8,7 +8,12 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { useI18n } from "@/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-import { type Direction, type OutcomeResponse } from "@/services/endpoints";
+import {
+  type BaselineMode,
+  type Direction,
+  type OutcomeCondition,
+  type OutcomeResponse,
+} from "@/services/endpoints";
 import { formatCount, formatPercent } from "@/utils/formatters";
 
 import { FanChart } from "./FanChart";
@@ -32,6 +37,10 @@ interface OutcomePanelProps {
   /** Seçili bariyer konfigürasyonu — eşleşme kartları da bunu gösterir. */
   configName: string | null;
   onConfigChange: (name: string) => void;
+  baseline?: BaselineMode;
+  onBaselineChange?: (baseline: BaselineMode) => void;
+  condition?: OutcomeCondition;
+  onConditionChange?: (condition: OutcomeCondition) => void;
 }
 
 /**
@@ -49,6 +58,10 @@ export function OutcomePanel({
   onDirectionChange,
   configName,
   onConfigChange,
+  baseline = "standard",
+  onBaselineChange,
+  condition = "all",
+  onConditionChange,
 }: OutcomePanelProps) {
   const { t } = useI18n();
   const outcomeLabel = (key: string) =>
@@ -56,6 +69,24 @@ export function OutcomePanel({
   const directions = [
     { value: "long" as Direction, label: t.outcome.long, hint: t.outcome.longHint },
     { value: "short" as Direction, label: t.outcome.short, hint: t.outcome.shortHint },
+  ];
+  const baselines = [
+    {
+      value: "standard" as BaselineMode,
+      label: t.outcome.baselineStandard,
+      hint: t.outcome.baselineStandardHint,
+    },
+    {
+      value: "return_matched" as BaselineMode,
+      label: t.outcome.baselineMomentum,
+      hint: t.outcome.baselineMomentumHint,
+    },
+  ];
+  const conditions = [
+    { value: "all" as OutcomeCondition, label: t.outcome.condAll },
+    { value: "high_vol" as OutcomeCondition, label: t.outcome.condHighVol },
+    { value: "low_vol" as OutcomeCondition, label: t.outcome.condLowVol },
+    { value: "strong_breakout" as OutcomeCondition, label: t.outcome.condBreakout },
   ];
   const configs = data ? Object.entries(data.configs) : [];
   const active = configs.find(([name]) => name === configName) ?? configs[0];
@@ -124,6 +155,39 @@ export function OutcomePanel({
             )}
           </div>
         </div>
+
+        {(onBaselineChange || onConditionChange) && (
+          <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-border/60 bg-secondary/20 px-3 py-2 text-xs">
+            {onBaselineChange && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-muted-foreground">
+                  {t.outcome.baselineLabel}
+                </span>
+                <Segmented
+                  options={baselines}
+                  value={baseline}
+                  onChange={onBaselineChange}
+                  size="sm"
+                  ariaLabel={t.outcome.baselineAria}
+                />
+              </div>
+            )}
+            {onConditionChange && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium text-muted-foreground">
+                  {t.outcome.conditionLabel}
+                </span>
+                <Segmented
+                  options={conditions}
+                  value={condition}
+                  onChange={onConditionChange}
+                  size="sm"
+                  ariaLabel={t.outcome.conditionAria}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <EventLedger data={data} />
       </CardHeader>

@@ -120,6 +120,33 @@ def load_shadow_pools(
     return pools
 
 
+def _condition_mask(events: np.ndarray, store: BarStore, condition: str) -> np.ndarray:
+    """Post-hoc nedensel (yalnızca t₀ ve öncesi) rejim ve kırılım filtresi."""
+    if events.size == 0 or condition == "all":
+        return np.ones(events.size, dtype=bool)
+
+    c0 = store.close_at(events["symbol_id"], events["t0"])
+    atr = events["atr"].astype(np.float64)
+
+    if condition in ("high_vol", "low_vol"):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            atr_pct = np.where(c0 > 0, atr / c0, np.nan)
+        finite = np.isfinite(atr_pct)
+        if not finite.any():
+            return np.zeros(events.size, dtype=bool)
+        med = float(np.median(atr_pct[finite])) if int(finite.sum()) >= 4 else 0.025
+        if condition == "high_vol":
+            return finite & (atr_pct >= med)
+        return finite & (atr_pct < med)
+
+    if condition == "strong_breakout":
+        o0 = store.open_at(events["symbol_id"], events["t0"])
+        body = np.abs(c0 - o0)
+        return np.isfinite(body) & np.isfinite(atr) & (atr > 0) & (body >= 0.65 * atr)
+
+    return np.ones(events.size, dtype=bool)
+
+
 def run_events(
     events: np.ndarray,
     store: BarStore,
@@ -135,6 +162,7 @@ def run_events(
     with_paths: bool = False,
     with_ledger: bool = False,
     with_return_matched: bool = False,
+    condition: str = "all",
 ) -> TemplateOutcome:
     """Hazır olay dizisinden outcome — arama adımı olmadan.
 
@@ -170,6 +198,13 @@ def run_events(
         events, index = events[ok], index[ok]
     else:
         dropped_filters = 0
+
+    if events.size and condition != "all":
+        cmask = _condition_mask(events, store, condition)
+        dropped_cond = int((~cmask).sum())
+        dropped_filters += dropped_cond
+        status[index[~cmask]] = "condition"
+        events, index = events[cmask], index[cmask]
 
     outcome = TemplateOutcome(
         template_id=template_id,
@@ -234,7 +269,13 @@ def run_events(
             results, k_tp, k_sl, name, shadow=shadow_results, rng=rng,
             direction=direction, confidence=confidence,
         )
-        if rm_shadow_results is not None and rm_shadow_results.size and results.size:
+        if return_matched_shadow and stats.shadow_n > 0:
+            stats.return_matched_shadow_expectancy_r = stats.shadow_expectancy_r
+            stats.return_matched_shadow_n = stats.shadow_n
+            stats.return_matched_edge_r = stats.edge_r
+            stats.return_matched_edge_ci = stats.edge_ci
+            stats.return_matched_design_effect = stats.design_effect
+        elif rm_shadow_results is not None and rm_shadow_results.size and results.size:
             from engine.outcome.metrics import block_bootstrap_diff_ci, month_of
 
             r_gross = results["r_gross"].astype(np.float64)

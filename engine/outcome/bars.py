@@ -138,6 +138,9 @@ class BarStore:
     def close_at(self, symbol_ids: np.ndarray, bar_idx: np.ndarray) -> np.ndarray:
         return self.close[self.offsets_of(symbol_ids) + np.asarray(bar_idx, dtype=np.int64)]
 
+    def open_at(self, symbol_ids: np.ndarray, bar_idx: np.ndarray) -> np.ndarray:
+        return self.open[self.offsets_of(symbol_ids) + np.asarray(bar_idx, dtype=np.int64)]
+
     def forward_window(
         self, symbol_ids: np.ndarray, t0: np.ndarray, horizon: int
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:

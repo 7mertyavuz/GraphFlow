@@ -250,7 +250,9 @@ class LedgerRow(BaseModel):
     #: counted · overlap (önceki bir olayın ileri penceresiyle örtüşüyor,
     #: K-09) · cost_floor (K-16.7) · listing (ATR ısınmadı) · no_data ·
     #: no_forward (ileri pencere yok)
-    status: Literal["counted", "overlap", "cost_floor", "listing", "no_data", "no_forward"]
+    status: Literal[
+        "counted", "overlap", "cost_floor", "listing", "no_data", "no_forward", "condition"
+    ]
     #: Konfigürasyon başına sonuç; yalnız ``counted`` satırlarda dolu.
     outcomes: dict[str, LedgerOutcome] = Field(default_factory=dict)
 

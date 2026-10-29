@@ -31,6 +31,8 @@ export type Mode = SearchRequest["mode"];
 export type Timeframe = SearchRequest["timeframe"];
 export type Tolerance = SearchRequest["tolerance"];
 export type Direction = "long" | "short";
+export type BaselineMode = "standard" | "return_matched";
+export type OutcomeCondition = "all" | "high_vol" | "low_vol" | "strong_breakout";
 
 export async function createSearch(payload: SearchRequest): Promise<SearchResponse> {
   const { data } = await apiClient.post<SearchResponse>("/search", payload);
@@ -50,10 +52,12 @@ export async function getSearch(
 
 export async function getSearchStats(
   searchId: string,
-  direction: Direction = "long"
+  direction: Direction = "long",
+  baseline: BaselineMode = "standard",
+  condition: OutcomeCondition = "all"
 ): Promise<OutcomeResponse> {
   const { data } = await apiClient.get<OutcomeResponse>(`/search/${searchId}/stats`, {
-    params: { direction },
+    params: { direction, baseline, condition },
   });
   return data;
 }

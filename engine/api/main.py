@@ -705,14 +705,18 @@ async def get_search(
 async def get_search_stats(
     search_id: str,
     direction: str = Query(default="long", pattern="^(long|short)$"),
+    baseline: str = Query(default="standard", pattern="^(standard|return_matched)$"),
+    condition: str = Query(
+        default="all", pattern="^(all|high_vol|low_vol|strong_breakout)$"
+    ),
     session_id: str = Depends(get_session_id),
     lang: str = Depends(get_lang),
 ):
     cache = get_cache()
     await read_session(session_id, lang)
 
-    # Anahtar dili de içerir: yanıtta hüküm ve sorumluluk reddi metni var.
-    stats_key = f"search:{search_id}:stats:{direction}:{lang}"
+    # Anahtar dili, baseline'ı ve koşullu filtreyi de içerir.
+    stats_key = f"search:{search_id}:stats:{direction}:{baseline}:{condition}:{lang}"
     cached = await cache.get(stats_key)
     if cached:
         return OutcomeResponse(**json.loads(cached))
@@ -739,9 +743,11 @@ async def get_search_stats(
         template_id="search_query",
         timeframe=timeframe,
         direction=direction,
+        return_matched_shadow=(baseline == "return_matched"),
         with_paths=True,
         with_ledger=True,
         with_return_matched=True,
+        condition=condition,
     )
 
     response = to_outcome_response(outcome, lang)

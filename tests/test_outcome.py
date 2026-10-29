@@ -1127,3 +1127,48 @@ def test_ikiz_tespiti_fiyat_sicramasina_ve_kisa_ortakliga_kanmaz():
 
     # Birebir aynı ama yalnız 100 ortak gün: ikizlik iddiası için az.
     assert twin_pairs({"A": _series(a), "C": _series(a[:100] * 2)}) == []
+
+
+def test_kosullu_filtreler_nedenseldir_ve_defterde_condition_yazar():
+    """Post-hoc rejim/kırılım filtreleri yalnız t₀ barını kullanır ve elenenleri 'condition' yazar."""
+    from engine.outcome.pipeline import run_events
+
+    close = np.full(400, 100.0)
+    close[110:130] = 115.0
+    close[210:230] = 115.0
+    open_ = close.copy()
+    # t0=100'de güçlü kırılım mumu (|C - O| = 4.0 >= 0.65 * 3.0), t0=200'de cılız mum (|C - O| = 0.2)
+    open_[100] = 96.0
+    open_[200] = 99.8
+    store = BarStore.from_arrays(
+        {
+            1: {
+                "open": open_,
+                "high": close + 1.0,
+                "low": close - 1.0,
+                "close": close,
+                "open_time": np.arange(400, dtype=np.int64) * 86_400_000,
+            }
+        }
+    )
+    events = np.concatenate(
+        [
+            _event(1, 100, 24, 3.0),  # yüksek vol (3%) + güçlü kırılım
+            _event(1, 200, 24, 1.5),  # düşük vol (1.5%) + cılız mum
+        ]
+    )
+
+    out_hv = run_events(events, store, {}, timeframe="4h", with_ledger=True, condition="high_vol")
+    assert out_hv.events == 1
+    assert [r["status"] for r in out_hv.ledger] == ["counted", "condition"]
+
+    out_lv = run_events(events, store, {}, timeframe="4h", with_ledger=True, condition="low_vol")
+    assert out_lv.events == 1
+    assert [r["status"] for r in out_lv.ledger] == ["condition", "counted"]
+
+    out_sb = run_events(
+        events, store, {}, timeframe="4h", with_ledger=True, condition="strong_breakout"
+    )
+    assert out_sb.events == 1
+    assert [r["status"] for r in out_sb.ledger] == ["counted", "condition"]
+

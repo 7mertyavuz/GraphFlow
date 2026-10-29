@@ -17,8 +17,10 @@ import {
   getSearchStats,
   getSymbols,
   getTemplates,
+  type BaselineMode,
   type Direction,
   type Match,
+  type OutcomeCondition,
   type SearchRequest,
   type SearchResponse,
   type Timeframe,
@@ -133,11 +135,16 @@ export function usePaginatedSearch(searchId: string | null, limit = PAGE_SIZE) {
   };
 }
 
-export function useSearchStats(searchId: string | null, direction: Direction = "long") {
+export function useSearchStats(
+  searchId: string | null,
+  direction: Direction = "long",
+  baseline: BaselineMode = "standard",
+  condition: OutcomeCondition = "all"
+) {
   const { lang } = useI18n();
   return useQuery({
-    queryKey: ["search", searchId, "stats", direction, lang],
-    queryFn: () => getSearchStats(searchId as string, direction),
+    queryKey: ["search", searchId, "stats", direction, baseline, condition, lang],
+    queryFn: () => getSearchStats(searchId as string, direction, baseline, condition),
     enabled: Boolean(searchId),
     retry: false,
   });
