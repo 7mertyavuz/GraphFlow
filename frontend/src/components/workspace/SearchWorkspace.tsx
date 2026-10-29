@@ -19,8 +19,11 @@ import {
   ledgerKey,
   type Direction,
   type LedgerRow,
+  type Match,
   type SearchRequest,
   type SessionInfo,
+  type Timeframe,
+  type Tolerance,
 } from "@/services/endpoints";
 
 /** Radar yenileme aralığı — sunucudaki RADAR_TTL ile aynı (5 dk). */
@@ -69,6 +72,24 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
       });
     },
     [createSearch]
+  );
+
+  const handleSearchSimilar = useCallback(
+    (match: Match) => {
+      run({
+        mode,
+        timeframe: match.timeframe as Timeframe,
+        tolerance: (lastPayload.current?.tolerance as Tolerance) ?? "medium",
+        limit: lastPayload.current?.limit ?? 12,
+        window_lengths: lastPayload.current?.window_lengths ?? [24, 40, 64, 100],
+        source: {
+          symbol: match.symbol,
+          length: match.window_length,
+          end_time: match.end_time,
+        },
+      });
+    },
+    [mode, run]
   );
 
   /**
@@ -178,6 +199,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
           ledger={withOutcome ? ledger : null}
           config={activeConfig}
           directionLabel={direction === "long" ? t.outcome.long : t.outcome.short}
+          onSearchSimilar={handleSearchSimilar}
         />
       </section>
     </main>

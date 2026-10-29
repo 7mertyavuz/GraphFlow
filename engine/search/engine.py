@@ -56,6 +56,8 @@ from engine.config import (
     ENVELOPE_FILTER,
     ENVELOPE_MIN_SURVIVORS,
     LIVE_MAX_LAG_BARS,
+    REGIME_MIN_SURVIVORS,
+    STRUCTURAL_RERANK,
     STRUCTURE_FILTER,
     STRUCTURE_MIN_SURVIVORS,
     STRUCTURE_STABILITY_GATE,
@@ -73,9 +75,11 @@ from engine.matrix.build import (
 )
 from engine.matrix.npy_store import load_matrix
 from engine.search.constraints import (
-    filter_plan,
     envelope_mask,
+    filter_plan,
+    pole_body_mask,
     signature_mask,
+    structural_alignment_penalty,
 )
 from engine.search.ddtw import stage2_scores
 from engine.search.nms import nms_1d
@@ -521,7 +525,15 @@ class SearchEngine:
             if stats.used_absolute:
                 candidates["percentile"][sel] = np.where(distances <= stats.threshold, 0.0, 1.0)
             else:
-                candidates["percentile"][sel] = np.searchsorted(null, distances, side="left") / null.size
+                # K-23: Empirik searchsorted sol kuyrukta (d < null[0]) tüm
+                # adaylara 0,0 vererek sıralamayı Aşama 1 kosinüsüne düşürür.
+                # Sol kuyruk p01'e doğrusal çapalanarak sürekli sıralama korunur.
+                emp = np.searchsorted(null, distances, side="left") / null.size
+                p01_anchor = max(1e-9, float(stats.p01))
+                cont_tail = 0.01 * (distances / p01_anchor)
+                candidates["percentile"][sel] = np.where(
+                    distances <= stats.p01, cont_tail, np.maximum(0.01, emp)
+                )
             keep_mask[sel] = distances <= stats.threshold
 
         result.discriminative = self._is_discriminative(result.null_stats)
@@ -538,10 +550,10 @@ class SearchEngine:
         #
         # Kural sorgudan türer — formasyon başına kod yok (K-04). Serbest
         # çizimde de çalışmasının sebebi bu: şablon meta-verisi gerekmiyor.
-        # Hangi katman uygulanacak: K-20 kapısı, K-21 kapısı ve alternatiflik
-        # kuralı tek bir saf fonksiyonda (constraints.filter_plan). Motor
-        # parmak izi de onu çağırır — karar burada gömülüyken parmak izi bir
-        # davranış değişikliğini kaçırmıştı.
+        # Hangi katman uygulanacak: K-20 kapısı, K-21 kapısı, K-22 kapısı ve
+        # alternatiflik kuralı tek bir saf fonksiyonda (constraints.filter_plan).
+        # Motor parmak izi de onu çağırır — karar burada gömülüyken parmak izi
+        # bir davranış değişikliğini kaçırmıştı.
         plan = filter_plan(
             q,
             structure_filter=structure_filter,
@@ -556,6 +568,7 @@ class SearchEngine:
         result.envelope_signature = plan.envelope_signature
         structure_filter = plan.apply_structure
         envelope_filter = plan.apply_envelope
+        regime_filter = plan.apply_regime
 
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
@@ -568,14 +581,10 @@ class SearchEngine:
                     # Geri düşülür ama SESSİZCE değil: uyarı yanıtta taşınır.
                     result.structure_relaxed = True
 
-        # --- Zarf (trend çizgisi) filtresi --------------------------------
+        # --- Zarf (trend çizgisi) filtresi (K-21) ve direk+gövde zarfı (K-22) --
         # Yapısal imza uç DÜZENİNİ okur ve eğimle tanımlı formasyonlarda bilgi
         # taşımaz (K-20). Bu katman trend çizgilerini okur. Kural yine
         # sorgudan türer; formasyon başına kod yoktur (K-04).
-        # Varsayılan KAPALI — gerekçe K-21'de ölçümüyle birlikte.
-        # Kapı burada da geçerli (K-20 dersi): OBO'nun zarf imzası tanımlıdır
-        # ama kararlılığı %41 — kapısız bir zarf filtresi dönüş ailesini
-        # yazı-turayla elerdi.
         if envelope_filter and candidates.size:
             mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
@@ -584,6 +593,32 @@ class SearchEngine:
                     result.envelope_filtered = True
                 else:
                     result.envelope_relaxed = True
+        elif regime_filter and candidates.size:
+            mask = pole_body_mask(q, self._gather_vectors(timeframe, candidates))
+            if mask is not None:
+                if int(mask.sum()) >= min(REGIME_MIN_SURVIVORS, candidates.size):
+                    candidates = candidates[mask]
+                    result.envelope_filtered = True
+                else:
+                    result.envelope_relaxed = True
+
+        # --- Yapısal uyum cezası ile yeniden sıralama (K-23) --------------
+        if (
+            STRUCTURAL_RERANK
+            and candidates.size
+            and (structure_filter or envelope_filter or regime_filter)
+        ):
+            cand_vecs = self._gather_vectors(timeframe, candidates)
+            pen = structural_alignment_penalty(
+                q,
+                cand_vecs,
+                apply_structure=structure_filter,
+                apply_envelope=envelope_filter,
+                apply_regime=regime_filter,
+            )
+            candidates["percentile"] = np.clip(
+                candidates["percentile"] + pen.astype(np.float32), 0.0, 1.0
+            )
 
         # --- Post-NMS (katı) ---------------------------------------------
         # Sıralama yüzdelik dilime göre: 24 barlık pencereler 100 barlıkları

@@ -134,6 +134,7 @@ def run_events(
     return_band_sigma: float = RETURN_MATCH_BAND_SIGMA,
     with_paths: bool = False,
     with_ledger: bool = False,
+    with_return_matched: bool = False,
 ) -> TemplateOutcome:
     """Hazır olay dizisinden outcome — arama adımı olmadan.
 
@@ -191,12 +192,31 @@ def run_events(
     shadow_events = shadow_events[eligible(shadow_events, store)] if shadow_events.size else shadow_events
     outcome.shadow_report = shadow_report
 
+    rm_shadow_events = np.empty(0, dtype=EVENT_DTYPE)
+    if (
+        with_return_matched
+        and not return_matched_shadow
+        and any(pool.prior_return is not None for pool in pools.values())
+    ):
+        rm_rng = np.random.default_rng(20260732)
+        rm_raw, _ = sample_shadow(
+            events,
+            pools,
+            p=p,
+            rng=rm_rng,
+            match_return=True,
+            return_band_sigma=return_band_sigma,
+        )
+        if rm_raw.size:
+            rm_shadow_events = rm_raw[eligible(rm_raw, store)]
+
     if with_paths:
         # Fan yönden bağımsızdır (fiyat ne yaptı); gölgeyle birlikte döner (K-12).
         outcome.paths = fan_report(events, shadow_events, store)
 
     outcome.direction = direction
     per_config: dict[str, np.ndarray] = {}
+    rm_rng_boot = np.random.default_rng(20260733)
     for name, (k_tp, k_sl) in BARRIER_CONFIGS.items():
         results = evaluate(events, store, k_tp, k_sl, direction=direction)
         per_config[name] = results
@@ -205,10 +225,34 @@ def run_events(
             if shadow_events.size
             else None
         )
-        outcome.stats[name] = summarize(
+        rm_shadow_results = (
+            evaluate(rm_shadow_events, store, k_tp, k_sl, direction=direction)
+            if rm_shadow_events.size
+            else None
+        )
+        stats = summarize(
             results, k_tp, k_sl, name, shadow=shadow_results, rng=rng,
             direction=direction, confidence=confidence,
         )
+        if rm_shadow_results is not None and rm_shadow_results.size and results.size:
+            from engine.outcome.metrics import block_bootstrap_diff_ci, month_of
+
+            r_gross = results["r_gross"].astype(np.float64)
+            s_rm = rm_shadow_results["r_gross"].astype(np.float64)
+            stats.return_matched_shadow_expectancy_r = float(s_rm.mean())
+            stats.return_matched_shadow_n = int(rm_shadow_results.size)
+            stats.return_matched_edge_r = float(r_gross.mean() - s_rm.mean())
+            stats.return_matched_edge_ci, stats.return_matched_design_effect = (
+                block_bootstrap_diff_ci(
+                    r_gross,
+                    month_of(results["end_time"]),
+                    s_rm,
+                    month_of(rm_shadow_results["end_time"]),
+                    confidence=confidence,
+                    rng=rm_rng_boot,
+                )
+            )
+        outcome.stats[name] = stats
 
     if with_ledger:
         outcome.ledger = _ledger(matches, status, per_config)

@@ -1142,6 +1142,16 @@
               }
             ]
           },
+          "return_matched_edge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StatEnvelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "distribution": {
             "$ref": "#/components/schemas/ReturnDistribution"
           },

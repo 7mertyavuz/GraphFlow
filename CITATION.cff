@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "GraphFlow: Visual Chart Pattern Search and Empirical Outcome Evaluation Engine"
+message: "If you use GraphFlow or its statistical findings in your research, please cite it using the metadata below."
+type: software
+authors:
+  - family-names: "Yavuz"
+    given-names: "Mert"
+repository-code: "https://github.com/7mertyavuz/GraphFlow"
+license: MIT
+keywords:
+  - time-series
+  - dynamic-time-warping
+  - technical-analysis
+  - triple-barrier
+  - block-bootstrap
+  - multiple-hypothesis-testing
+  - financial-econometrics
+abstract: >-
+  GraphFlow is a visual pattern search and empirical evaluation engine for
+  financial time series. It pairs two-stage shape retrieval (cosine pre-filter +
+  Sakoe-Chiba banded hybrid DTW/DDTW with query-derived structural, trend-line
+  envelope, and two-regime impulse/consolidation signatures) with rigorous
+  post-pattern outcome testing using ATR triple-barrier labeling, time-matched
+  and return-matched shadow baselines, month-block bootstrap confidence
+  intervals, and Bonferroni correction across 11.6 million historical windows.

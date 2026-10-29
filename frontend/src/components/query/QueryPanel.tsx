@@ -146,6 +146,10 @@ export function QueryPanel({
           {source === "draw" ? (
             <DrawPad
               points={draw.points}
+              vertices={draw.vertices}
+              drawMode={draw.drawMode}
+              onDrawModeChange={draw.setDrawMode}
+              onUndoVertex={draw.undoVertex}
               isDrawing={draw.isDrawing}
               onPointerDown={draw.start}
               onPointerMove={draw.move}

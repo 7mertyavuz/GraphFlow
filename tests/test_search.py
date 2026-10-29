@@ -1754,3 +1754,74 @@ def test_radar_delist_sembolun_eski_son_penceresini_almaz(tmp_path):
         get_template("double_bottom").vector, mode="live", timeframe=TF, tolerance="flexible", limit=48
     )
     assert all(m.symbol != "DEADUSDT" for m in result.results)
+
+
+# ---------------------------------------------------------------------------
+# K-22 & K-23 — İki rejimli (direk + gövde) zarf imzası ve yeniden sıralama
+# ---------------------------------------------------------------------------
+
+
+def test_direk_govde_imzasi_tekil_ve_toplu_birebir_ayni():
+    """K-22: ``pole_body_signature_batch`` ile ``pole_body_signature(strict=False)`` ayrışmamalı."""
+    from engine.search.constraints import pole_body_signature, pole_body_signature_batch
+
+    V = _random_windows(51, 400)
+    batch = pole_body_signature_batch(V)
+    for i in range(V.shape[0]):
+        one = pole_body_signature(V[i], strict=False)
+        row = tuple(int(x) for x in batch[i])
+        if one is None:
+            assert row == (-128, -128, -128, -128, -128)
+        else:
+            assert one == row
+
+
+def test_direk_govde_imzasi_ayna_ve_cevirmeye_esdegisken():
+    """K-22: Zaman-ayna (``y[::-1]``) ve dikey-çevirme (``-y``) eşdeğişkenliği."""
+    from engine.search.constraints import pole_body_signature
+
+    for y in _random_windows(52, 400):
+        s = pole_body_signature(y)
+        m = pole_body_signature(y[::-1])
+        f = pole_body_signature(-y)
+        if s is None:
+            assert m is None and f is None
+            continue
+        assert m == (-s[0], -s[1], -s[2], -s[3], -s[4])
+        assert f == (s[0], -s[1], -s[3], -s[2], s[4])
+
+
+def test_direk_govde_imzasi_bayrak_ve_flamayi_okur():
+    """K-22: 14 kanonik şablonda yalnız bayraklar ve flama iki rejimli okunur."""
+    from engine.config import REGIME_MIN_STABILITY
+    from engine.search.constraints import pole_body_signature, pole_body_stability
+
+    assert pole_body_signature(_canonical("bull_flag"), strict=True) == (1, 1, -1, -1, 0)
+    assert pole_body_signature(_canonical("bear_flag"), strict=True) == (1, -1, 1, 1, 0)
+    assert pole_body_signature(_canonical("pennant"), strict=True) == (1, 1, -1, 1, 1)
+    for tid in ("bull_flag", "bear_flag", "pennant"):
+        assert pole_body_stability(_canonical(tid)) >= REGIME_MIN_STABILITY
+
+
+def test_yapisal_uyum_cezasi_ayna_ve_cevirmeye_degismez():
+    """K-23: ``structural_alignment_penalty`` sorgu ve aday birlikte aynalandığında
+    ya da dikey çevrildiğinde birebir aynı cezayı üretmeli."""
+    from engine.search.constraints import filter_plan, structural_alignment_penalty
+    from engine.templates import load_all
+
+    V = _random_windows(53, 200)
+    for tid, tmpl in load_all().items():
+        q = np.asarray(tmpl.vector, dtype=np.float64)
+        plan = filter_plan(q)
+        p_orig = structural_alignment_penalty(
+            q, V, plan.apply_structure, plan.apply_envelope, plan.apply_regime
+        )
+        p_mirr = structural_alignment_penalty(
+            q[::-1], V[:, ::-1], plan.apply_structure, plan.apply_envelope, plan.apply_regime
+        )
+        p_flip = structural_alignment_penalty(
+            -q, -V, plan.apply_structure, plan.apply_envelope, plan.apply_regime
+        )
+        assert np.allclose(p_orig, p_mirr, atol=1e-12), f"{tid} ayna değişmezliği bozuldu"
+        assert np.allclose(p_orig, p_flip, atol=1e-12), f"{tid} dikey çevirme değişmezliği bozuldu"
+

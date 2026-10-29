@@ -57,25 +57,51 @@ The one effect that replicates — prices tend to fall after a rising wedge — 
  Stage 1   cosine similarity over all windows (one matrix product)   11.6M → 12,500
  Pre-NMS   1-D IoU 0.70 — collapse overlapping windows
  Stage 2   hybrid DTW (derivative + raw, Sakoe–Chiba band)           → 2,500 scored
- Threshold query-relative null percentile + absolute sanity cap
- Filters   structural signature (peaks/troughs)  ┐ each applied only when the
-           trend-line envelope (slopes)          ┘ query's reading is stable
+ Threshold query-relative null percentile (p01-anchored tail) + sanity cap
+ Filters   structural signature (peaks/troughs)      ┐ each applied only when the
+           trend-line envelope (slopes/convergence)  │ query's reading is stable
+           two-regime pole + body envelope (K-22)    ┘
+ Rerank    mirror/flip-invariant structural alignment penalty (K-23)
  Post-NMS  1-D IoU 0.50, max 3 per symbol → independent events
         │
         ▼
- results grid  +  "what happened next": triple-barrier outcomes vs. shadow baseline
+ results grid  +  "what happened next": triple-barrier outcomes vs. time- & return-matched baselines
 ```
 
 A warm search over 11.6 million windows takes about **300 ms** on a laptop. There is no Kafka, no Rust, no time-series database — the bottleneck was never the language, it was the data layout.
 
+| Benchmark | Result |
+|---|---|
+| `formation_audit --cross` (14×14 canonical cross-audit) | **14/14 diagonal · 0 off-diagonal accepts** |
+| `formation_audit --top 12` (real 4h corpus, all 14 formations) | **168/168 (100.0%)** |
+| `formation_audit --top 50` (real 4h corpus, all 14 formations) | **697/700 (99.6%)** |
+| `gt_benchmark --family all` (injected ground truth, precision / recall) | **87.2% precision · 84.7% recall** (251/288) |
+| `gt_benchmark --family all --real` (real-market background) | **85.4% precision · 81.2% recall** (246/288) |
+| `gt_benchmark --family all --freehand 8` (2,304 noisy hand drawings) | **83.4% precision · 80.7% recall** (1921/2304) |
+
 ## Quick start
 
-**Requirements:** Python 3.11+ (3.12 tested), Node.js 20+, ~3 GB disk for data.
+**Requirements:** Python 3.11+ (3.12 tested), Node.js 20+, ~3 GB disk for full data (or ~25 MB for the 5-second demo corpus).
+
+### Option A — Try in 10 seconds (synthetic demo corpus)
 
 ```bash
 git clone https://github.com/7mertyavuz/GraphFlow.git
 cd GraphFlow
 
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Generate a 24-symbol 1d + 4h demo corpus with injected formations (~5s)
+python -m tools.generate_demo_corpus --out data/demo
+
+GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000
+cd frontend && npm install && npm run dev   # UI → http://localhost:3000
+```
+
+### Option B — Full Binance historical corpus (11.6M windows)
+
+```bash
 # 1. Python environment
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
@@ -93,16 +119,16 @@ uvicorn engine.api.main:app --port 8000     # API
 cd frontend && npm install && npm run dev   # UI → http://localhost:3000
 ```
 
-To try it quickly on a subset, add `--limit-symbols 50` to the download step. The data directory can live anywhere via `GRAPHFLOW_DATA_DIR`.
+To try it quickly on a real subset, add `--limit-symbols 50` to the download step. The data directory can live anywhere via `GRAPHFLOW_DATA_DIR`.
 
 ## Using it
 
 The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
 
-1. **Draw** a shape on the canvas — left to right; going back overwrites — or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. A chart segment is cut and normalized on the server exactly like the search windows; windows overlapping it are excluded — in Backtest across *all* symbols, since the same market move in another coin is not a historical analog.
-2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a percentile of the query's own null distribution, not a fake "% similarity".
+1. **Draw** a shape on the canvas in **Freehand** or point-to-point **Polyline** mode (with a live preview of detected peaks, troughs, and upper/lower trendlines), or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. You can also click **Similar** on any result card to use that matched window as your next query, or click the expand icon to inspect the full interactive candlestick chart.
+2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a continuous `p01`-anchored percentile of the query's own null distribution, not a fake "% similarity".
 3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
-4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the shadow baseline and the edge with a confidence interval. Small samples are flagged instead of shown as headline numbers. Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan — a fan without a control group would credit the pattern with whatever the market was doing anyway. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted* (overlapping an earlier event's forward window, the transaction-cost floor, right after listing). The headline number is exactly the mean of the counted cards.
+4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the time-matched **Edge** and the momentum-controlled **Momentum-Adjusted Edge** (return-matched shadow baseline) with month-block bootstrap confidence intervals. Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted*. The headline number is exactly the mean of the counted cards.
 5. The **Findings** page lists every test, how many independent null draws each cell survives (a cell significant in only some draws is flagged as a dice roll, not a finding), the stage where each finding was eliminated, and which engine version produced the numbers.
 
 ## Verifying the engine yourself
@@ -145,7 +171,7 @@ docs/          design decisions and measurement reports
 
 The design record and the measurement reports are written in **Turkish**; see [docs/README.md](docs/README.md) for an English index.
 
-- [Design decisions](docs/00-tasarim-kararlari.md) — 21 architectural decisions, each with the alternatives that were rejected and why
+- [Design decisions](docs/00-tasarim-kararlari.md) — 24 architectural decisions, each with the alternatives that were rejected and why
 - [Architecture](docs/01-mimari.md) — data layer, algorithms, API, performance budget
 - Measurement reports — validation, outcome statistics, proxy test, timeframe replication, formation audit
 

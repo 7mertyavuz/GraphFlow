@@ -144,7 +144,8 @@ export function OutcomePanel({
 
             <div
               className={cn(
-                "grid gap-3 lg:grid-cols-3",
+                "grid gap-3",
+                config.return_matched_edge ? "lg:grid-cols-4" : "lg:grid-cols-3",
                 config.insufficient && "opacity-60"
               )}
             >
@@ -169,6 +170,13 @@ export function OutcomePanel({
                 <Alert tone="info" title={t.outcome.edgeNaTitle}>
                   {t.outcome.edgeNaBody}
                 </Alert>
+              )}
+              {config.return_matched_edge && (
+                <StatCard
+                  label={t.outcome.returnMatchedEdge}
+                  hint={t.outcome.returnMatchedEdgeHint}
+                  envelope={config.return_matched_edge}
+                />
               )}
             </div>
 

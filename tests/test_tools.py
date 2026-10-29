@@ -358,3 +358,35 @@ def test_gt_benchmark_elle_cizim_sorgulari_uretir(monkeypatch):
     assert a.shape == b.shape == (32,)
     assert not np.allclose(a, b), "farklı tohum farklı el demek"
     assert abs(a.mean()) < 1e-9 and abs(a.std() - 1) < 1e-6, "z-score'lu olmalı"
+
+
+def test_capraz_denetim_14_sablonun_tamamini_kapsar():
+    """K-24: 14 kanonik şablonun tamamı denetlenmeli ve 0 köşegen dışı kabul vermeli."""
+    from engine.templates import load_all
+    from tools.formation_audit import CHECKS, cross_check
+
+    all_names = list(load_all().keys())
+    assert len(all_names) == 14
+    assert set(CHECKS.keys()) == set(all_names)
+
+    matrix = cross_check()
+    for shape_id, row in matrix.items():
+        for check_name, ok in row.items():
+            if shape_id == check_name:
+                assert ok, f"{shape_id} kendi denetçisinden geçemedi"
+            else:
+                assert not ok, f"{check_name} denetçisi {shape_id} şablonunu yanlışlıkla kabul etti"
+
+
+def test_demo_korpus_uretici_var_olan_veriyi_ezmez(tmp_path):
+    """generate_demo_corpus dolu bir dizinin üzerine --force olmadan yazmamalı."""
+    import pytest
+    from tools.generate_demo_corpus import generate_demo_corpus
+
+    counts = generate_demo_corpus(tmp_path, n_bars_1d=240, n_bars_4h=240, seed=42)
+    assert sum(counts.values()) > 0
+    assert (tmp_path / "matrix" / "1d_24" / "vectors.npy").exists()
+
+    with pytest.raises(FileExistsError):
+        generate_demo_corpus(tmp_path, n_bars_1d=240, n_bars_4h=240, seed=42, force=False)
+

@@ -34,8 +34,28 @@ const MAX_POINTS = 2_000;
  * el, y değerlerinin x sırasına dizilmesine yani kullanıcının çizmediği bir
  * şeklin aranmasına yol açıyordu.
  */
+export type DrawMode = "freehand" | "polyline";
+
+function densifyVertices(verts: Point[], samplesPerSeg = 32): Point[] {
+  if (verts.length < 2) return verts.slice();
+  const out: Point[] = [];
+  for (let i = 0; i < verts.length - 1; i++) {
+    const a = verts[i];
+    const b = verts[i + 1];
+    const steps = Math.max(4, Math.round(Math.abs(b.x - a.x) * samplesPerSeg * 4));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps;
+      out.push({ x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) });
+    }
+  }
+  out.push(verts[verts.length - 1]);
+  return out;
+}
+
 export function useDraw() {
   const [points, setPoints] = useState<Point[]>([]);
+  const [vertices, setVertices] = useState<Point[]>([]);
+  const [drawMode, setDrawMode] = useState<DrawMode>("freehand");
   const [isDrawing, setIsDrawing] = useState(false);
 
   const buffer = useRef<Point[]>([]);
@@ -115,14 +135,29 @@ export function useDraw() {
       // y = f(x) sözleşmesi darbeyi tek noktaya indirger. Çöp bir sorgu
       // göndermektense hiç göndermemek doğrudur.
       if (!measurable(rect)) return;
+      const pt = toLocal(event.clientX, event.clientY, rect);
+
+      if (drawMode === "polyline") {
+        setVertices((prev) => {
+          const filtered = prev.filter((v) => v.x < pt.x - MIN_STEP);
+          const next = [...filtered, pt];
+          const dense = densifyVertices(next);
+          buffer.current = dense;
+          setPoints(dense);
+          return next;
+        });
+        return;
+      }
+
       pointerId.current = event.pointerId;
       // Yeni bir çizim eskisini siler: iki ayrı formasyon tek sorgu olamaz.
-      buffer.current = [toLocal(event.clientX, event.clientY, rect)];
+      setVertices([]);
+      buffer.current = [pt];
       setPoints(buffer.current.slice());
       setIsDrawing(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    [toLocal]
+    [drawMode, toLocal]
   );
 
   const move = useCallback(
@@ -165,9 +200,21 @@ export function useDraw() {
     cancelFrame();
     pointerId.current = null;
     buffer.current = [];
+    setVertices([]);
     setPoints([]);
     setIsDrawing(false);
   }, [cancelFrame]);
+
+  const undoVertex = useCallback(() => {
+    setVertices((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.slice(0, -1);
+      const dense = next.length >= 2 ? densifyVertices(next) : next.slice();
+      buffer.current = dense;
+      setPoints(dense);
+      return next;
+    });
+  }, []);
 
   const setSeries = useCallback(
     (values: number[]) => {
@@ -180,6 +227,7 @@ export function useDraw() {
         y: (v - min) / range,
       }));
       cancelFrame();
+      setVertices([]);
       buffer.current = mapped;
       setPoints(mapped);
     },
@@ -204,5 +252,19 @@ export function useDraw() {
     [points]
   );
 
-  return { points, series, queryPoints, isDrawing, start, move, end, reset, setSeries };
+  return {
+    points,
+    vertices,
+    drawMode,
+    setDrawMode,
+    undoVertex,
+    series,
+    queryPoints,
+    isDrawing,
+    start,
+    move,
+    end,
+    reset,
+    setSeries,
+  };
 }

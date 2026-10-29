@@ -1514,4 +1514,74 @@ sayfasındaki bütün aşama sayıları değişmedi.
 
 ---
 
+## K-22 — Sorgudan Türetilen İki Rejimli (Direk + Gövde) Zarf İmzası
+
+**Karar:** `APPLY_REGIME_FILTER = True`. Tek-rejimli zarf imzası kararsız olan ama keskin bir darbe (direk) ve ardından sıkışma (gövde) rejimi taşıyan sorgularda (`pole_body_stability >= 0.85`), aday pencereler sorgudan türetilen 5-bileşenli iki-rejimli zarf imzasıyla (`pole_dir`, `pole_side`, `body_upper`, `body_lower`, `body_conv`) süzülür.
+
+### Problem — Bayrak ve Flama Körlüğü
+
+K-21'de not edilen açık hipotez: `bull_flag`, `bear_flag` ve `pennant` şablonlarında tek-rejimli zarf imzası tüm pencereye (0..31) doğrusal regresyon kurduğu için baştaki dik direk ile sondaki sıkışma gövdesini birbirine karıştırıyordu:
+- `pennant` kararlılığı %56,7, `bull_flag` %76,3, `bear_flag` %78,3 idi ve `%90` kararlılık kapısını geçemedikleri için **hiçbir geometrik filtreden geçmiyordu**.
+- Sonuç olarak gerçek 4h korpusta ilk 50'de `pennant` **%12 (6/50)**, `bear_flag` **%50 (25/50)**, `bull_flag` **%62 (31/50)** yapısal doğrulukta kalıyordu; Ground Truth'ta ise enjekte edilen bayrak ve flamaların yalnızca yarısı (`11-12/24`) yakalanabiliyordu.
+
+### Çözüm — Formasyon Başına Kod Yazmadan (K-04) İki Rejimli Okuma
+
+`pole_body_signature` (`engine/search/constraints.py`), 32 noktalık pencerenin kenar çeyreklerinde (`[0..8]` veya `[23..31]`) kalan gövdeye kıyasla `>= 2,2×` adım enerjisi ve toplam pencere genliğinin `>= %45`'ini tek yönde kat eden bir darbe (direk) olup olmadığını **sorgunun kendisinden** okur:
+- Böyle bir rejim kırılması varsa pencereyi `[direk]` ve `[sıkışma gövdesi]` olarak ikiye ayırır ve gövde üzerindeki `envelope_signature`'ı (`body_upper`, `body_lower`, `body_conv`) hesaplar.
+- `pole_side` (+1: direk başta, -1: direk sonda) ve `pole_dir` (+1: yukarı darbe, -1: aşağı darbe) sayesinde fonksiyon hem yatay aynalama (`v[::-1]`) hem dikey çevirme (`-v`) altında **tam eşdeğişkendir** (equivariant).
+- Kanonik şablonlarda hiçbir `if pattern == "bull_flag"` yazılmadan:
+  - `bull_flag` → `(+1, +1, -1, -1, 0)` (kararlılık **%99,3**)
+  - `bear_flag` → `(-1, +1, +1, +1, 0)` (kararlılık **%99,3**)
+  - `pennant` → `(+1, +1, -1, +1, +1)` (kararlılık **%100,0**)
+  olarak okunur; diğer 11 şablonda ise `None` döner ve mevcut akışa dokunmaz.
+
+---
+
+## K-23 — Sürekli Sol-Kuyruk Yüzdelik Kalibrasyonu ve Yapısal Uyum Yeniden Sıralaması
+
+**Karar:** `STRUCTURAL_RERANK = True`.
+1. Adayların gösterilen yüzdelik skoru (`percentile`), kaba `p05`'te kırpılmak yerine `p01` sol kuyruğuna kadar sürekli log-kuyruk enterpolasyonuyla hesaplanır.
+2. Eşiği ve yapısal/zarf filtrelerini geçen adaylar, `Post-NMS` öncesinde ham DTW mesafesine eklenen hafif ve simetrik `structural_alignment_penalty` ile yeniden sıralanır.
+
+### Problem 1 — İlk 12 Kartın Tamamında `%99,9` Gösterilmesi
+
+`TOLERANCE_PERCENTILE["medium"] = 5.0` olduğu için Orta ve Katı toleransta eşiği geçen **bütün** adaylar `d <= p05` koşulunu sağlıyor ve eski `_interpolate_percentile` fonksiyonunda `p05`'in solu sabit `99.9`'a kırpılıyordu. Kullanıcı ekrandaki 12 kartın tamamında aynı `%99,9` rozetini görüyordu. `p01` çapasının eklenmesiyle `p05..p01` ve `< p01` aralığı monotonik olarak ayrıştırıldı (`%99,9` → `%99,6 · %99,1 · %98,4 ...`).
+
+### Problem 2 — Filtreyi Geçen Adaylar Arasında İnce Yapısal Sıralama
+
+Kesin filtreler (`structural_mask`, `envelope_mask`, `pole_body_mask`) ikili (evet/hayır) çalışır. Filtreyi geçen iki adaydan DTW mesafesi `0,01` daha küçük ama omuz simetrisi, boyun çizgisi yataylığı, kanal paralelliği veya çanak dışbükeyliği bozuk olan bir pencere, gerçek formasyonu `Post-NMS`'te bastırabiliyordu.
+
+`structural_alignment_penalty` (`engine/search/constraints.py`), sorgu ile aday arasındaki:
+- Baskın uç yüksekliği ve komşu uç simetrisi farkını,
+- Üst ve alt zarf eğimi ile yakınsama farkını,
+- İki-rejimli sorgularda direk-gövde eğim farkını,
+- Sıfır karşıt-uçlu çanaklarda (`rounding_bottom`) parabolik dışbükeylik ve uç geri dönüş farkını
+ölçer. Fonksiyon hem yatay aynalama (`q[::-1], c[::-1]`) hem dikey çevirme (`-q, -c`) altında **birebir değişmezdir** (invariant).
+
+### Birleşik Ölçüm (K-22 + K-23)
+
+| Ölçüm Zemini | Önceki Motor (K-21) | Yeni Motor (K-22 + K-23) |
+|---|---|---|
+| `formation_audit --top 12` (4h gerçek veri, 14 şablon) | 121/144 (%84,0) | **168/168 (%100,0)** |
+| `formation_audit --top 50` (4h gerçek veri, 14 şablon) | 481/600 (%80,2) | **697/700 (%99,6)** |
+| `gt_benchmark --family all` (sentetik GBM, kesinlik / duyarlılık) | 214/288 (%74,3 / %70,8) | **251/288 (%87,2 / %84,7)** |
+| `gt_benchmark --family all --freehand 8` (elle çizim, 2.304 sorgu) | 1663/2304 (%72,2 / %69,0) | **1921/2304 (%83,4 / %80,7)** |
+| `gt_benchmark --family all --real` (gerçek piyasa zemini) | 211/288 (%73,3 / %70,0) | **246/288 (%85,4 / %81,2)** |
+
+---
+
+## K-24 — Çanak ve Fincan-Kulp İçin Eğrilik Denetçisi (14/14 Tam Denetim)
+
+**Karar:** `tools/formation_audit.py` içerisine `is_rounding_bottom` ve `is_cup_and_handle` bağımsız dışbükeylik/konkavlık denetçileri eklendi (`CURVATURE_CHECKS`).
+
+### Gerekçe
+
+Önceki denetçi 14 kanonik şablondan yalnızca 12'sini denetliyor, `rounding_bottom` ve `cup_and_handle` için *"parabolik eğrilik denetçisi yok — denetim dışı"* diyerek boş geçiyordu. Oysa `formation_audit --cross` kuralı, her şablonun kendi denetçisinden geçmesini ve **diğer 13 şablonun hiçbirini kabul etmemesini** (0 köşegen dışı kabul) şart koşar.
+
+Yeni `is_rounding_bottom` ve `is_cup_and_handle` denetçileriyle birlikte:
+- `tools/formation_audit --cross` **14×14 = 196** hücrenin tamamında **0 köşegen dışı kabul** (`✅ tam ayrışma`) verir.
+- Gerçek 4h korpusunda `rounding_bottom` (**50/50 · %100**) ve `cup_and_handle` (**50/50 · %100**) dahil 14 şablonun tamamı denetlenir.
+
+---
+
 *Bu belge canlıdır. Yeni bir mimari karar alındığında buraya yeni bir `K-xx` bölümü olarak eklenmeli ve reddedilen alternatifler tablosu güncellenmelidir.*

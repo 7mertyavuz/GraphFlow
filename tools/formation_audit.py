@@ -301,6 +301,51 @@ def is_pennant(y: np.ndarray) -> bool:
     return sh <= -0.3 and sl >= 0.3
 
 
+def is_rounding_bottom(y: np.ndarray, prominence: float, tol: float) -> bool:
+    """Yuvarlak dip (K-24): pozitif ikinci türev (yukarı bakan parabol), tek
+    belirgin dip bölgesi, iç bölgede belirgin tepe yok ve iki kenar yüksekliği
+    birbirine yakın (kulpsuz simetrik çanak).
+    """
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    peaks, troughs = _extrema(y, prominence)
+    if len(peaks) != 0 or len(troughs) != 1:
+        return False
+    u = np.linspace(-1.0, 1.0, n)
+    b = float(np.polyfit(u, y, 2)[0])
+    if 2.0 * b < 0.70:
+        return False
+    return abs(float(y[0] - y[-1])) <= tol
+
+
+def is_cup_and_handle(y: np.ndarray, prominence: float, tol: float) -> bool:
+    """Fincan ve kulp (K-24): ilk %75'lik dilimde yukarı bakan parabolik çanak
+    ve son %25'lik dilimde sağ kenardan hafif geri çekilen kulp konsolidasyonu.
+    """
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    peaks, troughs = _extrema(y, prominence)
+    if len(peaks) != 1 or len(troughs) < 1:
+        return False
+    cup_end = int(round(0.75 * n))
+    if peaks[0] < int(round(0.55 * n)):
+        return False
+    cup = y[:cup_end]
+    u = np.linspace(-1.0, 1.0, cup.size)
+    b = float(np.polyfit(u, cup, 2)[0])
+    if 2.0 * b < 0.70:
+        return False
+    left_rim = float(np.max(y[:4]))
+    right_rim = float(y[peaks[0]])
+    if abs(left_rim - right_rim) > tol:
+        return False
+    handle_min = float(np.min(y[peaks[0] :]))
+    cup_min = float(np.min(cup))
+    depth = max(1e-9, right_rim - cup_min)
+    pullback = (right_rim - handle_min) / depth
+    return 0.05 <= pullback <= 0.65
+
+
 EXTREMA_CHECKS = {
     "head_and_shoulders": lambda y, p, t: is_head_and_shoulders(y, p, t),
     "inverse_head_and_shoulders": lambda y, p, t: is_head_and_shoulders(y, p, t, inverse=True),
@@ -319,13 +364,20 @@ ENVELOPE_CHECKS = {
     "bear_flag": lambda y, p, t: is_flag(y, -1),
 }
 
-#: Denetlenebilen tüm formasyonlar. Kütüphanenin 14 öğesinden 12'si burada;
-#: ``cup_and_handle`` ve ``rounding_bottom`` **denetimsizdir** — ikisi de
-#: eğrilikle tanımlanır, ne uç düzeni ne zarf eğimi onları ayırt eder.
-#: Denetimsiz olduklarını yazmak, uydurma bir denetim yazmaktan iyidir.
-CHECKS = {**EXTREMA_CHECKS, **ENVELOPE_CHECKS}
+CURVATURE_CHECKS = {
+    "rounding_bottom": lambda y, p, t: is_rounding_bottom(y, p, t),
+    "cup_and_handle": lambda y, p, t: is_cup_and_handle(y, p, t),
+}
 
-FAMILIES = {"extrema": EXTREMA_CHECKS, "envelope": ENVELOPE_CHECKS, "all": CHECKS}
+#: Denetlenebilen tüm formasyonlar (14/14 — K-24 ile eğrilik ailesi eklendi).
+CHECKS = {**EXTREMA_CHECKS, **ENVELOPE_CHECKS, **CURVATURE_CHECKS}
+
+FAMILIES = {
+    "extrema": EXTREMA_CHECKS,
+    "envelope": ENVELOPE_CHECKS,
+    "curvature": CURVATURE_CHECKS,
+    "all": CHECKS,
+}
 
 
 def freehand_query(template_id: str, seed: int, noise: float = 0.035, n: int = 240) -> np.ndarray:

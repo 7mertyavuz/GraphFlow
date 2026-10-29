@@ -74,6 +74,10 @@ MESSAGES: dict[str, dict[str, str]] = {
     "env.conv.-1": {"tr": "genişleyen", "en": "widening"},
     "env.conv.0": {"tr": "paralel", "en": "parallel"},
     "env.conv.1": {"tr": "daralan", "en": "narrowing"},
+    "env.pole.1": {"tr": "yükselen direk", "en": "upward pole"},
+    "env.pole.-1": {"tr": "düşen direk", "en": "downward pole"},
+    "env.pole_trail.1": {"tr": "sonda yükselen kırılım", "en": "trailing upward impulse"},
+    "env.pole_trail.-1": {"tr": "sonda düşen kırılım", "en": "trailing downward impulse"},
     # --- arama uyarıları ----------------------------------------------------
     "warn.structure_relaxed": {
         "tr": (

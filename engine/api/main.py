@@ -229,7 +229,7 @@ def get_store(timeframe: str = "4h") -> BarStore:
 
 def get_pools(timeframe: str = "4h") -> dict[int, ShadowPool]:
     if timeframe not in _pools_by_tf:
-        _pools_by_tf[timeframe] = load_shadow_pools(timeframe)
+        _pools_by_tf[timeframe] = load_shadow_pools(timeframe, store=get_store(timeframe))
     return _pools_by_tf[timeframe]
 
 
@@ -309,6 +309,23 @@ def to_outcome_config(stats: OutcomeStats, lang: str = "tr") -> OutcomeConfigRes
             unit="R",
         )
 
+    return_matched_edge = None
+    if stats.return_matched_shadow_n > 0:
+        return_matched_edge = wrap_stat(
+            val=stats.return_matched_edge_r,
+            ci=stats.return_matched_edge_ci,
+            ci_method=(
+                "block_bootstrap" if stats.return_matched_design_effect else "bootstrap"
+            ),
+            shadow_val=stats.return_matched_shadow_expectancy_r,
+            n_events=stats.n,
+            n_months=stats.n_months,
+            significant=stats.return_matched_edge_is_significant,
+            verdict=stats.return_matched_verdict_text(lang),
+            design_effect=stats.return_matched_design_effect,
+            unit="R",
+        )
+
     distribution = ReturnDistribution(
         median=stats.r_median,
         share_positive=stats.share_positive,
@@ -323,6 +340,7 @@ def to_outcome_config(stats: OutcomeStats, lang: str = "tr") -> OutcomeConfigRes
         expectancy=expectancy,
         win_rate=win_rate,
         edge=edge,
+        return_matched_edge=return_matched_edge,
         distribution=distribution,
         insufficient=stats.insufficient,
         outcomes=stats.outcomes,
@@ -723,6 +741,7 @@ async def get_search_stats(
         direction=direction,
         with_paths=True,
         with_ledger=True,
+        with_return_matched=True,
     )
 
     response = to_outcome_response(outcome, lang)

@@ -197,6 +197,8 @@ class OutcomeConfigResponse(BaseModel):
     expectancy: StatEnvelope
     win_rate: StatEnvelope
     edge: StatEnvelope | None
+    #: F4.6 ön-getiri (momentum) eşleştirmeli gölge dağılıma karşı edge.
+    return_matched_edge: StatEnvelope | None = None
     distribution: ReturnDistribution
     #: MIN_EVENTS_FOR_CLAIM altındaki örneklem. Sayılar yine döner (gizlemek
     #: de bir tür yalan olurdu) ama arayüz onları iddia gibi sunmamalıdır.

@@ -591,6 +591,41 @@ ENVELOPE_FILTER: Final[bool] = True
 #: yapısal filtredeki gerekçenin aynısı.
 ENVELOPE_MIN_SURVIVORS: Final[int] = 12
 
+#: --- İki rejimli (direk + gövde) zarf imzası (K-22) ------------------------
+#:
+#: Bayrak ve flama gibi iki rejimli şekillerde pencerenin başındaki dik
+#: dürtü (direk, ~%35), z-score varyansını tek başına domine eder ve geri
+#: kalan konsolidasyon gövdesinin zarf eğimlerini bastırır. Ölçüldü: flama
+#: tam pencere zarfında (-0,90, +0,89) eğim vererek K-21'in ölü bandına
+#: (0,80 ± 0,20) düşüyor ve hiç filtrelenemiyordu (formation_audit 4h ilk
+#: 12'de 1/12 = %8); boğa/ayı bayrağında ise direk tabanındaki tek bir iç
+#: dokunuş tüm pencere regresyonunu bozuyordu (ilk 50'de %50–%62).
+#:
+#: Kural yine SORGUDAN türer (formasyon başına kod yok, K-04): sorgunun bir
+#: ucunda dik bir direk (>= 2,0σ) ve karşı tarafında daha dar bir gövde
+#: (açıklık <= 0,65 × direk) varsa, zarf eğimleri yalnız gövde dilimi
+#: üzerinde okunur. Hem baştaki hem sondaki direk simetrik okunur (zaman-ayna
+#: eşdeğerliği).
+REGIME_FILTER: Final[bool] = True
+REGIME_POLE_K: Final[int] = 11
+REGIME_BODY_START: Final[int] = 8
+REGIME_POLE_HEIGHT: Final[float] = 1.5
+REGIME_POLE_STRICT_HEIGHT: Final[float] = 2.0
+REGIME_SLOPE_THRESHOLD: Final[float] = 0.25
+REGIME_CONVERGENCE: Final[float] = 0.80
+REGIME_MIN_STABILITY: Final[float] = 0.85
+REGIME_MIN_SURVIVORS: Final[int] = 6
+
+#: --- Sürekli sol-kuyruk yüzdeliği ve yapısal yeniden sıralama (K-23) -------
+#:
+#: 1) Empirik null yüzdeliğinde ``d < null[0]`` olan tüm adaylar 0,0 yüzdelik
+#:    alıp Post-NMS'te birbirine eşitleniyor ve Aşama 1 kosinüs sırasına geri
+#:    düşüyordu. Sol kuyruk ``p01``'e doğrusal çapalanarak sıralama korunur.
+#: 2) Sert filtreyi geçen adaylar arasında sorgunun sürekli yapısal/zarf
+#:    özelliklerinden (düz kenar eğimi, daralma oranı, karşı taraf uç sayısı,
+#:    çanak kenar simetrisi) sapanlara küçük sürekli ceza eklenir.
+STRUCTURAL_RERANK: Final[bool] = True
+
 #: Yapısal benzerlik uyarısı.
 #:
 #: ``null_medyan / null_p01`` oranı, korpusta sorguya *yapısal olarak* benzeyen

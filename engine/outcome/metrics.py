@@ -237,6 +237,45 @@ class OutcomeStats:
     n_months: int = 0
     direction: str = "long"
     by_regime: list[dict] = field(default_factory=list)
+    #: F4.6 ön-getiri (momentum) eşleştirmeli gölge metrikleri (isteğe bağlı).
+    return_matched_shadow_expectancy_r: float | None = None
+    return_matched_shadow_n: int = 0
+    return_matched_edge_r: float | None = None
+    return_matched_edge_ci: tuple[float, float] | None = None
+    return_matched_design_effect: float | None = None
+
+    @property
+    def return_matched_edge_is_significant(self) -> bool:
+        if self.return_matched_edge_ci is None or not all(
+            np.isfinite(self.return_matched_edge_ci)
+        ):
+            return False
+        return (
+            self.return_matched_edge_ci[0] > 0.0
+            or self.return_matched_edge_ci[1] < 0.0
+        )
+
+    def return_matched_verdict_text(self, lang: str = "tr") -> str:
+        from engine.i18n import t
+
+        if self.insufficient:
+            return t("verdict.insufficient", lang, n=self.n)  # type: ignore[arg-type]
+        if self.return_matched_shadow_n == 0:
+            return t("verdict.no_shadow", lang)  # type: ignore[arg-type]
+        if not self.return_matched_edge_is_significant:
+            return t("verdict.not_significant", lang)  # type: ignore[arg-type]
+        side = t(
+            "verdict.favorable"
+            if (self.return_matched_edge_r or 0) > 0
+            else "verdict.unfavorable",
+            lang,
+        )  # type: ignore[arg-type]
+        return t(
+            "verdict.significant",
+            lang,
+            side=side,
+            edge=f"{self.return_matched_edge_r:+.3f}",
+        )  # type: ignore[arg-type]
 
     @property
     def insufficient(self) -> bool:
@@ -369,6 +408,7 @@ def summarize(
     rng: np.random.Generator | None = None,
     direction: str = "long",
     confidence: float = CONFIDENCE_LEVEL,
+    return_matched_shadow: np.ndarray | None = None,
 ) -> OutcomeStats:
     """Bir konfigürasyonun tüm metriklerini GA'larıyla birlikte hesaplar.
 
@@ -415,6 +455,22 @@ def summarize(
         stats.edge_ci, stats.design_effect = block_bootstrap_diff_ci(
             r, month_of(results["end_time"]), s, month_of(shadow["end_time"]),
             confidence=confidence, rng=rng,
+        )
+
+    if return_matched_shadow is not None and return_matched_shadow.size and n:
+        s_rm = return_matched_shadow["r_gross"].astype(np.float64)
+        stats.return_matched_shadow_expectancy_r = float(s_rm.mean())
+        stats.return_matched_shadow_n = int(return_matched_shadow.size)
+        stats.return_matched_edge_r = float(r.mean() - s_rm.mean())
+        stats.return_matched_edge_ci, stats.return_matched_design_effect = (
+            block_bootstrap_diff_ci(
+                r,
+                month_of(results["end_time"]),
+                s_rm,
+                month_of(return_matched_shadow["end_time"]),
+                confidence=confidence,
+                rng=rng,
+            )
         )
 
     return stats

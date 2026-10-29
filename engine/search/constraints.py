@@ -667,8 +667,8 @@ def envelope_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
     return (sig == np.asarray(target, dtype=np.int8)).all(axis=1)
 
 
-def describe_envelope(signature: tuple[int, int, int] | None, lang: str = "tr") -> str | None:
-    """Trend çizgisi imzasını okunur bir cümleye çevirir.
+def describe_envelope(signature: tuple | None, lang: str = "tr") -> str | None:
+    """Trend çizgisi (veya direk + gövde zarf) imzasını okunur bir cümleye çevirir.
 
     Uç düzeni okuması eğimle tanımlı formasyonlarda kararsızdır ve motor onu
     eleme için kullanmaz (K-20). Kullanıcıya yalnız o okumayı göstermek,
@@ -678,6 +678,21 @@ def describe_envelope(signature: tuple[int, int, int] | None, lang: str = "tr") 
 
     if signature is None:
         return None
+    if len(signature) == 5:
+        pole_side, pole_dir, upper, lower, converge = signature
+        pole_key = (
+            f"env.pole.{int(pole_dir)}"
+            if int(pole_side) > 0
+            else f"env.pole_trail.{int(pole_dir)}"
+        )
+        return " · ".join(
+            (
+                t(pole_key, lang),  # type: ignore[arg-type]
+                t(f"env.upper.{int(upper)}", lang),  # type: ignore[arg-type]
+                t(f"env.lower.{int(lower)}", lang),  # type: ignore[arg-type]
+                t(f"env.conv.{int(converge)}", lang),  # type: ignore[arg-type]
+            )
+        )
     upper, lower, converge = signature
     return " · ".join(
         (
@@ -686,6 +701,265 @@ def describe_envelope(signature: tuple[int, int, int] | None, lang: str = "tr") 
             t(f"env.conv.{int(converge)}", lang),  # type: ignore[arg-type]
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# İki rejimli (direk + gövde) zarf imzası (K-22) ve yapısal yeniden sıralama (K-23)
+# ---------------------------------------------------------------------------
+
+from engine.config import (  # noqa: E402
+    REGIME_BODY_START,
+    REGIME_CONVERGENCE,
+    REGIME_FILTER,
+    REGIME_MIN_STABILITY,
+    REGIME_POLE_HEIGHT,
+    REGIME_POLE_K,
+    REGIME_POLE_STRICT_HEIGHT,
+    REGIME_SLOPE_THRESHOLD,
+)
+
+
+def _sub_slopes_1d(sub: np.ndarray) -> tuple[float | None, float | None]:
+    hi, lo = envelope_touches(sub)
+    if len(hi) < 2 or len(lo) < 2:
+        return None, None
+    scale = float(sub.size - 1)
+    sh = float(np.polyfit(np.asarray(hi, dtype=np.float64) / scale, sub[hi], 1)[0])
+    sl = float(np.polyfit(np.asarray(lo, dtype=np.float64) / scale, sub[lo], 1)[0])
+    return sh, sl
+
+
+def _sub_slopes_batch(sub: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    hi, lo = _touch_masks(sub)
+    return _masked_slope(sub, hi), _masked_slope(sub, lo)
+
+
+def pole_body_signature(
+    y: np.ndarray,
+    strict: bool = False,
+    body_start: int = REGIME_BODY_START,
+    slope_thr: float = REGIME_SLOPE_THRESHOLD,
+    conv_thr: float = REGIME_CONVERGENCE,
+) -> tuple[int, int, int, int, int] | None:
+    """Sorguda iki rejimli (direk + konsolidasyon gövdesi) zarf kimliği.
+
+    Dönen 5-demet: ``(pole_side, pole_dir, upper_cls, lower_cls, conv_cls)``
+      - ``pole_side``: ``+1`` (solda direk) veya ``-1`` (sağda direk — ayna simetrisi)
+      - ``pole_dir``:  ``+1`` (yükselen) veya ``-1`` (düşen)
+      - ``upper_cls``, ``lower_cls``, ``conv_cls``: gövde zarfının eğim ve yakınsama sınıfı
+
+    Zaman-ayna (``y[::-1]``) ve dikey-ters (``-y``) dönüşümleri altında tam eşdeğerdir.
+    """
+    y = np.asarray(y, dtype=np.float64)
+    n = y.size
+    min_h = REGIME_POLE_STRICT_HEIGHT if strict else REGIME_POLE_HEIGHT
+    max_ratio = 0.65 if strict else 0.85
+
+    left_disp = float(y[REGIME_POLE_K - 1] - y[0])
+    left_span = float(np.ptp(y[REGIME_POLE_K - 1 :]))
+    right_disp = float(y[-1] - y[n - REGIME_POLE_K])
+    right_span = float(np.ptp(y[: n - REGIME_POLE_K + 1]))
+
+    has_left = abs(left_disp) >= min_h and left_span <= abs(left_disp) * max_ratio
+    has_right = abs(right_disp) >= min_h and right_span <= abs(right_disp) * max_ratio
+    if has_left == has_right:
+        return None
+
+    if has_left:
+        pole_side = 1
+        pole_dir = 1 if left_disp > 0 else -1
+        sh, sl = _sub_slopes_1d(y[body_start:])
+    else:
+        pole_side = -1
+        pole_dir = 1 if right_disp > 0 else -1
+        sh, sl = _sub_slopes_1d(y[: n - body_start])
+
+    if sh is None or sl is None:
+        return None
+
+    u_cls = 0 if abs(sh) <= slope_thr else (1 if sh > 0 else -1)
+    l_cls = 0 if abs(sl) <= slope_thr else (1 if sl > 0 else -1)
+    if u_cls != 0 and l_cls != 0 and u_cls != l_cls:
+        c_cls = 1 if (sl - sh) > 0 else -1
+    else:
+        c_cls = 0 if abs(sl - sh) <= conv_thr else (1 if (sl - sh) > 0 else -1)
+    return (pole_side, pole_dir, u_cls, l_cls, c_cls)
+
+
+def pole_body_signature_batch(
+    V: np.ndarray,
+    body_start: int = REGIME_BODY_START,
+    slope_thr: float = REGIME_SLOPE_THRESHOLD,
+    conv_thr: float = REGIME_CONVERGENCE,
+) -> np.ndarray:
+    """(m, 5) int8: ``pole_body_signature(strict=False)`` vektörize karşılığı."""
+    V = np.atleast_2d(np.asarray(V, dtype=np.float64))
+    m, n = V.shape
+    out = np.full((m, 5), -128, dtype=np.int8)
+
+    left_disp = V[:, REGIME_POLE_K - 1] - V[:, 0]
+    left_span = np.ptp(V[:, REGIME_POLE_K - 1 :], axis=1)
+    right_disp = V[:, -1] - V[:, n - REGIME_POLE_K]
+    right_span = np.ptp(V[:, : n - REGIME_POLE_K + 1], axis=1)
+
+    has_left = (np.abs(left_disp) >= REGIME_POLE_HEIGHT) & (
+        left_span <= np.abs(left_disp) * 0.85
+    )
+    has_right = (np.abs(right_disp) >= REGIME_POLE_HEIGHT) & (
+        right_span <= np.abs(right_disp) * 0.85
+    )
+    valid = has_left ^ has_right
+    if not valid.any():
+        return out
+
+    sh_l, sl_l = _sub_slopes_batch(V[:, body_start:])
+    sh_r, sl_r = _sub_slopes_batch(V[:, : n - body_start])
+
+    sh = np.where(has_left, sh_l, sh_r)
+    sl = np.where(has_left, sl_l, sl_r)
+    ok = valid & np.isfinite(sh) & np.isfinite(sl)
+    if not ok.any():
+        return out
+
+    pole_side = np.where(has_left, 1, -1)
+    pole_dir = np.where(has_left, np.sign(left_disp), np.sign(right_disp))
+    u_cls = np.where(np.abs(sh) <= slope_thr, 0, np.sign(sh))
+    l_cls = np.where(np.abs(sl) <= slope_thr, 0, np.sign(sl))
+    diff = sl - sh
+    opp = (u_cls != 0) & (l_cls != 0) & (u_cls != l_cls)
+    c_cls = np.where(
+        opp, np.sign(diff), np.where(np.abs(diff) <= conv_thr, 0, np.sign(diff))
+    )
+
+    out[ok, 0] = pole_side[ok]
+    out[ok, 1] = pole_dir[ok]
+    out[ok, 2] = u_cls[ok]
+    out[ok, 3] = l_cls[ok]
+    out[ok, 4] = c_cls[ok]
+    return out
+
+
+def pole_body_stability(
+    y: np.ndarray,
+    sigma: float = STRUCTURE_NOISE_SIGMA,
+    draws: int = 300,
+) -> float:
+    """Direk + gövde zarf imzasının gürültü altındaki kararlılığı (0–1)."""
+    y = np.asarray(y, dtype=np.float64)
+    base = pole_body_signature(y, strict=True)
+    if base is None:
+        return 0.0
+    rng = np.random.default_rng(STRUCTURE_STABILITY_SEED)
+    noise = rng.normal(scale=sigma, size=(draws, y.size))
+    sig = pole_body_signature_batch(y + noise)
+    return float((sig == np.asarray(base, dtype=np.int8)).all(axis=1).mean())
+
+
+def pole_body_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
+    """Sorgunun direk + gövde zarf kimliğini taşıyan adayların maskesi."""
+    target = pole_body_signature(query, strict=True)
+    if target is None:
+        return None
+    V = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
+    t_arr = np.asarray(target, dtype=np.int8)
+    m_start = (pole_body_signature_batch(V, body_start=REGIME_BODY_START) == t_arr).all(axis=1)
+    m_core = (
+        pole_body_signature_batch(V, body_start=REGIME_POLE_K, slope_thr=0.30) == t_arr
+    ).all(axis=1)
+    return m_start | m_core
+
+
+def structural_alignment_penalty(
+    query: np.ndarray,
+    vectors: np.ndarray,
+    apply_structure: bool = False,
+    apply_envelope: bool = False,
+    apply_regime: bool = False,
+) -> np.ndarray:
+    """Sorgu ile adaylar arasındaki sürekli yapısal/zarf sapma cezası (K-23).
+
+    Yüzdelik dilim birimi cinsinden küçük pozitif cezalar üretir; Post-NMS
+    öncesinde ``percentile`` alanına eklenerek aynı kademedeki adaylar
+    arasından yapısal olarak en temiz olanları üste taşır. Eşzamanlı zaman-ayna
+    (``q[::-1], V[:, ::-1]``) ve dikey-ters (``-q, -V``) dönüşümleri altında
+    birebir değişmezdir.
+    """
+    q = np.asarray(query, dtype=np.float64)
+    V = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
+    m, n = V.shape
+    pen = np.zeros(m, dtype=np.float64)
+
+    if apply_regime:
+        pb = pole_body_signature(q, strict=True)
+        if pb is not None:
+            core_sig = pole_body_signature_batch(
+                V, body_start=REGIME_POLE_K, slope_thr=0.30, conv_thr=REGIME_CONVERGENCE
+            )
+            t_arr = np.asarray(pb, dtype=np.int8)
+            core_mismatch = ~(core_sig == t_arr).all(axis=1)
+            pen += np.where(core_mismatch, 0.004, 0.0)
+
+    if apply_envelope:
+        q_env = envelope_signature(q, strict=True)
+        q_up, q_lo = envelope_slopes(q)
+        if q_env is not None and q_up is not None and q_lo is not None:
+            hi_m, lo_m = _touch_masks(V)
+            c_up = _masked_slope(V, hi_m)
+            c_lo = _masked_slope(V, lo_m)
+            if q_env[0] == 0:
+                dev = np.where(np.isfinite(c_up), np.abs(c_up - q_up), 1.0)
+                pen += np.where(dev > 0.55, 0.004 + 0.001 * dev, 0.0003 * dev)
+            if q_env[1] == 0:
+                dev = np.where(np.isfinite(c_lo), np.abs(c_lo - q_lo), 1.0)
+                pen += np.where(dev > 0.55, 0.004 + 0.001 * dev, 0.0003 * dev)
+            half = n // 2
+            span_l = np.ptp(V[:, :half], axis=1)
+            span_r = np.ptp(V[:, half:], axis=1)
+            if q_env[2] > 0:
+                nar = span_r / np.maximum(1e-9, span_l)
+                pen += np.where(nar > 0.90, 0.005, 0.0)
+            elif q_env[2] < 0:
+                nar = span_l / np.maximum(1e-9, span_r)
+                pen += np.where(nar > 0.90, 0.005, 0.0)
+
+    if apply_structure:
+        q_sig = structural_signature(q)
+        if q_sig is not None:
+            side = int(q_sig[0])
+            opp_sig = side_signature(q, -side)
+            c_opp_batch = side_signature_batch(V, -side)
+            c_opp_count = np.where(c_opp_batch[:, 0] < 0, 0, c_opp_batch[:, 0])
+            q_opp_count = 0 if opp_sig is None else int(opp_sig[0])
+            pen += np.where(c_opp_count != q_opp_count, 0.004, 0.0)
+            if q_opp_count == 0:
+                if abs(float(q[0] - q[-1])) <= 0.30:
+                    pen += np.where(
+                        np.abs(V[:, 0] - V[:, -1]) > STRUCTURE_EQUAL_TOL, 0.004, 0.0
+                    )
+                u = np.linspace(-1.0, 1.0, n)
+                u2 = u * u - float(np.mean(u * u))
+                denom_u2 = float(np.sum(u2 * u2))
+                curv_q = -side * 2.0 * float(np.dot(q, u2) / denom_u2)
+                if curv_q >= 1.2:
+                    curv_v = -side * 2.0 * ((V @ u2) / denom_u2)
+                    pen += np.where(curv_v < 0.70, 0.004, 0.0)
+            elif q_opp_count == 1 and int(q_sig[1]) == 2 and not bool(q_sig[3]):
+                peaks_q, troughs_q = prominent_extrema(q, STRUCTURE_PROMINENCE)
+                opp_idx = (troughs_q if side > 0 else peaks_q)[0]
+                outer_q = float(q[0]) if int(q_sig[2]) == 0 else float(q[-1])
+                if abs(outer_q - float(q[opp_idx])) <= 0.30:
+                    peaks_v, troughs_v = prominent_extrema_batch(V, STRUCTURE_PROMINENCE)
+                    opp_mask = troughs_v if side > 0 else peaks_v
+                    signed_opp = np.where(
+                        opp_mask, V if side < 0 else -V, -np.inf
+                    ).max(axis=1)
+                    c_opp_val = signed_opp if side < 0 else -signed_opp
+                    c_outer = V[:, 0] if int(q_sig[2]) == 0 else V[:, -1]
+                    pen += np.where(
+                        np.abs(c_outer - c_opp_val) > STRUCTURE_EQUAL_TOL, 0.004, 0.0
+                    )
+
+    return pen
 
 
 def describe_signature(signature: tuple | None, lang: str = "tr") -> str | None:
@@ -757,6 +1031,7 @@ class FilterPlan:
     envelope_read: str | None
     apply_structure: bool
     apply_envelope: bool
+    apply_regime: bool = False
     #: Dilden bağımsız okumalar — önbelleğe bunlar yazılır, metin değil.
     structure_signature: tuple | None = None
     envelope_signature: tuple | None = None
@@ -768,8 +1043,9 @@ def filter_plan(
     structure_gate: bool = STRUCTURE_STABILITY_GATE,
     envelope_filter: bool = ENVELOPE_FILTER,
     structure_yields: bool = STRUCTURE_YIELDS_TO_ENVELOPE,
+    regime_filter: bool = REGIME_FILTER,
 ) -> FilterPlan:
-    """Sorgu hangi katmanlardan geçecek — K-20, K-21 ve alternatiflik kuralı.
+    """Sorgu hangi katmanlardan geçecek — K-20, K-21, K-22 ve alternatiflik kuralı.
 
     Bu karar eskiden ``SearchEngine.search`` gövdesine gömülüydü ve motor
     parmak izi onu GÖRMÜYORDU: parmak izi yapı taşlarını (imza, kararlılık,
@@ -786,17 +1062,31 @@ def filter_plan(
     apply_structure = bool(structure_filter) and not (structure_gate and not stable)
     # K-21: zarf filtresi yalnız trend çizgisi okuması kararlıyken.
     apply_envelope = bool(envelope_filter) and envelope_stability(q) >= ENVELOPE_MIN_STABILITY
-    # Alternatiflik: trend çizgisi okuması kararlıysa uç sayısı sorulmaz.
-    if structure_yields and apply_envelope:
+    # K-22: iki rejimli (direk + gövde) zarf filtresi.
+    apply_regime = (
+        bool(envelope_filter)
+        and bool(regime_filter)
+        and not apply_envelope
+        and pole_body_stability(q) >= REGIME_MIN_STABILITY
+    )
+    # Alternatiflik: trend çizgisi ya da direk+gövde okuması kararlıysa uç sayısı sorulmaz.
+    if structure_yields and (apply_envelope or (structure_gate and apply_regime)):
         apply_structure = False
 
-    env_sig = envelope_signature(q, strict=True) if apply_envelope else None
+    if apply_envelope:
+        env_sig: tuple | None = envelope_signature(q, strict=True)
+    elif apply_regime:
+        env_sig = pole_body_signature(q, strict=True)
+    else:
+        env_sig = None
+
     return FilterPlan(
         structure_read=describe_signature(signature),
         structure_stable=bool(stable),
         envelope_read=describe_envelope(env_sig),
         apply_structure=apply_structure,
         apply_envelope=apply_envelope,
+        apply_regime=apply_regime,
         structure_signature=signature,
         envelope_signature=env_sig,
     )

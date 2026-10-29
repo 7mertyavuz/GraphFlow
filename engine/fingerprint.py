@@ -74,6 +74,17 @@ SAMPLE_CONFIG_KEYS: tuple[str, ...] = (
     "ENVELOPE_DEAD_BAND",
     "ENVELOPE_TOUCH_WIDTH",
     "ENVELOPE_MIN_SURVIVORS",
+    # İki rejimli (direk + gövde) zarf imzası (K-22) ve yeniden sıralama (K-23)
+    "REGIME_FILTER",
+    "REGIME_POLE_K",
+    "REGIME_BODY_START",
+    "REGIME_POLE_HEIGHT",
+    "REGIME_POLE_STRICT_HEIGHT",
+    "REGIME_SLOPE_THRESHOLD",
+    "REGIME_CONVERGENCE",
+    "REGIME_MIN_STABILITY",
+    "REGIME_MIN_SURVIVORS",
+    "STRUCTURAL_RERANK",
 )
 
 #: Davranış sondası için sabit tohum ve boyut. Değiştirilirse tüm eski
@@ -99,8 +110,12 @@ def _behavior_digest() -> str:
         envelope_signature,
         envelope_stability,
         filter_plan,
+        pole_body_mask,
+        pole_body_signature,
+        pole_body_stability,
         signature_mask,
         signature_stability,
+        structural_alignment_penalty,
         structural_signature,
     )
     from engine.search.ddtw import stage2_scores
@@ -119,6 +134,8 @@ def _behavior_digest() -> str:
             f"{signature_stability(q):.4f}",
             repr(envelope_signature(q, strict=True)),
             f"{envelope_stability(q):.4f}",
+            repr(pole_body_signature(q, strict=True)),
+            f"{pole_body_stability(q):.4f}",
         ]
         # Orkestrasyon: hangi katman uygulanacak. Bu satır yokken "yapısal
         # filtre, zarf devredeyken çekilir" kuralı varsayılan davranışı
@@ -130,12 +147,25 @@ def _behavior_digest() -> str:
             structure_gate=config.STRUCTURE_STABILITY_GATE,
             envelope_filter=config.ENVELOPE_FILTER,
             structure_yields=config.STRUCTURE_YIELDS_TO_ENVELOPE,
+            regime_filter=config.REGIME_FILTER,
         )
-        parts.append(f"{plan.apply_structure}{plan.apply_envelope}{plan.structure_stable}")
+        parts.append(
+            f"{plan.apply_structure}{plan.apply_envelope}{plan.apply_regime}{plan.structure_stable}"
+        )
         smask = signature_mask(q, probe)
         emask = envelope_mask(q, probe)
+        rmask = pole_body_mask(q, probe)
         parts.append("-" if smask is None else np.packbits(smask).tobytes().hex())
         parts.append("-" if emask is None else np.packbits(emask).tobytes().hex())
+        parts.append("-" if rmask is None else np.packbits(rmask).tobytes().hex())
+        pen = structural_alignment_penalty(
+            q,
+            probe,
+            apply_structure=plan.apply_structure,
+            apply_envelope=plan.apply_envelope,
+            apply_regime=plan.apply_regime,
+        )
+        parts.append(np.round(pen, 6).tobytes().hex())
         # Aşama 2: yuvarlama, platformlar arası kayan nokta gürültüsünü
         # "farklı motor" sanmamak için.
         scores = stage2_scores(q, probe, config.SAKOE_CHIBA_RADIUS, config.STAGE2_METRIC)

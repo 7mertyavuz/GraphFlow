@@ -21,6 +21,7 @@ interface MatchGridProps {
   ledger?: Map<string, LedgerRow> | null;
   config?: string | null;
   directionLabel?: string;
+  onSearchSimilar?: (match: Match) => void;
 }
 
 export function MatchGrid({
@@ -34,6 +35,7 @@ export function MatchGrid({
   ledger = null,
   config = null,
   directionLabel,
+  onSearchSimilar,
 }: MatchGridProps) {
   const { t } = useI18n();
   if (isLoading) {
@@ -77,6 +79,7 @@ export function MatchGrid({
             ledger={ledger?.get(ledgerKey(match)) ?? null}
             config={config}
             directionLabel={directionLabel}
+            onSearchSimilar={onSearchSimilar}
           />
         ))}
       </div>

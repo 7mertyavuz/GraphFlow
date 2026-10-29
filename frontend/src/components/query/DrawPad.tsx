@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Eraser, MousePointer2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Eraser, MousePointer2, PenTool, Spline, Undo2 } from "lucide-react";
 
+import { type DrawMode } from "@/hooks/useDraw";
 import { useI18n } from "@/i18n/LanguageProvider";
-import { type Point } from "@/utils/shape";
+import { cn } from "@/lib/utils";
+import { analyzeDrawing, type Point } from "@/utils/shape";
 
 interface DrawPadProps {
   points: Point[];
+  vertices?: Point[];
+  drawMode?: DrawMode;
+  onDrawModeChange?: (mode: DrawMode) => void;
+  onUndoVertex?: () => void;
   isDrawing: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -17,7 +23,7 @@ interface DrawPadProps {
 }
 
 /**
- * Çizim yüzeyi — düz HTML5 Canvas + pointer events (K-17).
+ * Çizim yüzeyi — düz HTML5 Canvas + pointer events (K-17) + canlı yapısal/zarf önizlemesi.
  *
  * Kütüphane yok: gereken şey bir yol çizmek ve noktaları toplamaktır;
  * Fabric/Konva bu iş için 100 satırlık işi 200 KB'a çevirirdi.
@@ -29,6 +35,10 @@ interface DrawPadProps {
  */
 export function DrawPad({
   points,
+  vertices = [],
+  drawMode = "freehand",
+  onDrawModeChange,
+  onUndoVertex,
   isDrawing,
   onPointerDown,
   onPointerMove,
@@ -36,9 +46,11 @@ export function DrawPad({
   onClear,
   height = 260,
 }: DrawPadProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
+
+  const analysis = useMemo(() => analyzeDrawing(points), [points]);
 
   // --- Ölçekleme: yalnız kap genişliği ya da DPR değişince --------------
   useEffect(() => {
@@ -102,10 +114,19 @@ export function DrawPad({
     ctx.stroke();
     ctx.setLineDash([]);
 
-    if (points.length < 2) return;
-
     const toX = (p: Point) => p.x * width;
     const toY = (p: Point) => (1 - p.y) * height;
+
+    // Tek köşe varsa (polyline modunda ilk tıklama) nokta göster
+    if (points.length === 0 && vertices.length === 1) {
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(toX(vertices[0]), toY(vertices[0]), 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+
+    if (points.length < 2) return;
 
     // Alan dolgusu
     ctx.beginPath();
@@ -119,6 +140,33 @@ export function DrawPad({
     gradient.addColorStop(1, "rgba(56,189,248,0)");
     ctx.fillStyle = gradient;
     ctx.fill();
+
+    // Canlı zarf (trend çizgisi) ve direk önizlemesi (K-21 / K-22)
+    if (analysis) {
+      if (analysis.poleLine) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(251,191,36,0.75)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(analysis.poleLine.x1 * width, (1 - analysis.poleLine.y1) * height);
+        ctx.lineTo(analysis.poleLine.x2 * width, (1 - analysis.poleLine.y2) * height);
+        ctx.stroke();
+        ctx.restore();
+      }
+      for (const line of [analysis.upperLine, analysis.lowerLine]) {
+        if (!line) continue;
+        ctx.save();
+        ctx.strokeStyle = "rgba(251,191,36,0.65)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(line.x1 * width, (1 - line.y1) * height);
+        ctx.lineTo(line.x2 * width, (1 - line.y2) * height);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // Çizgi
     ctx.beginPath();
@@ -134,25 +182,94 @@ export function DrawPad({
     });
     ctx.stroke();
 
-    // Uç noktalar
-    const last = points[points.length - 1];
-    ctx.fillStyle = "#38bdf8";
-    ctx.beginPath();
-    ctx.arc(toX(last), toY(last), 3.5, 0, Math.PI * 2);
-    ctx.fill();
-  }, [points, width, height]);
+    // Belirgin tepe (yeşil) ve dip (kırmızı) işaretçileri (K-20)
+    if (analysis) {
+      for (const pk of analysis.peaks) {
+        ctx.fillStyle = "#34d399";
+        ctx.beginPath();
+        ctx.arc(toX(pk), toY(pk), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      for (const tr of analysis.troughs) {
+        ctx.fillStyle = "#f87171";
+        ctx.beginPath();
+        ctx.arc(toX(tr), toY(tr), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
-  const empty = points.length < 2;
+    // Kırık çizgi köşe tutamaçları
+    if (drawMode === "polyline" && vertices.length > 0) {
+      for (const v of vertices) {
+        ctx.fillStyle = "#0f172a";
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(toX(v), toY(v), 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else {
+      // Uç nokta
+      const last = points[points.length - 1];
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(toX(last), toY(last), 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [points, vertices, drawMode, analysis, width, height]);
+
+  const empty = points.length < 2 && vertices.length === 0;
+  const liveSummary = lang === "en" ? analysis?.summaryEn : analysis?.summaryTr;
 
   return (
     <div className="space-y-2">
+      {onDrawModeChange && (
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <div className="inline-flex rounded-md border border-border bg-secondary/40 p-0.5">
+            <button
+              type="button"
+              onClick={() => onDrawModeChange("freehand")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                drawMode === "freehand"
+                  ? "bg-brand/15 text-brand"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Spline className="size-3" />
+              {t.drawpad.modeFreehand}
+            </button>
+            <button
+              type="button"
+              onClick={() => onDrawModeChange("polyline")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium transition-colors",
+                drawMode === "polyline"
+                  ? "bg-brand/15 text-brand"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <PenTool className="size-3" />
+              {t.drawpad.modePolyline}
+            </button>
+          </div>
+
+          {drawMode === "polyline" && onUndoVertex && (
+            <button
+              type="button"
+              onClick={onUndoVertex}
+              disabled={vertices.length === 0}
+              className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Undo2 className="size-3" />
+              {t.drawpad.undoVertex}
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="relative overflow-hidden rounded-lg border border-border bg-[oklch(0.13_0.015_255)]">
-        {/*
-          pointerleave bağlanmaz: işaretçi yakalanmış durumdadır ve kanvasın
-          dışına taşmak darbeyi bitirmemeli. Tepesi panelden taşan bir baş
-          çizildiğinde formasyon tam orada kesiliyordu. Yakalanan işaretçinin
-          pointerup'ı dışarıda da gelir; iptali pointercancel taşır.
-        */}
         <canvas
           ref={canvasRef}
           onPointerDown={onPointerDown}
@@ -169,13 +286,27 @@ export function DrawPad({
               {t.drawpad.placeholderTitle}
             </p>
             <p className="max-w-[220px] text-xs text-muted-foreground/70">
-              {t.drawpad.placeholderStart}{" "}
-              <span className="text-brand">{t.drawpad.placeholderHighlight}</span>{" "}
-              {t.drawpad.placeholderEnd}
+              {drawMode === "polyline" ? (
+                t.drawpad.polylineHint
+              ) : (
+                <>
+                  {t.drawpad.placeholderStart}{" "}
+                  <span className="text-brand">{t.drawpad.placeholderHighlight}</span>{" "}
+                  {t.drawpad.placeholderEnd}
+                </>
+              )}
             </p>
           </div>
         )}
       </div>
+
+      {liveSummary && (
+        <div className="flex items-center gap-1.5 rounded-md border border-brand/20 bg-brand/[0.06] px-2.5 py-1.5 text-[11px]">
+          <span className="size-1.5 shrink-0 rounded-full bg-brand" />
+          <span className="text-muted-foreground">{t.drawpad.livePreview}</span>
+          <span className="truncate font-medium text-foreground">{liveSummary}</span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="tabular">

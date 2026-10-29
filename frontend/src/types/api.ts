@@ -383,6 +383,7 @@ export interface components {
             expectancy: components["schemas"]["StatEnvelope"];
             win_rate: components["schemas"]["StatEnvelope"];
             edge: components["schemas"]["StatEnvelope"] | null;
+            return_matched_edge?: components["schemas"]["StatEnvelope"] | null;
             distribution: components["schemas"]["ReturnDistribution"];
             /**
              * Insufficient
