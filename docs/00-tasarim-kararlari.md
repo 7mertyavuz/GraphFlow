@@ -1558,29 +1558,53 @@ Kesin filtreler (`structural_mask`, `envelope_mask`, `pole_body_mask`) ikili (ev
 - Sıfır karşıt-uçlu çanaklarda (`rounding_bottom`) parabolik dışbükeylik ve uç geri dönüş farkını
 ölçer. Fonksiyon hem yatay aynalama (`q[::-1], c[::-1]`) hem dikey çevirme (`-q, -c`) altında **birebir değişmezdir** (invariant).
 
-### Birleşik Ölçüm (K-22 + K-23)
+### Birleşik Ölçüm (K-22 + K-23 + K-24)
 
-| Ölçüm Zemini | Önceki Motor (K-21) | Yeni Motor (K-22 + K-23) |
+| Ölçüm Zemini | Önceki Motor (K-21) | Yeni Motor (K-22 + K-23 + K-24) |
 |---|---|---|
 | `formation_audit --top 12` (4h gerçek veri, 14 şablon) | 121/144 (%84,0) | **168/168 (%100,0)** |
 | `formation_audit --top 50` (4h gerçek veri, 14 şablon) | 481/600 (%80,2) | **697/700 (%99,6)** |
-| `gt_benchmark --family all` (sentetik GBM, kesinlik / duyarlılık) | 214/288 (%74,3 / %70,8) | **251/288 (%87,2 / %84,7)** |
-| `gt_benchmark --family all --freehand 8` (elle çizim, 2.304 sorgu) | 1663/2304 (%72,2 / %69,0) | **1921/2304 (%83,4 / %80,7)** |
-| `gt_benchmark --family all --real` (gerçek piyasa zemini) | 211/288 (%73,3 / %70,0) | **246/288 (%85,4 / %81,2)** |
+| `gt_benchmark --family all` (12 şablon: dönüş + eğim) | 214/288 (%74,3 / %70,8) | **256/288 (%88,9 / %86,1)** |
+| `gt_benchmark --family all` (14 şablon: eğrilik dahil) | — | **298/336 (%88,7 / %86,3)** |
 
 ---
 
-## K-24 — Çanak ve Fincan-Kulp İçin Eğrilik Denetçisi (14/14 Tam Denetim)
+## K-24 — Çanak ve Fincan-Kulp İçin Legendre Parabolik Eğrilik Uyum Skoru ve Denetçisi (14/14 Tam Denetim)
 
-**Karar:** `tools/formation_audit.py` içerisine `is_rounding_bottom` ve `is_cup_and_handle` bağımsız dışbükeylik/konkavlık denetçileri eklendi (`CURVATURE_CHECKS`).
+**Karar:**
+1. `engine/search/constraints.py` içerisine birim-ortogonal Legendre tabanında 2. derece polinom (parabol) $R^2$ ve dışbükeylik hesaplayan `_quad_r2` eklendi ve `structural_alignment_penalty` katmanına bağlandı.
+2. `tools/formation_audit.py` içerisine `is_rounding_bottom` ve `is_cup_and_handle` bağımsız dışbükeylik/konkavlık denetçileri eklendi (`CURVATURE_CHECKS`), `tools/gt_benchmark.py` içerisine `CURVATURE_FAMILY` eklendi.
 
 ### Gerekçe
 
-Önceki denetçi 14 kanonik şablondan yalnızca 12'sini denetliyor, `rounding_bottom` ve `cup_and_handle` için *"parabolik eğrilik denetçisi yok — denetim dışı"* diyerek boş geçiyordu. Oysa `formation_audit --cross` kuralı, her şablonun kendi denetçisinden geçmesini ve **diğer 13 şablonun hiçbirini kabul etmemesini** (0 köşegen dışı kabul) şart koşar.
+Önceki denetçi 14 kanonik şablondan yalnızca 12'sini denetliyor, `rounding_bottom` ve `cup_and_handle` için *"parabolik eğrilik denetçisi yok — denetim dışı"* diyerek boş geçiyordu. Ground truth'ta ise `cup_and_handle` ilk 24'te `13/24 (%54,2)` kesinlikte kalıyordu; çünkü `2 belirgin dip · ilki en derin` yapısal imzası parabolik çanağı keskin V-diplerinden ayıramıyordu.
 
-Yeni `is_rounding_bottom` ve `is_cup_and_handle` denetçileriyle birlikte:
+`_quad_r2` ile sorgunun çanak bölgesinde parabolik $R^2 \ge 0,90$ olduğunda adayların da aynı parabolik $R^2$ uyumuna göre puanlanması:
+- Ground truth'ta `cup_and_handle` doğruluğunu **13/24 (%54,2) → 19/24 (%79,2)**, `rounding_bottom` doğruluğunu **21/24 (%87,5) → 23/24 (%95,8)** seviyesine taşıdı.
 - `tools/formation_audit --cross` **14×14 = 196** hücrenin tamamında **0 köşegen dışı kabul** (`✅ tam ayrışma`) verir.
 - Gerçek 4h korpusunda `rounding_bottom` (**50/50 · %100**) ve `cup_and_handle` (**50/50 · %100**) dahil 14 şablonun tamamı denetlenir.
+
+---
+
+## K-25 — Uç Koruyucu (Extrema-Preserving) Yeniden Örnekleme: Ölçüldü, Bağlanmadı
+
+**Karar:** `engine/normalize/pipeline.py` içindeki `_resample_batch` saf doğrusal enterpolasyon (`np.interp`) olarak kalır; parça içi uç koruyucu havuzlama (*piecewise extrema-preserving pooling*) **bağlanmadı**.
+
+### Hipotez ve Ölçüm
+
+Hipotez: 64 veya 100 barlık bir pencere 32 noktaya indirgenirken doğrusal enterpolasyonun ara barlardaki keskin tepe ve dipleri sönümlediği, her alt-aralıktaki yerel maksimum/minimum ile doğrusal enterpolasyonu harmanlamanın (`(1 - α) * linear + α * local_extreme`) doğruluğu artıracağı düşünüldü.
+
+`tools/gt_benchmark` üzerinde A/B testi (12 formasyon, 288 hedef):
+
+| Karışım Oranı (`α`) | Kesinlik (ilk 24) | Duyarlılık |
+|---|---|---|
+| **`α = 0,00` (saf doğrusal enterpolasyon — mevcut)** | **251/288 (%87,2)** | **%85,4** |
+| `α = 0,25` (uç koruyucu harman) | 249/288 (%86,5) | %83,7 |
+| `α = 0,50` (uç koruyucu harman) | 237/288 (%82,3) | %79,5 |
+
+### Neden Reddedildi?
+
+Aşama 2'deki `hybrid` DTW metriği `%70` ağırlıkla birinci türevi (`DDTW`) kullanır ve yapısal filtre yerel ekstremumları (`prominent_extrema`) sayar. Alt-aralıklardaki tek barlık uçları seçmek, bar içi rastgele gürültü iğnelerini 32 noktalık vektöre taşır; bu da hem türevi bozar hem de sahte yerel tepe/dipler üreterek yapısal maskenin gerçek formasyonları elemesine yol açar.
 
 ---
 

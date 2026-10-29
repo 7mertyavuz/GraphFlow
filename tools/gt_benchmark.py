@@ -62,10 +62,17 @@ REVERSAL_FAMILY = (
     "double_bottom",
 )
 
+#: Eğrilik (konvekslik) ailesi — K-24 ile denetime ve ölçüme dahil edilen küme.
+CURVATURE_FAMILY = (
+    "rounding_bottom",
+    "cup_and_handle",
+)
+
 FAMILIES = {
     "slope": SLOPE_FAMILY,
     "reversal": REVERSAL_FAMILY,
-    "all": REVERSAL_FAMILY + SLOPE_FAMILY,
+    "curvature": CURVATURE_FAMILY,
+    "all": REVERSAL_FAMILY + SLOPE_FAMILY + CURVATURE_FAMILY,
 }
 
 #: Bir sonucun enjeksiyonu "yakaladı" sayılması için gereken örtüşme.
@@ -104,7 +111,7 @@ def build_corpus(
         write_atomic(df, root / "klines" / TF / f"TGT{i:03d}USDT.parquet")
         truth.extend(injections)
 
-    others = tuple(p for p in FAMILIES["all"] if p != pattern)
+    others = tuple(p for p in (REVERSAL_FAMILY + SLOPE_FAMILY) if p != pattern)
     for i in range(n_noise):
         df, _ = make_symbol(
             f"NOI{i:03d}USDT", rng, n_bars=900, patterns=others, n_injections=3

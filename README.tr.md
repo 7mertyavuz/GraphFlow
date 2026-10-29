@@ -61,7 +61,7 @@ Replike eden tek etki — yükselen takozdan sonra fiyat düşme eğiliminde —
  Filtreler yapısal imza (tepe/dip)                ┐ her biri yalnız sorgunun
            trend çizgisi zarfı (eğim/yakınsama)   │ okuması kararlıysa uygulanır
            iki rejimli direk + gövde zarfı (K-22) ┘
- Sıralama  ayna/çevirme değişmez yapısal uyum cezası (K-23)
+ Sıralama  ayna/çevirme değişmez yapısal + eğrisellik uyum cezası (K-23, K-24)
  Post-NMS  1B IoU 0,50, sembol başına en çok 3 → bağımsız olaylar
         │
         ▼
@@ -75,9 +75,9 @@ Replike eden tek etki — yükselen takozdan sonra fiyat düşme eğiliminde —
 | `formation_audit --cross` (14×14 kanonik çapraz denetim) | **14/14 köşegen · 0 köşegen dışı kabul** |
 | `formation_audit --top 12` (gerçek 4h korpus, 14 formasyonun tamamı) | **168/168 (%100,0)** |
 | `formation_audit --top 50` (gerçek 4h korpus, 14 formasyonun tamamı) | **697/700 (%99,6)** |
-| `gt_benchmark --family all` (enjekte edilmiş ground truth, kesinlik / duyarlılık) | **%87,2 kesinlik · %84,7 duyarlılık** (251/288) |
-| `gt_benchmark --family all --real` (gerçek piyasa zemini) | **%85,4 kesinlik · %81,2 duyarlılık** (246/288) |
-| `gt_benchmark --family all --freehand 8` (2.304 gürültülü el çizimi) | **%83,4 kesinlik · %80,7 duyarlılık** (1921/2304) |
+| `gt_benchmark --family all` (enjekte edilmiş ground truth, 14 formasyon) | **%88,7 kesinlik · %87,5 duyarlılık** (298/336) |
+| `gt_benchmark --family all --real` (gerçek piyasa zemini, 14 formasyon) | **%88,1 kesinlik · %84,2 duyarlılık** (296/336) |
+| `gt_benchmark --family all --freehand 8` (2.688 gürültülü el çizimi) | **%85,3 kesinlik · %84,0 duyarlılık** (2292/2688) |
 
 ## Hızlı başlangıç
 

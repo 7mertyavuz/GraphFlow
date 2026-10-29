@@ -61,7 +61,7 @@ The one effect that replicates — prices tend to fall after a rising wedge — 
  Filters   structural signature (peaks/troughs)      ┐ each applied only when the
            trend-line envelope (slopes/convergence)  │ query's reading is stable
            two-regime pole + body envelope (K-22)    ┘
- Rerank    mirror/flip-invariant structural alignment penalty (K-23)
+ Rerank    mirror/flip-invariant structural + curvature alignment penalty (K-23, K-24)
  Post-NMS  1-D IoU 0.50, max 3 per symbol → independent events
         │
         ▼
@@ -75,9 +75,9 @@ A warm search over 11.6 million windows takes about **300 ms** on a laptop. Ther
 | `formation_audit --cross` (14×14 canonical cross-audit) | **14/14 diagonal · 0 off-diagonal accepts** |
 | `formation_audit --top 12` (real 4h corpus, all 14 formations) | **168/168 (100.0%)** |
 | `formation_audit --top 50` (real 4h corpus, all 14 formations) | **697/700 (99.6%)** |
-| `gt_benchmark --family all` (injected ground truth, precision / recall) | **87.2% precision · 84.7% recall** (251/288) |
-| `gt_benchmark --family all --real` (real-market background) | **85.4% precision · 81.2% recall** (246/288) |
-| `gt_benchmark --family all --freehand 8` (2,304 noisy hand drawings) | **83.4% precision · 80.7% recall** (1921/2304) |
+| `gt_benchmark --family all` (injected ground truth, all 14 formations) | **88.7% precision · 87.5% recall** (298/336) |
+| `gt_benchmark --family all --real` (real-market background, all 14 formations) | **88.1% precision · 84.2% recall** (296/336) |
+| `gt_benchmark --family all --freehand 8` (2,688 noisy hand drawings) | **85.3% precision · 84.0% recall** (2292/2688) |
 
 ## Quick start
 

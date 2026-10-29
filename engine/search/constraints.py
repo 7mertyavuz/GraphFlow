@@ -869,6 +869,27 @@ def pole_body_mask(query: np.ndarray, vectors: np.ndarray) -> np.ndarray | None:
     return m_start | m_core
 
 
+def _quad_r2(W: np.ndarray, side: int) -> tuple[np.ndarray, np.ndarray]:
+    """Birim-ortogonal Legendre tabanında 2. derece polinom (parabol) R² ve eğrilik (K-24).
+
+    Ayna (``W[:, ::-1]``) ve dikey çevirme (``-W, -side``) dönüşümleri altında
+    birebir değişmezdir; aday listesi üzerinde iki matris-vektör çarpımıyla
+    hesaplanır.
+    """
+    W = np.atleast_2d(np.asarray(W, dtype=np.float64))
+    k = W.shape[1]
+    u = np.linspace(-1.0, 1.0, k)
+    u1 = u / np.linalg.norm(u)
+    u2 = u * u - float(np.mean(u * u))
+    u2 = u2 / np.linalg.norm(u2)
+    Wc = W - np.mean(W, axis=1, keepdims=True)
+    ss_tot = np.maximum(1e-12, np.sum(Wc * Wc, axis=1))
+    c1 = Wc @ u1
+    c2 = -side * (Wc @ u2)
+    r2 = np.where(c2 > 0.0, (c1 * c1 + c2 * c2) / ss_tot, 0.0)
+    return r2, c2
+
+
 def structural_alignment_penalty(
     query: np.ndarray,
     vectors: np.ndarray,
@@ -876,7 +897,7 @@ def structural_alignment_penalty(
     apply_envelope: bool = False,
     apply_regime: bool = False,
 ) -> np.ndarray:
-    """Sorgu ile adaylar arasındaki sürekli yapısal/zarf sapma cezası (K-23).
+    """Sorgu ile adaylar arasındaki sürekli yapısal/zarf/eğrilik sapma cezası (K-23, K-24).
 
     Yüzdelik dilim birimi cinsinden küçük pozitif cezalar üretir; Post-NMS
     öncesinde ``percentile`` alanına eklenerek aynı kademedeki adaylar
@@ -887,7 +908,8 @@ def structural_alignment_penalty(
     q = np.asarray(query, dtype=np.float64)
     V = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
     m, n = V.shape
-    pen = np.zeros(m, dtype=np.float64)
+    unwarped_dist = 1.0 - (V @ q) / float(n)
+    pen = 0.005 * np.clip(unwarped_dist, 0.0, 2.0)
 
     if apply_regime:
         pb = pole_body_signature(q, strict=True)
@@ -915,12 +937,25 @@ def structural_alignment_penalty(
             half = n // 2
             span_l = np.ptp(V[:, :half], axis=1)
             span_r = np.ptp(V[:, half:], axis=1)
+            u = np.linspace(-1.0, 1.0, n)
+            u_norm = u / np.sqrt(np.sum(u * u))
+            q_resid = q - float(np.mean(q)) - float(np.dot(q, u_norm)) * u_norm
+            v_mean = np.mean(V, axis=1, keepdims=True)
+            v_resid = (V - v_mean) - ((V @ u_norm)[:, None] * u_norm[None, :])
+            r_l_q = float(np.std(q_resid[:half]))
+            r_r_q = float(np.std(q_resid[half:]))
+            r_l_v = np.std(v_resid[:, :half], axis=1)
+            r_r_v = np.std(v_resid[:, half:], axis=1)
             if q_env[2] > 0:
                 nar = span_r / np.maximum(1e-9, span_l)
                 pen += np.where(nar > 0.90, 0.005, 0.0)
+                r_nar = r_r_v / np.maximum(1e-9, r_l_v)
+                pen += np.where((r_nar > 0.72) | (r_l_v < 0.78 * r_l_q), 0.004, 0.0)
             elif q_env[2] < 0:
                 nar = span_l / np.maximum(1e-9, span_r)
                 pen += np.where(nar > 0.90, 0.005, 0.0)
+                r_nar = r_l_v / np.maximum(1e-9, r_r_v)
+                pen += np.where((r_nar > 0.72) | (r_r_v < 0.78 * r_r_q), 0.004, 0.0)
 
     if apply_structure:
         q_sig = structural_signature(q)
@@ -930,20 +965,26 @@ def structural_alignment_penalty(
             c_opp_batch = side_signature_batch(V, -side)
             c_opp_count = np.where(c_opp_batch[:, 0] < 0, 0, c_opp_batch[:, 0])
             q_opp_count = 0 if opp_sig is None else int(opp_sig[0])
-            pen += np.where(c_opp_count != q_opp_count, 0.004, 0.0)
+            pen += np.where(c_opp_count != q_opp_count, 0.003, 0.0)
             if q_opp_count == 0:
                 if abs(float(q[0] - q[-1])) <= 0.30:
                     pen += np.where(
                         np.abs(V[:, 0] - V[:, -1]) > STRUCTURE_EQUAL_TOL, 0.004, 0.0
                     )
-                u = np.linspace(-1.0, 1.0, n)
-                u2 = u * u - float(np.mean(u * u))
-                denom_u2 = float(np.sum(u2 * u2))
-                curv_q = -side * 2.0 * float(np.dot(q, u2) / denom_u2)
-                if curv_q >= 1.2:
-                    curv_v = -side * 2.0 * ((V @ u2) / denom_u2)
-                    pen += np.where(curv_v < 0.70, 0.004, 0.0)
+                r2_q, _ = _quad_r2(q[None, :], side)
+                if float(r2_q[0]) >= 0.90:
+                    r2_v, c2_v = _quad_r2(V, side)
+                    pen += 0.012 * np.clip(float(r2_q[0]) - r2_v, 0.0, 1.0)
+                    pen += np.where(c2_v < 1.2, 0.004, 0.0)
             elif q_opp_count == 1 and int(q_sig[1]) == 2 and not bool(q_sig[3]):
+                cup_len = int(round(0.75 * n))
+                q_cup = q[:cup_len] if int(q_sig[2]) == 0 else q[n - cup_len :]
+                v_cup = V[:, :cup_len] if int(q_sig[2]) == 0 else V[:, n - cup_len :]
+                r2_q, _ = _quad_r2(q_cup[None, :], side)
+                if float(r2_q[0]) >= 0.90:
+                    r2_v, _ = _quad_r2(v_cup, side)
+                    pen += 0.025 * np.clip(float(r2_q[0]) - r2_v, 0.0, 1.0)
+                    pen += np.where(r2_v < 0.90, 0.004, 0.0)
                 peaks_q, troughs_q = prominent_extrema(q, STRUCTURE_PROMINENCE)
                 opp_idx = (troughs_q if side > 0 else peaks_q)[0]
                 outer_q = float(q[0]) if int(q_sig[2]) == 0 else float(q[-1])
@@ -954,9 +995,13 @@ def structural_alignment_penalty(
                         opp_mask, V if side < 0 else -V, -np.inf
                     ).max(axis=1)
                     c_opp_val = signed_opp if side < 0 else -signed_opp
-                    c_outer = V[:, 0] if int(q_sig[2]) == 0 else V[:, -1]
+                    c_outer = (
+                        (np.max(V[:, :4], axis=1) if side < 0 else np.min(V[:, :4], axis=1))
+                        if int(q_sig[2]) == 0
+                        else (np.max(V[:, -4:], axis=1) if side < 0 else np.min(V[:, -4:], axis=1))
+                    )
                     pen += np.where(
-                        np.abs(c_outer - c_opp_val) > STRUCTURE_EQUAL_TOL, 0.004, 0.0
+                        np.abs(c_outer - c_opp_val) > 0.45, 0.0015, 0.0
                     )
 
     return pen
