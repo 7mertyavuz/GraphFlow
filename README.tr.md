@@ -99,6 +99,12 @@ GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000
 cd frontend && npm install && npm run dev   # arayüz → http://localhost:3000
 ```
 
+Veya Docker ile (`./data/matrix` boşsa demo korpusunu otomatik üretir):
+
+```bash
+docker compose up --build                   # API → :8000, arayüz → :3000
+```
+
 ### Seçenek B — Tam Binance tarihsel korpusu (11,6M pencere)
 
 ```bash
@@ -125,10 +131,10 @@ Hızlıca gerçek bir alt kümeyle denemek için indirme adımına `--limit-symb
 
 Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle değiştirilir (ilk ziyarette tarayıcı dilini izler).
 
-1. **Çiz** sekmesinde kanvasa **Serbest** ya da noktadan noktaya **Kırık Çizgi** modunda (canlı tepe/dip ve üst/alt trend çizgisi önizlemesiyle) bir şekil çizin, ya da **Kütüphane**'den bir formasyon seçin, ya da **Grafik** sekmesinde bir sembol, parça uzunluğu ve (Backtest'te) bitiş tarihi seçin. Ayrıca herhangi bir sonuç kartındaki **Benzeri** düğmesine tıklayarak o eşleşen pencereyi bir sonraki aramanızın sorgusu yapabilir veya büyütme düğmesiyle etkileşimli büyük mum grafiğini inceleyebilirsiniz.
+1. **Çiz** sekmesinde kanvasa **Serbest**, noktadan noktaya **Kırık Çizgi** ya da **Yumuşak Eğri (Catmull-Rom Spline)** modunda (canlı tepe/dip, üst/alt trend çizgisi veya Legendre parabolik çanak önizlemesi ve kararlılık rozetiyle) bir şekil çizin, ya da **Kütüphane**'den bir formasyon seçin, ya da **Grafik** sekmesinde bir sembol, parça uzunluğu ve (Backtest'te) bitiş tarihi seçin. Ayrıca herhangi bir sonuç kartındaki **Benzeri** düğmesine tıklayarak o eşleşen pencereyi bir sonraki aramanızın sorgusu yapabilir veya büyütme düğmesiyle etkileşimli büyük mum grafiğini (Backtest'te Triple-Barrier Giriş $C_0$, TP, SL ve Çıkış yörüngesi çizgileriyle) inceleyebilirsiniz.
 2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının sürekli `p01`-çapalı bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
-4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, zaman-eşleştirmeli **Edge**'i ve ön-getiriye göre eşleştirilmiş **Momentumdan Arındırılmış Edge**'i (getiri-eşleştirmeli gölge baseline) ay-bloklu bootstrap güven aralıklarıyla gösterir. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) gölge örneklemin fanıyla aynı eksende gösterir. Her eşleşme kartı da seçili konfigürasyon ve yönde **o olayın kendi sonucunu** gösterir (hedef / stop / zaman aşımı, R, çıkış barı) — ya da neden *sayılmadığını*. Başlıktaki beklenti, sayılan kartların tam ortalamasıdır.
+4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, zaman-eşleştirmeli **Edge**'i ve ön-getiriye göre eşleştirilmiş **Momentumdan Arındırılmış Edge**'i (getiri-eşleştirmeli gölge baseline) ay-bloklu bootstrap güven aralıklarıyla gösterir. Birincil **Baz**'ı (`Piyasa (Zaman)` vs `Momentum (F4.6)`) değiştirebilir ve olayları nedensel (yalnız $t_0$'a bakan, sıfır lookahead) **Koşul** filtreleriyle (`Tümü`, `Yüksek Volatilite`, `Sıkışma (Düşük Vol.)`, `Güçlü Kırılım Mumu`) dilimleyebilirsiniz. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) gölge örneklemin fanıyla aynı eksende gösterir. Her eşleşme kartı da seçili konfigürasyon ve yönde **o olayın kendi sonucunu** gösterir (hedef / stop / zaman aşımı, R, çıkış barı) — ya da neden *sayılmadığını*. Başlıktaki beklenti, sayılan kartların tam ortalamasıdır.
 5. **Bulgular** sayfası her testi, her hücrenin kaç bağımsız null çekilişinde ayakta kaldığını (yalnız bazı çekilişlerde anlamlı olan hücre bulgu değil zar atışı olarak işaretlenir), her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
 
 ## Motoru kendiniz doğrulayın
@@ -171,7 +177,7 @@ docs/          tasarım kararları ve ölçüm raporları
 
 [docs/README.md](docs/README.md) tüm belgelerin dizinidir.
 
-- [Tasarım kararları](docs/00-tasarim-kararlari.md) — 24 mimari karar; her biri reddedilen alternatifleri ve gerekçesiyle
+- [Tasarım kararları](docs/00-tasarim-kararlari.md) — 25 mimari karar (`K-01 … K-25`); her biri reddedilen alternatifleri ve gerekçesiyle
 - [Mimari](docs/01-mimari.md) — veri katmanı, algoritmalar, API, performans bütçesi
 - Ölçüm raporları — doğrulama, sonuç istatistikleri, vekil testi, zaman dilimi replikasyonu, formasyon denetimi
 

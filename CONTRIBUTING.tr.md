@@ -6,7 +6,7 @@
 
 ## Bir tasarım kararını değiştirmeden önce
 
-Mimari kararlar [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) içinde `K-01 … K-24` olarak, değerlendirilip reddedilen alternatifleriyle birlikte kayıtlıdır. Bir kararın değişmesi gerektiğini düşünüyorsanız önce ilgili bölümü okuyun — aklınızdaki alternatif büyük ihtimalle zaten değerlendirilmiştir. Yine de değişmesi gerekiyorsa bir ölçümle issue açın.
+Mimari kararlar [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) içinde `K-01 … K-25` olarak, değerlendirilip reddedilen alternatifleriyle birlikte kayıtlıdır. Bir kararın değişmesi gerektiğini düşünüyorsanız önce ilgili bölümü okuyun — aklınızdaki alternatif büyük ihtimalle zaten değerlendirilmiştir. Yine de değişmesi gerekiyorsa bir ölçümle issue açın.
 
 ## Bilinçli olarak reddedilenler — lütfen geri getirmeyin
 
@@ -16,7 +16,7 @@ Bunlar eksik özellik değil, gerekçesiyle verilmiş kararlardır.
 - **Formasyon başına `if-else` kural motoru.** Her formasyon aynı boru hattından geçen 32 noktalık kanonik vektördür (K-04). Yapısal ve trend çizgisi filtreleri kuralı *sorgudan* türetir, formasyona özel koddan asla.
 - **Kararlılık kapılarını kaldırmak.** Yapısal filtre yalnız sorgunun tepe/dip okuması kararlıyken (K-20), trend çizgisi filtresi yalnız eğim okuması kararlıyken (K-21) çalışır. Kapılar olmadan ground truth doğruluğu %70'ten %59'a düşer; kapısız bir trend çizgisi filtresi omuz-baş-omuz sorgularında yazı-tura atar (kararlılık %41).
 - **İki filtreyi üst üste uygulamak.** Trend çizgisi filtresi devredeyken yapısal filtre çekilir: bir takoz çizgilerine iki *ya da* üç kez dokunur ve kesin bir tepe sayısı istemek gerçek düşen takozların üçte birini eliyordu (duyarlılık %67 vs %96).
-- **Alt-stride hizalama ince ayarı** (K-19) ve **merkezi fark türevi** (K-11 eki) — ikisi de yazıldı, ölçüldü, bağlanmadı. Hiçbiri doğruluğu artırmadı.
+- **Alt-stride hizalama ince ayarı** (K-19), **merkezi fark türevi** (K-11 eki) ve **parçalı ekstremum koruyucu yeniden örnekleme** (K-25) — üçü de yazıldı, ölçüldü, bağlanmadı. Hiçbiri düzgün yeniden örnekleme + Aşama 2 DTW üzerinde ground-truth doğruluğunu artırmadı.
 - **Yeniden kalibre etmeden Aşama 2 metriğini değiştirmek.** Eşikler metrik başınadır (`TOLERANCE_THRESHOLDS_BY_METRIC`); yanlış eşiklerle metrik değiştirmek sonuçları sessizce boşaltır.
 - **Tek geçişli NMS.** Pre-NMS (IoU 0,70) ve post-NMS (IoU 0,50, sembol başına en çok 3) ayrı ayrı zorunludur (K-09).
 - **Sabit yüzde bariyerler** (ör. %5 TP / %3 SL). Bariyerler ATR tabanlıdır; sabit yüzde formasyonu değil oynaklığı ölçer (K-16).

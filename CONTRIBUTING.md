@@ -6,7 +6,7 @@ Thanks for your interest. GraphFlow's value is not the search engine alone — i
 
 ## Before changing a design decision
 
-Architectural decisions are recorded in [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) as `K-01 … K-24`, each with the alternatives that were considered and rejected. If you think a decision should change, read its section first — the alternative you have in mind was very likely evaluated already. If it still should change, open an issue with a measurement.
+Architectural decisions are recorded in [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) as `K-01 … K-25`, each with the alternatives that were considered and rejected. If you think a decision should change, read its section first — the alternative you have in mind was very likely evaluated already. If it still should change, open an issue with a measurement.
 
 ## Deliberately rejected — please don't reintroduce
 
@@ -16,7 +16,7 @@ These are not missing features; they were chosen against, with reasons.
 - **An `if-else` rule engine per formation.** Every formation is a 32-point canonical vector through the same pipeline (K-04). The structural and trend-line filters derive their rule *from the query*, never from per-formation code.
 - **Removing the stability gates.** The structural filter runs only when the query's peak/trough reading is stable (K-20), the trend-line filter only when its slope reading is stable (K-21). Without the gates, ground-truth accuracy drops from 70% to 59%; an ungated trend-line filter would gamble on head-and-shoulders queries (stability 41%).
 - **Stacking the two filters.** When the trend-line filter applies, the structural filter steps aside: a wedge touches its lines two *or* three times, and demanding an exact peak count removed a third of real falling wedges (recall 67% vs 96%).
-- **Sub-stride alignment refinement** (K-19) and **the central-difference derivative** (K-11 addendum) — both implemented, measured, and not connected. Neither improved accuracy.
+- **Sub-stride alignment refinement** (K-19), **the central-difference derivative** (K-11 addendum), and **piecewise extrema-preserving resampling** (K-25) — all three implemented, measured, and not connected. None improved ground-truth accuracy over uniform resampling + Stage 2 DTW.
 - **Changing the Stage 2 metric without re-calibrating.** Thresholds are per metric (`TOLERANCE_THRESHOLDS_BY_METRIC`); switching metrics with the wrong thresholds silently empties the results.
 - **Single-pass NMS.** Pre-NMS (IoU 0.70) and post-NMS (IoU 0.50, max 3 per symbol) are both required (K-09).
 - **Fixed-percentage barriers** (e.g. 5% TP / 3% SL). Barriers are ATR-based; fixed percentages measure volatility, not the pattern (K-16).

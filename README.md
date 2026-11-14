@@ -99,6 +99,12 @@ GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000
 cd frontend && npm install && npm run dev   # UI → http://localhost:3000
 ```
 
+Or with Docker (automatically generates the demo corpus if `./data/matrix` is empty):
+
+```bash
+docker compose up --build                   # API → :8000, UI → :3000
+```
+
 ### Option B — Full Binance historical corpus (11.6M windows)
 
 ```bash
@@ -125,10 +131,10 @@ To try it quickly on a real subset, add `--limit-symbols 50` to the download ste
 
 The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
 
-1. **Draw** a shape on the canvas in **Freehand** or point-to-point **Polyline** mode (with a live preview of detected peaks, troughs, and upper/lower trendlines), or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. You can also click **Similar** on any result card to use that matched window as your next query, or click the expand icon to inspect the full interactive candlestick chart.
+1. **Draw** a shape on the canvas in **Freehand**, point-to-point **Polyline**, or **Smooth Curve (Catmull-Rom Spline)** mode (with a live preview of detected peaks/troughs, upper/lower trendlines, or Legendre parabolic bowl fit + stability badge), or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. You can also click **Similar** on any result card to use that matched window as your next query, or click the expand icon to inspect the full interactive candlestick chart (with Triple-Barrier Entry $C_0$, TP, SL, and Exit trajectory overlays in Backtest).
 2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a continuous `p01`-anchored percentile of the query's own null distribution, not a fake "% similarity".
 3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
-4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the time-matched **Edge** and the momentum-controlled **Momentum-Adjusted Edge** (return-matched shadow baseline) with month-block bootstrap confidence intervals. Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted*. The headline number is exactly the mean of the counted cards.
+4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the time-matched **Edge** and the momentum-controlled **Momentum-Adjusted Edge** (return-matched shadow baseline) with month-block bootstrap confidence intervals. You can toggle the primary **Baseline** (`Market (Time)` vs `Momentum (F4.6)`) and slice events by causal ($t_0$-only, zero lookahead) **Condition** filters (`All`, `High Volatility`, `Low Vol. Squeeze`, `Strong Breakout Bar`). Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted*. The headline number is exactly the mean of the counted cards.
 5. The **Findings** page lists every test, how many independent null draws each cell survives (a cell significant in only some draws is flagged as a dice roll, not a finding), the stage where each finding was eliminated, and which engine version produced the numbers.
 
 ## Verifying the engine yourself
@@ -171,7 +177,7 @@ docs/          design decisions and measurement reports
 
 The design record and the measurement reports are written in **Turkish**; see [docs/README.md](docs/README.md) for an English index.
 
-- [Design decisions](docs/00-tasarim-kararlari.md) — 24 architectural decisions, each with the alternatives that were rejected and why
+- [Design decisions](docs/00-tasarim-kararlari.md) — 25 architectural decisions (`K-01 … K-25`), each with the alternatives that were rejected and why
 - [Architecture](docs/01-mimari.md) — data layer, algorithms, API, performance budget
 - Measurement reports — validation, outcome statistics, proxy test, timeframe replication, formation audit
 
