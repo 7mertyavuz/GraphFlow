@@ -335,7 +335,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "counted" | "overlap" | "cost_floor" | "listing" | "no_data" | "no_forward";
+            status: "counted" | "overlap" | "cost_floor" | "listing" | "no_data" | "no_forward" | "condition";
             /** Outcomes */
             outcomes?: {
                 [key: string]: components["schemas"]["LedgerOutcome"];
@@ -822,6 +822,8 @@ export interface operations {
         parameters: {
             query?: {
                 direction?: string;
+                baseline?: string;
+                condition?: string;
             };
             header?: {
                 "x-session-id"?: string | null;

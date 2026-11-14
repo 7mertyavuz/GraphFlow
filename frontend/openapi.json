@@ -216,6 +216,28 @@
             }
           },
           {
+            "name": "baseline",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(standard|return_matched)$",
+              "default": "standard",
+              "title": "Baseline"
+            }
+          },
+          {
+            "name": "condition",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|high_vol|low_vol|strong_breakout)$",
+              "default": "all",
+              "title": "Condition"
+            }
+          },
+          {
             "name": "x-session-id",
             "in": "header",
             "required": false,
@@ -1000,7 +1022,8 @@
               "cost_floor",
               "listing",
               "no_data",
-              "no_forward"
+              "no_forward",
+              "condition"
             ],
             "title": "Status"
           },

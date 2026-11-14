@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphflow"
+version = "0.2.0"
+description = "A visual search engine for chart patterns — draw a shape, find where the market drew it, and see honestly what happened next."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [
+  { name = "Mert Yavuz" },
+]
+keywords = [
+  "time-series",
+  "dynamic-time-warping",
+  "chart-patterns",
+  "financial-econometrics",
+  "triple-barrier",
+  "visual-query",
+]
+dependencies = [
+  "numpy>=2.0,<3",
+  "pandas>=2.2,<4",
+  "pyarrow>=17.0",
+  "requests>=2.32,<3",
+  "fastapi>=0.115,<1",
+  "pydantic>=2.9,<3",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0,<10",
+  "httpx>=0.27,<1",
+  "ruff>=0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["engine*", "tools*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
