@@ -62,6 +62,7 @@ from engine.config import (
     SOURCE_MIN_BARS,
     TIMEFRAME_MS,
     WARP_PATH_TOP_N,
+    WICK_RERANK,
     WINDOW_LENGTHS,
 )
 from engine.normalize.pipeline import normalize_drawing
@@ -70,7 +71,7 @@ from engine.outcome.metrics import OutcomeStats
 from engine.outcome.pipeline import TemplateOutcome, load_shadow_pools, run_events
 from engine.outcome.shadow import ShadowPool
 from engine.outcome.triple_barrier import EVENT_DTYPE
-from engine.search.engine import SearchEngine
+from engine.search.engine import Match, SearchEngine
 from engine.search.refine import refine_matches
 from engine.search.source import ChartWindow, SourceError, chart_window
 from engine.templates.loader import load_all as load_all_templates
@@ -453,6 +454,39 @@ def match_payload(match, timeframe: str, warp_path: list[list[int]] | None) -> d
     return data
 
 
+def _rerank_by_wick_cleanliness(matches: list[Match], timeframe: str) -> list[Match]:
+    """İlk sayfalar (WARP_PATH_TOP_N) içindeki eşleşmeleri OHLC iğne temizliğine göre sıralar.
+
+    İstatistik havuzuna giren olay kümesini ve yüzdelik değerlerini DEĞİŞTİRMEZ (K-09);
+    yalnız aşırı fitilli pencere adaylarını görsel açıdan daha temiz komşularının arkasına alır.
+    """
+    head_n = min(len(matches), WARP_PATH_TOP_N)
+    if head_n <= 1:
+        return matches
+
+    store = get_store(timeframe)
+    scored: list[tuple[float, int, Match]] = []
+    for i, m in enumerate(matches[:head_n]):
+        sid = int(m.symbol_id)
+        wick_pen = 0.0
+        if store.has(sid):
+            off = int(store.offset[sid])
+            s_idx = max(0, int(m.start_idx))
+            e_idx = min(int(store.n_bars[sid]) - 1, int(m.end_idx))
+            if e_idx > s_idx:
+                hi = store.high[off + s_idx : off + e_idx + 1]
+                lo = store.low[off + s_idx : off + e_idx + 1]
+                cl = store.close[off + s_idx : off + e_idx + 1]
+                c_rng = float(np.max(cl) - np.min(cl))
+                hl_rng = float(np.max(hi) - np.min(lo))
+                ratio = hl_rng / max(1e-12, c_rng)
+                wick_pen = 0.0025 * max(0.0, ratio - 1.40)
+        scored.append((float(m.percentile) + wick_pen, i, m))
+
+    scored.sort(key=lambda item: (item[0], item[1]))
+    return [item[2] for item in scored] + matches[head_n:]
+
+
 def query_fingerprint(request: SearchRequest, query_vector: np.ndarray, window_lengths: list[int]) -> str:
     """Sorgunun kimliği — Bonferroni ailesi bunu sayar, isteği değil.
 
@@ -604,6 +638,13 @@ async def create_search(
             result.results = head + result.results[REFINE_TOP_N:]
         except Exception:  # ince ayar aramayı düşürmemeli
             log.warning("ince ayar atlandı", exc_info=True)
+
+    # Gösterim sıralaması: ilk N eşleşmeyi iğne (wick) temizliğine göre iyileştir.
+    if WICK_RERANK and result.results and isinstance(result.results[0], Match):
+        try:
+            result.results = _rerank_by_wick_cleanliness(result.results, request.timeframe)
+        except Exception:
+            log.warning("iğne temizliği sıralaması atlandı", exc_info=True)
 
     # Hizalama yolu yalnızca ilk sayfalar için: aday başına O(32²) Python.
     warp_paths = engine.compute_warp_paths(result.results[:WARP_PATH_TOP_N], query_vector)

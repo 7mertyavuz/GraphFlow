@@ -43,6 +43,7 @@ export const tr = {
     leadEnd: "güven aralıklarıyla raporlar.",
     radarCta: "Canlı radar",
     backtestCta: "Tarihsel analiz",
+    searchCta: "11,6M Grafikte Ara",
     shapes: ["Omuz-Baş-Omuz", "Çift dip", "Fincan-kulp", "Yükselen takoz"],
     steps: [
       {
@@ -51,7 +52,7 @@ export const tr = {
       },
       {
         title: "Motor ölçer",
-        body: "Kosinüs ön elemesi, ardından DDTW + ham DTW karması. Eşik, sorgunun kendi null dağılımından türetilir; motor 'eşleşme yok' diyebilir.",
+        body: "Kosinüs ön elemesi, DDTW + ham DTW karması ve Qetch-PIP algısal kritik nokta hizalaması. Eşik, sorgunun kendi null dağılımından türetilir.",
       },
       {
         title: "Sonrası raporlanır",
@@ -105,6 +106,8 @@ export const tr = {
     flexibleHint: "Daha fazla, daha gevşek eşleşme",
     minAmplitude: "Min. genlik",
     minAmplitudeHint: "Pencere içindeki toplam hareket. Düşük genlikli gürültüyü eler.",
+    windowLengths: "Pencere boyları (bar)",
+    windowLengthsHint: "Ölçekten bağımsız tarama için tümünü seçili bırakın veya belirli bar sürelerine daraltın.",
     scanning: "Taranıyor…",
     drawToSearch: "Aramak için bir şekil çizin.",
     pickToSearch: "Aramak için kütüphaneden bir formasyon seçin.",
@@ -141,6 +144,16 @@ export const tr = {
     modePolyline: "Kırık Çizgi",
     modeSpline: "Yumuşak Eğri",
     undoVertex: "Geri al",
+    presetsLabel: "Hızlı taslak:",
+    presetEditHint: "Tutamaçları sürükleyin · sağ/çift tık siler",
+    presets: {
+      w: "W Dip",
+      m: "M Tepe",
+      hs: "OBO",
+      cup: "Fincan",
+      tri: "Üçgen",
+      flag: "Bayrak",
+    },
     livePreview: "Canlı yapı önizlemesi:",
     waiting: "Çizim bekleniyor",
     points: (n: number) => `${n} nokta`,
@@ -178,6 +191,13 @@ export const tr = {
     noneBody:
       "Motor 'eşleşme yok' diyebilir — bu bir hata değil, kalibre edilmiş bir cevaptır. Toleransı esnetin, min. genliği düşürün veya daha belirgin bir formasyon deneyin.",
     more: "Daha fazla göster",
+    fitPattern: "Desene odakla",
+    fullContext: "Tam bağlam",
+    toggleOverlay: "Çizim",
+    toggleWarp: "DTW",
+    searchHistoryCta: "11,6M Tarihsel Grafikte Ara",
+    radarScarceHint:
+      "Canlı Radarda yalnızca son kapanmış pencere taranır (sembol başına 1 pencere). Çiziminizin tüm piyasa geçmişindeki en yakın ikizlerini görmek için:",
   },
   card: {
     percentileTitle: "Sorgunun null dağılımındaki yüzdelik dilim",
@@ -418,6 +438,7 @@ export const en: Messages = {
     leadEnd: "— with confidence intervals.",
     radarCta: "Live radar",
     backtestCta: "Historical analysis",
+    searchCta: "Search 11.6M Charts",
     shapes: ["Head and shoulders", "Double bottom", "Cup and handle", "Rising wedge"],
     steps: [
       {
@@ -426,7 +447,7 @@ export const en: Messages = {
       },
       {
         title: "The engine measures",
-        body: "A cosine pre-filter, then a blend of derivative and raw DTW. The threshold comes from the query's own null distribution, so the engine can say 'no match'.",
+        body: "Cosine pre-filter, hybrid derivative + raw DTW, and Qetch-PIP perceptual keypoint alignment. The threshold comes from the query's own null distribution.",
       },
       {
         title: "What came after is reported",
@@ -480,6 +501,8 @@ export const en: Messages = {
     flexibleHint: "More, looser matches",
     minAmplitude: "Min. amplitude",
     minAmplitudeHint: "Total movement within the window. Filters out low-amplitude noise.",
+    windowLengths: "Window lengths (bars)",
+    windowLengthsHint: "Keep all selected for scale-free matching across durations, or narrow to specific bar spans.",
     scanning: "Scanning…",
     drawToSearch: "Draw a shape to search.",
     pickToSearch: "Pick a pattern from the library to search.",
@@ -516,6 +539,16 @@ export const en: Messages = {
     modePolyline: "Polyline",
     modeSpline: "Smooth Curve",
     undoVertex: "Undo",
+    presetsLabel: "Starter:",
+    presetEditHint: "Drag handles · right/double-click removes",
+    presets: {
+      w: "W Bottom",
+      m: "M Top",
+      hs: "H&S",
+      cup: "Cup",
+      tri: "Triangle",
+      flag: "Flag",
+    },
     livePreview: "Live structural preview:",
     waiting: "Waiting for a drawing",
     points: (n: number) => `${n} points`,
@@ -553,6 +586,13 @@ export const en: Messages = {
     noneBody:
       "The engine can say 'no match' — that is not an error, it is a calibrated answer. Loosen the tolerance, lower the minimum amplitude or try a more distinct pattern.",
     more: "Show more",
+    fitPattern: "Fit pattern",
+    fullContext: "Full context",
+    toggleOverlay: "Overlay",
+    toggleWarp: "DTW",
+    searchHistoryCta: "Search 11.6M Historical Charts",
+    radarScarceHint:
+      "Live Radar only scans the latest closed candle per coin (1 window per symbol). Move your exact sketch into the 11.6M-window archive to see all matching charts and post-pattern outcomes:",
   },
   card: {
     percentileTitle: "Percentile within the query's null distribution",

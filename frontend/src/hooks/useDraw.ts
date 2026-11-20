@@ -72,20 +72,26 @@ function densifyVertices(
   return out;
 }
 
+const VERTEX_HIT_RADIUS = 0.04;
+
 export function useDraw() {
   const [points, setPoints] = useState<Point[]>([]);
   const [vertices, setVertices] = useState<Point[]>([]);
   const [drawMode, setDrawModeState] = useState<DrawMode>("freehand");
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
+  const [hoveredVertexIndex, setHoveredVertexIndex] = useState<number | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
   const buffer = useRef<Point[]>([]);
   const pointerId = useRef<number | null>(null);
   const frame = useRef<number | null>(null);
+  const draggingVertexIndex = useRef<number | null>(null);
 
   const setDrawMode = useCallback((nextMode: DrawMode) => {
     setDrawModeState(nextMode);
     setHoverPoint(null);
+    setHoveredVertexIndex(null);
+    draggingVertexIndex.current = null;
     if (nextMode === "polyline" || nextMode === "spline") {
       setVertices((prev) => {
         if (prev.length >= 2) {
@@ -157,23 +163,42 @@ export function useDraw() {
     };
   }, []);
 
+  const findHitVertex = useCallback(
+    (pt: Point, list: Point[]): number | null => {
+      let bestIdx: number | null = null;
+      let bestDist = VERTEX_HIT_RADIUS;
+      for (let i = 0; i < list.length; i++) {
+        const d = Math.hypot(list[i].x - pt.x, list[i].y - pt.y);
+        if (d <= bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    },
+    []
+  );
+
   const start = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       // Yalnız birincil işaretçi: ikinci parmak ya da sağ tık, sürmekte olan
       // darbeyi silmemeli.
       if (!event.isPrimary || (event.pointerType === "mouse" && event.button !== 0)) return;
 
-      // Devralma bilinçli: pointerup kaybolmuş bir darbe (sistem hareketi,
-      // sekme değişimi) yüzünden panel kalıcı olarak kilitlenmemeli.
       const rect = event.currentTarget.getBoundingClientRect();
-      // Kap henüz ölçülmediyse (gizli sekme, açılmakta olan panel) darbeyi
-      // hiç başlatma: sıfır genişlikte tüm noktalar aynı x'e düşer ve
-      // y = f(x) sözleşmesi darbeyi tek noktaya indirger. Çöp bir sorgu
-      // göndermektense hiç göndermemek doğrudur.
       if (!measurable(rect)) return;
       const pt = toLocal(event.clientX, event.clientY, rect);
 
       if (drawMode === "polyline" || drawMode === "spline") {
+        const hit = findHitVertex(pt, vertices);
+        if (hit !== null) {
+          draggingVertexIndex.current = hit;
+          pointerId.current = event.pointerId;
+          setHoveredVertexIndex(hit);
+          setIsDrawing(true);
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          return;
+        }
         setVertices((prev) => {
           const filtered = prev.filter((v) => v.x < pt.x - MIN_STEP);
           const next = [...filtered, pt];
@@ -190,20 +215,43 @@ export function useDraw() {
       // Yeni bir çizim eskisini siler: iki ayrı formasyon tek sorgu olamaz.
       setVertices([]);
       setHoverPoint(null);
+      setHoveredVertexIndex(null);
       buffer.current = [pt];
       setPoints(buffer.current.slice());
       setIsDrawing(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
-    [drawMode, toLocal]
+    [drawMode, findHitVertex, toLocal, vertices]
   );
 
   const move = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       const rect = event.currentTarget.getBoundingClientRect();
+      if ((drawMode === "polyline" || drawMode === "spline") && draggingVertexIndex.current !== null) {
+        if (pointerId.current !== event.pointerId || !measurable(rect)) return;
+        const pt = toLocal(event.clientX, event.clientY, rect);
+        const dragIdx = draggingVertexIndex.current;
+        setVertices((prev) => {
+          if (dragIdx < 0 || dragIdx >= prev.length) return prev;
+          const minX = dragIdx > 0 ? prev[dragIdx - 1].x + MIN_STEP * 2 : 0;
+          const maxX = dragIdx < prev.length - 1 ? prev[dragIdx + 1].x - MIN_STEP * 2 : 1;
+          const clampedX = Math.min(maxX, Math.max(minX, pt.x));
+          const clampedY = Math.min(1, Math.max(0, pt.y));
+          const next = prev.map((v, i) => (i === dragIdx ? { x: clampedX, y: clampedY } : v));
+          const dense = densifyVertices(next, drawMode);
+          buffer.current = dense;
+          setPoints(dense);
+          return next;
+        });
+        return;
+      }
+
       if ((drawMode === "polyline" || drawMode === "spline") && pointerId.current === null) {
         if (measurable(rect)) {
-          setHoverPoint(toLocal(event.clientX, event.clientY, rect));
+          const pt = toLocal(event.clientX, event.clientY, rect);
+          const hit = findHitVertex(pt, vertices);
+          setHoveredVertexIndex(hit);
+          setHoverPoint(hit !== null ? null : pt);
         }
         return;
       }
@@ -222,17 +270,19 @@ export function useDraw() {
       }
       flush();
     },
-    [drawMode, flush, push, toLocal]
+    [drawMode, findHitVertex, flush, push, toLocal, vertices]
   );
 
   const leave = useCallback(() => {
     setHoverPoint(null);
+    setHoveredVertexIndex(null);
   }, []);
 
   const end = useCallback(
     (event: React.PointerEvent<HTMLElement>) => {
       if (pointerId.current !== event.pointerId) return;
       pointerId.current = null;
+      draggingVertexIndex.current = null;
       setIsDrawing(false);
       cancelFrame();
       setPoints(buffer.current.slice());
@@ -245,12 +295,36 @@ export function useDraw() {
     [cancelFrame]
   );
 
+  const removeVertexAt = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (drawMode !== "polyline" && drawMode !== "spline") return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (!measurable(rect)) return;
+      const pt = toLocal(event.clientX, event.clientY, rect);
+      const hit = findHitVertex(pt, vertices);
+      if (hit === null || vertices.length <= 2) return;
+      event.preventDefault();
+      setVertices((prev) => {
+        if (prev.length <= 2 || hit >= prev.length) return prev;
+        const next = prev.filter((_, idx) => idx !== hit);
+        const dense = densifyVertices(next, drawMode);
+        buffer.current = dense;
+        setPoints(dense);
+        return next;
+      });
+      setHoveredVertexIndex(null);
+    },
+    [drawMode, findHitVertex, toLocal, vertices]
+  );
+
   const reset = useCallback(() => {
     cancelFrame();
     pointerId.current = null;
+    draggingVertexIndex.current = null;
     buffer.current = [];
     setVertices([]);
     setHoverPoint(null);
+    setHoveredVertexIndex(null);
     setPoints([]);
     setIsDrawing(false);
   }, [cancelFrame]);
@@ -265,6 +339,47 @@ export function useDraw() {
       return next;
     });
   }, [drawMode]);
+
+  const loadPreset = useCallback(
+    (verts: Point[], mode: DrawMode = "polyline") => {
+      cancelFrame();
+      pointerId.current = null;
+      draggingVertexIndex.current = null;
+      const clean = verts
+        .map((v) => ({ x: Math.min(1, Math.max(0, v.x)), y: Math.min(1, Math.max(0, v.y)) }))
+        .sort((a, b) => a.x - b.x);
+      setDrawModeState(mode);
+      setHoverPoint(null);
+      setHoveredVertexIndex(null);
+      setVertices(clean);
+      const dense = densifyVertices(clean, mode);
+      buffer.current = dense;
+      setPoints(dense);
+      setIsDrawing(false);
+    },
+    [cancelFrame]
+  );
+
+  const setRawPoints = useCallback(
+    (rawPairs: number[][]) => {
+      if (rawPairs.length < 2) return reset();
+      const mapped = rawPairs.map((pair) => ({
+        x: Math.min(1, Math.max(0, Number(pair[0]) || 0)),
+        y: Math.min(1, Math.max(0, Number(pair[1]) || 0)),
+      }));
+      cancelFrame();
+      pointerId.current = null;
+      draggingVertexIndex.current = null;
+      setDrawModeState("freehand");
+      setVertices([]);
+      setHoverPoint(null);
+      setHoveredVertexIndex(null);
+      buffer.current = mapped;
+      setPoints(mapped);
+      setIsDrawing(false);
+    },
+    [cancelFrame, reset]
+  );
 
   const setSeries = useCallback(
     (values: number[]) => {
@@ -307,9 +422,13 @@ export function useDraw() {
     points,
     vertices,
     hoverPoint,
+    hoveredVertexIndex,
     drawMode,
     setDrawMode,
     undoVertex,
+    removeVertexAt,
+    loadPreset,
+    setRawPoints,
     series,
     queryPoints,
     isDrawing,

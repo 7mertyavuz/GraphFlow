@@ -367,3 +367,25 @@ def test_atr_too_short_series_is_all_nan():
 def test_flat_eps_is_used_not_hardcoded_zero():
     tiny = np.full(32, 100.0) + np.linspace(0, FLAT_EPS / 10, 32)
     assert normalize_window(tiny) is None
+
+
+def test_drawing_smooth_preserves_sharp_peak_under_uneven_speed():
+    """Hızlı çizilen sivri tepe + yavaş çizilen yatay plato x-uzayı Gauss'uyla korunmalı."""
+    x_fast = np.linspace(0.0, 0.30, 12)
+    x_slow = np.linspace(0.305, 1.0, 480)
+    xs = np.concatenate([x_fast, x_slow])
+    ys = np.interp(xs, [0.0, 0.15, 0.30, 1.0], [0.2, 0.95, 0.2, 0.22])
+
+    ref = normalize_drawing(np.column_stack([xs, ys]), invert_y=False, smooth=False)
+    smoothed = normalize_drawing(np.column_stack([xs, ys]), invert_y=False, smooth=True)
+    assert ref is not None and smoothed is not None
+    assert np.corrcoef(smoothed, ref)[0, 1] > 0.99
+
+    # Yüksek frekanslı el titremesini hâlâ sönümlemeli
+    rng = np.random.default_rng(19)
+    noisy_ys = ys + 0.08 * rng.normal(size=xs.size)
+    noisy_pts = np.column_stack([xs, noisy_ys])
+    raw_noisy = normalize_drawing(noisy_pts, invert_y=False, smooth=False)
+    smooth_noisy = normalize_drawing(noisy_pts, invert_y=False, smooth=True)
+    assert raw_noisy is not None and smooth_noisy is not None
+    assert np.corrcoef(smooth_noisy, ref)[0, 1] > np.corrcoef(raw_noisy, ref)[0, 1]

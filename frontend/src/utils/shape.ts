@@ -110,6 +110,7 @@ export interface OverlayLine {
 export interface DrawingAnalysis {
   peaks: Point[];
   troughs: Point[];
+  elbows: Point[];
   upperLine: OverlayLine | null;
   lowerLine: OverlayLine | null;
   poleLine: OverlayLine | null;
@@ -203,7 +204,7 @@ export function analyzeDrawing(points: Point[]): DrawingAnalysis | null {
   const gridPt = (i: number): Point => ({ x: gridX(i), y: yRaw[i] });
 
   // 1) Belirgin tepe ve dipler (prominence >= 0.5σ)
-  const findProminent = (arr: number[]): number[] => {
+  const findProminent = (arr: number[], minProm = 0.5): number[] => {
     const cands: number[] = [];
     for (let i = 1; i < N - 1; i++) {
       if (
@@ -226,15 +227,55 @@ export function analyzeDrawing(points: Point[]): DrawingAnalysis | null {
         if (arr[j] > arr[i]) break;
         if (arr[j] < rBase) rBase = arr[j];
       }
-      if (arr[i] - Math.max(lBase, rBase) >= 0.5) kept.push(i);
+      if (arr[i] - Math.max(lBase, rBase) >= minProm) kept.push(i);
     }
     return kept;
   };
 
-  const peakIdx = findProminent(z);
-  const troughIdx = findProminent(z.map((v) => -v));
+  const peakIdx = findProminent(z, 0.5);
+  const troughIdx = findProminent(
+    z.map((v) => -v),
+    0.5
+  );
   const peaks = peakIdx.map(gridPt);
   const troughs = troughIdx.map(gridPt);
+
+  // Qetch-PIP dirsek noktaları (K-26): tepe/dip dışındaki belirgin yön değişimleri
+  const skelSet = new Set<number>([0, N - 1]);
+  for (const idx of findProminent(z, 0.25)) skelSet.add(idx);
+  for (const idx of findProminent(
+    z.map((v) => -v),
+    0.25
+  )) {
+    skelSet.add(idx);
+  }
+  const skel = Array.from(skelSet).sort((a, b) => a - b);
+  while (skel.length < 10) {
+    let bestErr = -1;
+    const errs = new Array<number>(N).fill(-1);
+    let cursor = 0;
+    for (let i = 0; i < N; i++) {
+      if (skelSet.has(i)) continue;
+      while (cursor < skel.length - 2 && skel[cursor + 1] < i) cursor++;
+      const a = skel[cursor];
+      const b = skel[cursor + 1];
+      const t = b === a ? 0 : (i - a) / (b - a);
+      const interp = z[a] + t * (z[b] - z[a]);
+      const e = Math.abs(z[i] - interp);
+      errs[i] = e;
+      if (e > bestErr) bestErr = e;
+    }
+    if (bestErr < 0.4) break;
+    for (let i = 0; i < N; i++) {
+      if (errs[i] >= bestErr - 1e-9 && !skelSet.has(i)) {
+        skelSet.add(i);
+        skel.push(i);
+      }
+    }
+    skel.sort((a, b) => a - b);
+  }
+  const extremumSet = new Set<number>([...peakIdx, ...troughIdx, 0, N - 1]);
+  const elbows = skel.filter((idx) => !extremumSet.has(idx)).map(gridPt);
 
   // 2) K-22 Direk + gövde kontrolü
   const POLE_K = 11;
@@ -476,6 +517,7 @@ export function analyzeDrawing(points: Point[]): DrawingAnalysis | null {
   return {
     peaks,
     troughs,
+    elbows,
     upperLine,
     lowerLine,
     poleLine,

@@ -53,16 +53,16 @@ export default function Home() {
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/radar" className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
-              <Radar className="size-4" />
-              {t.home.radarCta}
+            <Link href="/backtest" className={cn(buttonVariants({ size: "lg" }), "gap-2 px-5")}>
+              <LineChart className="size-4" />
+              {t.home.searchCta}
             </Link>
             <Link
-              href="/backtest"
+              href="/radar"
               className={cn(buttonVariants({ variant: "outline", size: "lg" }), "gap-2 px-5")}
             >
-              <LineChart className="size-4" />
-              {t.home.backtestCta}
+              <Radar className="size-4" />
+              {t.home.radarCta}
             </Link>
           </div>
 

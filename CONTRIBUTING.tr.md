@@ -6,7 +6,7 @@
 
 ## Bir tasarım kararını değiştirmeden önce
 
-Mimari kararlar [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) içinde `K-01 … K-25` olarak, değerlendirilip reddedilen alternatifleriyle birlikte kayıtlıdır. Bir kararın değişmesi gerektiğini düşünüyorsanız önce ilgili bölümü okuyun — aklınızdaki alternatif büyük ihtimalle zaten değerlendirilmiştir. Yine de değişmesi gerekiyorsa bir ölçümle issue açın.
+Mimari kararlar [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) içinde `K-01 … K-26` olarak, değerlendirilip reddedilen alternatifleriyle birlikte kayıtlıdır. Bir kararın değişmesi gerektiğini düşünüyorsanız önce ilgili bölümü okuyun — aklınızdaki alternatif büyük ihtimalle zaten değerlendirilmiştir. Yine de değişmesi gerekiyorsa bir ölçümle issue açın.
 
 ## Bilinçli olarak reddedilenler — lütfen geri getirmeyin
 

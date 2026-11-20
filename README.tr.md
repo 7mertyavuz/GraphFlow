@@ -61,11 +61,11 @@ Replike eden tek etki — yükselen takozdan sonra fiyat düşme eğiliminde —
  Filtreler yapısal imza (tepe/dip)                ┐ her biri yalnız sorgunun
            trend çizgisi zarfı (eğim/yakınsama)   │ okuması kararlıysa uygulanır
            iki rejimli direk + gövde zarfı (K-22) ┘
- Sıralama  ayna/çevirme değişmez yapısal + eğrisellik uyum cezası (K-23, K-24)
+ Sıralama  evrensel Qetch-PIP algısal uyum + eğrisellik cezası (K-23..K-26)
  Post-NMS  1B IoU 0,50, sembol başına en çok 3 → bağımsız olaylar
         │
         ▼
- sonuç ızgarası  +  "sonra ne oldu": triple-barrier sonuçları vs. zaman ve getiri eşleştirmeli baseline'lar
+ desene odaklı mum kartları (OHLC iğne-temiz) + "sonra ne oldu": triple-barrier vs. baseline'lar
 ```
 
 11,6 milyon pencerede ısınmış bir arama dizüstü bilgisayarda yaklaşık **300 ms** sürer. Kafka, Rust ya da zaman serisi veritabanı yoktur — darboğaz hiçbir zaman dil değildi, veri yerleşimiydi.
@@ -73,11 +73,11 @@ Replike eden tek etki — yükselen takozdan sonra fiyat düşme eğiliminde —
 | Ölçüm | Sonuç |
 |---|---|
 | `formation_audit --cross` (14×14 kanonik çapraz denetim) | **14/14 köşegen · 0 köşegen dışı kabul** |
-| `formation_audit --top 12` (gerçek 4h korpus, 14 formasyonun tamamı) | **168/168 (%100,0)** |
-| `formation_audit --top 50` (gerçek 4h korpus, 14 formasyonun tamamı) | **697/700 (%99,6)** |
-| `gt_benchmark --family all` (enjekte edilmiş ground truth, 14 formasyon) | **%88,7 kesinlik · %87,5 duyarlılık** (298/336) |
-| `gt_benchmark --family all --real` (gerçek piyasa zemini, 14 formasyon) | **%88,1 kesinlik · %84,2 duyarlılık** (296/336) |
-| `gt_benchmark --family all --freehand 8` (2.688 gürültülü el çizimi) | **%85,3 kesinlik · %84,0 duyarlılık** (2292/2688) |
+| `formation_audit --top 12` (gerçek 4h korpus, 14 formasyonun tamamı) | **167/168 (%99,4)** |
+| `formation_audit --top 50` (gerçek 4h korpus, 14 formasyonun tamamı) | **692/700 (%98,9)** |
+| `gt_benchmark --family all` (enjekte edilmiş ground truth, 14 formasyon) | **%89,3 kesinlik · %88 ort. duyarlılık** (300/336) |
+| `gt_benchmark --family all --real` (gerçek piyasa zemini, 14 formasyon) | **%87,8 kesinlik · %84 ort. duyarlılık** (295/336) |
+| `gt_benchmark --family all --freehand 8` (2.688 gürültülü el çizimi) | **%85,2 kesinlik · %83 ort. duyarlılık** (2289/2688) |
 
 ## Hızlı başlangıç
 
@@ -131,8 +131,8 @@ Hızlıca gerçek bir alt kümeyle denemek için indirme adımına `--limit-symb
 
 Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle değiştirilir (ilk ziyarette tarayıcı dilini izler).
 
-1. **Çiz** sekmesinde kanvasa **Serbest**, noktadan noktaya **Kırık Çizgi** ya da **Yumuşak Eğri (Catmull-Rom Spline)** modunda (canlı tepe/dip, üst/alt trend çizgisi veya Legendre parabolik çanak önizlemesi ve kararlılık rozetiyle) bir şekil çizin, ya da **Kütüphane**'den bir formasyon seçin, ya da **Grafik** sekmesinde bir sembol, parça uzunluğu ve (Backtest'te) bitiş tarihi seçin. Ayrıca herhangi bir sonuç kartındaki **Benzeri** düğmesine tıklayarak o eşleşen pencereyi bir sonraki aramanızın sorgusu yapabilir veya büyütme düğmesiyle etkileşimli büyük mum grafiğini (Backtest'te Triple-Barrier Giriş $C_0$, TP, SL ve Çıkış yörüngesi çizgileriyle) inceleyebilirsiniz.
-2. **Zaman dilimini** (4 saat / 1 gün) ve **toleransı** (Katı · Orta · Esnek) seçin. Tolerans, sorgunun kendi null dağılımının sürekli `p01`-çapalı bir yüzdeliğidir; sahte bir "%85 benzerlik" değildir.
+1. **Çiz** sekmesinde kanvasa **Serbest**, **Kırık Çizgi** ya da **Yumuşak Eğri (Catmull-Rom Spline)** modunda çizim yapın — veya 6 **Hızlı Taslak**'tan (`W Dip`, `M Tepe`, `OBO`, `Fincan`, `Üçgen`, `Bayrak`) birini yükleyip tutamaçları sürükleyerek/sağ tıklayarak şekillendirin (canlı tepe/dip, PIP dirsekleri, trend çizgileri, Legendre parabolik çanak ve kararlılık rozetiyle). Ayrıca **Kütüphane**'den şablon seçebilir, **Grafik** sekmesinde tarihsel bir parça kesebilir, sonuç kartlarındaki **Benzerini ara** ile yeniden tarayabilir veya **Canlı Radar** çiziminizi tek tıkla **11,6M Tarihsel Grafik** aramasına aktarabilirsiniz.
+2. **Zaman dilimini** (4 saat / 1 gün), **pencere boylarını** (`24 · 40 · 64 · 100` bar), **min. genliği** ve **toleransı** (Katı · Orta · Esnek) seçin. Sonuçların üstündeki **Desene odakla / Tam bağlam**, **Çizim** ve **DTW** düğmeleriyle kart çerçevesini anında değiştirebilir veya bir karta tıklayıp etkileşimli büyük grafikte Triple-Barrier Giriş ($C_0$), TP, SL ve Çıkış yörüngesini inceleyebilirsiniz.
 3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
 4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, zaman-eşleştirmeli **Edge**'i ve ön-getiriye göre eşleştirilmiş **Momentumdan Arındırılmış Edge**'i (getiri-eşleştirmeli gölge baseline) ay-bloklu bootstrap güven aralıklarıyla gösterir. Birincil **Baz**'ı (`Piyasa (Zaman)` vs `Momentum (F4.6)`) değiştirebilir ve olayları nedensel (yalnız $t_0$'a bakan, sıfır lookahead) **Koşul** filtreleriyle (`Tümü`, `Yüksek Volatilite`, `Sıkışma (Düşük Vol.)`, `Güçlü Kırılım Mumu`) dilimleyebilirsiniz. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) gölge örneklemin fanıyla aynı eksende gösterir. Her eşleşme kartı da seçili konfigürasyon ve yönde **o olayın kendi sonucunu** gösterir (hedef / stop / zaman aşımı, R, çıkış barı) — ya da neden *sayılmadığını*. Başlıktaki beklenti, sayılan kartların tam ortalamasıdır.
 5. **Bulgular** sayfası her testi, her hücrenin kaç bağımsız null çekilişinde ayakta kaldığını (yalnız bazı çekilişlerde anlamlı olan hücre bulgu değil zar atışı olarak işaretlenir), her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
@@ -177,7 +177,7 @@ docs/          tasarım kararları ve ölçüm raporları
 
 [docs/README.md](docs/README.md) tüm belgelerin dizinidir.
 
-- [Tasarım kararları](docs/00-tasarim-kararlari.md) — 25 mimari karar (`K-01 … K-25`); her biri reddedilen alternatifleri ve gerekçesiyle
+- [Tasarım kararları](docs/00-tasarim-kararlari.md) — 26 mimari karar (`K-01 … K-26`); her biri reddedilen alternatifleri ve gerekçesiyle
 - [Mimari](docs/01-mimari.md) — veri katmanı, algoritmalar, API, performans bütçesi
 - Ölçüm raporları — doğrulama, sonuç istatistikleri, vekil testi, zaman dilimi replikasyonu, formasyon denetimi
 

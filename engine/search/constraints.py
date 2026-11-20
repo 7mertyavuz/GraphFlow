@@ -412,7 +412,10 @@ def signature_mask(
     if target is None:
         return None
     sig = side_signature_batch(np.asarray(vectors, dtype=np.float64), side, prominence, tol)
-    return (sig == np.asarray(target, dtype=np.int16)).all(axis=1)
+    t_arr = np.asarray(target, dtype=np.int16)
+    if target[2]:  # all_similar=True: hangi ucun 0.01σ daha uç olduğu yazı-turadır
+        return (sig[:, [0, 2, 3]] == t_arr[[0, 2, 3]]).all(axis=1)
+    return (sig == t_arr).all(axis=1)
 
 
 def signature_stability(
@@ -890,24 +893,168 @@ def _quad_r2(W: np.ndarray, side: int) -> tuple[np.ndarray, np.ndarray]:
     return r2, c2
 
 
+def pip_skeleton(
+    q: np.ndarray,
+    prom: float = 0.25,
+    pip_tol: float = 0.40,
+    max_pts: int = 10,
+) -> tuple[list[int], list[int]]:
+    """Ayna ve çevirme eşdeğişken algısal kritik noktalar (Qetch + Fu-Chung-Luk PIP-VD).
+
+    Dönen türler: ``+1`` (belirgin tepe), ``-1`` (belirgin dip), ``0`` (uç/dirsek).
+    Eşit hata durumunda tüm eş-maksimum indeksleri simetrik eklenir ki ayna
+    çevriminde aynı iskelet üretilsin (K-26).
+    """
+    q = np.asarray(q, dtype=np.float64)
+    n = q.size
+    if n < 2:
+        return ([0], [0]) if n == 1 else ([], [])
+
+    peaks, troughs = prominent_extrema(q, prom)
+    kind_map: dict[int, int] = {0: 0, n - 1: 0}
+    for idx_list, kind in ((peaks, 1), (troughs, -1)):
+        for i in idx_list:
+            pos = int(i)
+            kind_map[pos] = kind
+            # Düz plato uçları (ör. rounding_bottom n=32 ortası): soldaki eşit
+            # değerleri de ekle ki yatay aynalamada aynı iskelet üretilsin.
+            j = pos - 1
+            while j >= 1 and abs(float(q[j]) - float(q[pos])) <= 1e-12:
+                kind_map[j] = kind
+                j -= 1
+
+    pts = sorted(kind_map.keys())
+    grid = np.arange(n, dtype=np.float64)
+    while len(pts) < max_pts:
+        interp = np.interp(grid, pts, q[pts])
+        err = np.abs(q - interp)
+        err[pts] = -1.0
+        best_val = float(err.max())
+        if best_val < pip_tol:
+            break
+        ties = np.flatnonzero(err >= best_val - 1e-12)
+        for idx in ties:
+            if int(idx) not in kind_map:
+                kind_map[int(idx)] = 0
+                pts.append(int(idx))
+        pts.sort()
+
+    pts = sorted(kind_map.keys())
+    return pts, [kind_map[i] for i in pts]
+
+
+def perceptual_sketch_penalty(
+    query: np.ndarray,
+    vectors: np.ndarray,
+    delta: int = 2,
+) -> np.ndarray:
+    """Evrensel Qetch-PIP algısal şekil sapma cezası (K-26).
+
+    Doğrudan nokta-bazlı sadakat (``RMSE``, ``L_inf``), kritik dönüş/dirsek
+    seviyeleri (``kp_rmse``), Qetch monotonik bacak salınımı (``leg_err`` +
+    ``missing_swing``), aynı tip uçların göreceli sırası (``order_pen``) ve
+    aşırı tırtıklılık (``rough_pen``) ile görsel benzerliği ölçer.
+
+    Eşzamanlı zaman-ayna (``q[::-1], V[:, ::-1]``) ve dikey çevirme (``-q, -V``)
+    altında birebir değişmezdir.
+    """
+    q = np.asarray(query, dtype=np.float64)
+    V = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
+    m, n = V.shape
+    if m == 0:
+        return np.empty(0, dtype=np.float64)
+
+    diff = V - q[None, :]
+    rmse = np.sqrt(np.mean(diff * diff, axis=1))
+    linf = np.max(np.abs(diff), axis=1)
+
+    pts, kinds = pip_skeleton(q)
+    k = len(pts)
+    q_lev = q[pts]
+    v_lev = np.empty((m, k), dtype=np.float64)
+    for idx_k, (t, kind) in enumerate(zip(pts, kinds)):
+        if kind == 0:
+            v_lev[:, idx_k] = V[:, t]
+        else:
+            lo = max(0, t - delta)
+            hi = min(n, t + delta + 1)
+            v_lev[:, idx_k] = (
+                V[:, lo:hi].max(axis=1) if kind > 0 else V[:, lo:hi].min(axis=1)
+            )
+
+    kp_rmse = np.sqrt(np.mean((v_lev - q_lev[None, :]) ** 2, axis=1))
+    dq = np.diff(q_lev)
+    dv = np.diff(v_lev, axis=1)
+    leg_err = np.mean(np.abs(dv - dq[None, :]), axis=1)
+
+    missing_swing = np.zeros(m, dtype=np.float64)
+    for j in range(k - 1):
+        mag = abs(float(dq[j]))
+        if mag >= 0.25:
+            sgn = 1.0 if dq[j] > 0 else -1.0
+            proj = dv[:, j] * sgn
+            missing_swing += np.maximum(0.0, 0.50 * mag - proj) / max(0.5, mag)
+
+    order_pen = np.zeros(m, dtype=np.float64)
+    n_pairs = 0
+    for a in range(k):
+        for b in range(a + 1, k):
+            if kinds[a] == kinds[b] and kinds[a] != 0:
+                gap_q = float(q_lev[a] - q_lev[b])
+                if abs(gap_q) >= 0.30:
+                    n_pairs += 1
+                    sgn = 1.0 if gap_q > 0 else -1.0
+                    gap_v = (v_lev[:, a] - v_lev[:, b]) * sgn
+                    order_pen += np.maximum(0.0, 0.30 * abs(gap_q) - gap_v)
+    if n_pairs > 0:
+        order_pen /= n_pairs
+
+    tv_q = float(np.sum(np.abs(np.diff(q))))
+    tv_v = np.sum(np.abs(np.diff(V, axis=1)), axis=1)
+    rough_pen = np.maximum(0.0, (tv_v / max(1e-9, tv_q)) - 1.25)
+
+    return (
+        0.0045 * rmse
+        + 0.0015 * np.maximum(0.0, linf - 0.55)
+        + 0.0035 * kp_rmse
+        + 0.0022 * leg_err
+        + 0.0050 * missing_swing
+        + 0.0040 * order_pen
+        + 0.0010 * rough_pen
+    )
+
+
+from engine.config import PERCEPTUAL_RERANK  # noqa: E402
+
+
 def structural_alignment_penalty(
     query: np.ndarray,
     vectors: np.ndarray,
     apply_structure: bool = False,
     apply_envelope: bool = False,
     apply_regime: bool = False,
+    perceptual: bool = PERCEPTUAL_RERANK,
 ) -> np.ndarray:
-    """Sorgu ile adaylar arasındaki sürekli yapısal/zarf/eğrilik sapma cezası (K-23, K-24).
+    """Sorgu ile adaylar arasındaki sürekli yapısal/zarf/eğrilik/algısal sapma cezası (K-23, K-24, K-26).
 
     Yüzdelik dilim birimi cinsinden küçük pozitif cezalar üretir; Post-NMS
     öncesinde ``percentile`` alanına eklenerek aynı kademedeki adaylar
-    arasından yapısal olarak en temiz olanları üste taşır. Eşzamanlı zaman-ayna
-    (``q[::-1], V[:, ::-1]``) ve dikey-ters (``-q, -V``) dönüşümleri altında
-    birebir değişmezdir.
+    arasından yapısal ve görsel olarak en temiz olanları üste taşır. Eşzamanlı
+    zaman-ayna (``q[::-1], V[:, ::-1]``) ve dikey-ters (``-q, -V``) dönüşümleri
+    altında birebir değişmezdir.
     """
     q = np.asarray(query, dtype=np.float64)
     V = np.atleast_2d(np.asarray(vectors, dtype=np.float64))
     m, n = V.shape
+    if m == 0:
+        return np.empty(0, dtype=np.float64)
+
+    has_gate = bool(apply_structure or apply_envelope or apply_regime)
+    if not has_gate:
+        if not perceptual:
+            return np.zeros(m, dtype=np.float64)
+        return perceptual_sketch_penalty(q, V)
+
     unwarped_dist = 1.0 - (V @ q) / float(n)
     pen = 0.005 * np.clip(unwarped_dist, 0.0, 2.0)
 
@@ -1003,6 +1150,9 @@ def structural_alignment_penalty(
                     pen += np.where(
                         np.abs(c_outer - c_opp_val) > 0.45, 0.0015, 0.0
                     )
+
+    if perceptual:
+        pen = pen + 0.15 * perceptual_sketch_penalty(q, V)
 
     return pen
 

@@ -61,11 +61,11 @@ The one effect that replicates — prices tend to fall after a rising wedge — 
  Filters   structural signature (peaks/troughs)      ┐ each applied only when the
            trend-line envelope (slopes/convergence)  │ query's reading is stable
            two-regime pole + body envelope (K-22)    ┘
- Rerank    mirror/flip-invariant structural + curvature alignment penalty (K-23, K-24)
+ Rerank    universal Qetch-PIP perceptual alignment + curvature penalty (K-23..K-26)
  Post-NMS  1-D IoU 0.50, max 3 per symbol → independent events
         │
         ▼
- results grid  +  "what happened next": triple-barrier outcomes vs. time- & return-matched baselines
+ fit-pattern candle cards (OHLC wick-clean) + "what happened next": triple-barrier vs. baselines
 ```
 
 A warm search over 11.6 million windows takes about **300 ms** on a laptop. There is no Kafka, no Rust, no time-series database — the bottleneck was never the language, it was the data layout.
@@ -73,11 +73,11 @@ A warm search over 11.6 million windows takes about **300 ms** on a laptop. Ther
 | Benchmark | Result |
 |---|---|
 | `formation_audit --cross` (14×14 canonical cross-audit) | **14/14 diagonal · 0 off-diagonal accepts** |
-| `formation_audit --top 12` (real 4h corpus, all 14 formations) | **168/168 (100.0%)** |
-| `formation_audit --top 50` (real 4h corpus, all 14 formations) | **697/700 (99.6%)** |
-| `gt_benchmark --family all` (injected ground truth, all 14 formations) | **88.7% precision · 87.5% recall** (298/336) |
-| `gt_benchmark --family all --real` (real-market background, all 14 formations) | **88.1% precision · 84.2% recall** (296/336) |
-| `gt_benchmark --family all --freehand 8` (2,688 noisy hand drawings) | **85.3% precision · 84.0% recall** (2292/2688) |
+| `formation_audit --top 12` (real 4h corpus, all 14 formations) | **167/168 (99.4%)** |
+| `formation_audit --top 50` (real 4h corpus, all 14 formations) | **692/700 (98.9%)** |
+| `gt_benchmark --family all` (injected ground truth, all 14 formations) | **89.3% precision · 88% avg recall** (300/336) |
+| `gt_benchmark --family all --real` (real-market background, all 14 formations) | **87.8% precision · 84% avg recall** (295/336) |
+| `gt_benchmark --family all --freehand 8` (2,688 noisy hand drawings) | **85.2% precision · 83% avg recall** (2289/2688) |
 
 ## Quick start
 
@@ -131,8 +131,8 @@ To try it quickly on a real subset, add `--limit-symbols 50` to the download ste
 
 The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
 
-1. **Draw** a shape on the canvas in **Freehand**, point-to-point **Polyline**, or **Smooth Curve (Catmull-Rom Spline)** mode (with a live preview of detected peaks/troughs, upper/lower trendlines, or Legendre parabolic bowl fit + stability badge), or open **Library** and pick a formation, or open **Chart** and pick a symbol, a segment length and (in Backtest) an end date. You can also click **Similar** on any result card to use that matched window as your next query, or click the expand icon to inspect the full interactive candlestick chart (with Triple-Barrier Entry $C_0$, TP, SL, and Exit trajectory overlays in Backtest).
-2. Choose the **timeframe** (4 hours / 1 day) and **tolerance** (Strict · Medium · Flexible). Tolerance is a continuous `p01`-anchored percentile of the query's own null distribution, not a fake "% similarity".
+1. **Draw** a shape on the canvas in **Freehand**, **Polyline**, or **Smooth Curve (Catmull-Rom Spline)** mode — or click one of the 6 **Starter Presets** (`W Bottom`, `M Top`, `H&S`, `Cup`, `Triangle`, `Flag`) and drag/right-click vertices to reshape it — with a live preview of detected peaks, troughs, PIP elbows, trendlines, or Legendre parabolic bowl fit + stability badge. You can also open **Library** to pick a formation, open **Chart** to slice a historical segment, click **Find similar** on any result card, or transfer a scarce **Live Radar** sketch directly into the **11.6M Historical Chart Archive** with one click.
+2. Choose the **timeframe** (4 hours / 1 day), **window lengths** (`24 · 40 · 64 · 100` bars), **min. amplitude**, and **tolerance** (Strict · Medium · Flexible). Tolerance is a continuous `p01`-anchored percentile of the query's own null distribution, not a fake "% similarity". Toggle **Fit pattern** vs **Full context** (as well as **Overlay** and **DTW** warp lines) right above the result cards, or click any card to inspect the expanded interactive chart with Triple-Barrier Entry $C_0$, TP, SL, and Exit overlays.
 3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
 4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the time-matched **Edge** and the momentum-controlled **Momentum-Adjusted Edge** (return-matched shadow baseline) with month-block bootstrap confidence intervals. You can toggle the primary **Baseline** (`Market (Time)` vs `Momentum (F4.6)`) and slice events by causal ($t_0$-only, zero lookahead) **Condition** filters (`All`, `High Volatility`, `Low Vol. Squeeze`, `Strong Breakout Bar`). Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted*. The headline number is exactly the mean of the counted cards.
 5. The **Findings** page lists every test, how many independent null draws each cell survives (a cell significant in only some draws is flagged as a dice roll, not a finding), the stage where each finding was eliminated, and which engine version produced the numbers.
@@ -177,7 +177,7 @@ docs/          design decisions and measurement reports
 
 The design record and the measurement reports are written in **Turkish**; see [docs/README.md](docs/README.md) for an English index.
 
-- [Design decisions](docs/00-tasarim-kararlari.md) — 25 architectural decisions (`K-01 … K-25`), each with the alternatives that were rejected and why
+- [Design decisions](docs/00-tasarim-kararlari.md) — 26 architectural decisions (`K-01 … K-26`), each with the alternatives that were rejected and why
 - [Architecture](docs/01-mimari.md) — data layer, algorithms, API, performance budget
 - Measurement reports — validation, outcome statistics, proxy test, timeframe replication, formation audit
 

@@ -85,6 +85,7 @@ SAMPLE_CONFIG_KEYS: tuple[str, ...] = (
     "REGIME_MIN_STABILITY",
     "REGIME_MIN_SURVIVORS",
     "STRUCTURAL_RERANK",
+    "PERCEPTUAL_RERANK",
 )
 
 #: Davranış sondası için sabit tohum ve boyut. Değiştirilirse tüm eski

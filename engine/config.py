@@ -626,6 +626,12 @@ REGIME_MIN_SURVIVORS: Final[int] = 6
 #:    çanak kenar simetrisi) sapanlara küçük sürekli ceza eklenir.
 STRUCTURAL_RERANK: Final[bool] = True
 
+#: Evrensel Qetch-PIP algısal şekil uyum katmanı (K-26): çizimin tüm belirgin
+#: kırılım/dönüş noktalarını (PIP + ekstremumlar) bacak yönleri, sırası, pürüzsüzlük
+#: ve doğrudan RMSE/L_inf sadakatiyle adaylar üzerinde sıralar — özellikle sabit
+#: şablon kapılarının dışındaki serbest çizimlerde çalışır.
+PERCEPTUAL_RERANK: Final[bool] = True
+
 #: Yapısal benzerlik uyarısı.
 #:
 #: ``null_medyan / null_p01`` oranı, korpusta sorguya *yapısal olarak* benzeyen
@@ -775,6 +781,10 @@ SEARCH_CACHE_MATCHES: Final[int] = 2_000
 #: DTW hizalama yolu yalnızca ilk N eşleşme için hesaplanır — yol çıkarımı
 #: aday başına O(32²) Python döngüsüdür, sıcak yolda değildir.
 WARP_PATH_TOP_N: Final[int] = 60
+
+#: İlk N eşleşmenin gösterim sırasını OHLC iğne (wick) temizliğine göre
+#: hafifçe iyileştirir; istatistik havuzundaki olay kümesini değiştirmez (K-09).
+WICK_RERANK: Final[bool] = True
 
 #: Gösterilecek eşleşmelerin bar bazında ince ayarı — ÖLÇÜLDÜ, KAPALI.
 #:

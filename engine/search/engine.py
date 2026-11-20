@@ -56,6 +56,7 @@ from engine.config import (
     ENVELOPE_FILTER,
     ENVELOPE_MIN_SURVIVORS,
     LIVE_MAX_LAG_BARS,
+    PERCEPTUAL_RERANK,
     REGIME_MIN_SURVIVORS,
     STRUCTURAL_RERANK,
     STRUCTURE_FILTER,
@@ -570,10 +571,11 @@ class SearchEngine:
         envelope_filter = plan.apply_envelope
         regime_filter = plan.apply_regime
 
+        min_struct = 1 if mode == "live" else min(STRUCTURE_MIN_SURVIVORS, candidates.size)
         if structure_filter and candidates.size:
             mask = signature_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
-                if int(mask.sum()) >= min(STRUCTURE_MIN_SURVIVORS, candidates.size):
+                if int(mask.sum()) >= min_struct:
                     candidates = candidates[mask]
                     result.structure_filtered = True
                 else:
@@ -585,10 +587,12 @@ class SearchEngine:
         # Yapısal imza uç DÜZENİNİ okur ve eğimle tanımlı formasyonlarda bilgi
         # taşımaz (K-20). Bu katman trend çizgilerini okur. Kural yine
         # sorgudan türer; formasyon başına kod yoktur (K-04).
+        min_env = 1 if mode == "live" else min(ENVELOPE_MIN_SURVIVORS, candidates.size)
+        min_reg = 1 if mode == "live" else min(REGIME_MIN_SURVIVORS, candidates.size)
         if envelope_filter and candidates.size:
             mask = envelope_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
-                if int(mask.sum()) >= min(ENVELOPE_MIN_SURVIVORS, candidates.size):
+                if int(mask.sum()) >= min_env:
                     candidates = candidates[mask]
                     result.envelope_filtered = True
                 else:
@@ -596,18 +600,14 @@ class SearchEngine:
         elif regime_filter and candidates.size:
             mask = pole_body_mask(q, self._gather_vectors(timeframe, candidates))
             if mask is not None:
-                if int(mask.sum()) >= min(REGIME_MIN_SURVIVORS, candidates.size):
+                if int(mask.sum()) >= min_reg:
                     candidates = candidates[mask]
                     result.envelope_filtered = True
                 else:
                     result.envelope_relaxed = True
 
-        # --- Yapısal uyum cezası ile yeniden sıralama (K-23) --------------
-        if (
-            STRUCTURAL_RERANK
-            and candidates.size
-            and (structure_filter or envelope_filter or regime_filter)
-        ):
+        # --- Yapısal + Qetch-PIP algısal uyum cezası ile yeniden sıralama (K-23, K-26) --
+        if (STRUCTURAL_RERANK or PERCEPTUAL_RERANK) and candidates.size:
             cand_vecs = self._gather_vectors(timeframe, candidates)
             pen = structural_alignment_penalty(
                 q,
@@ -615,6 +615,7 @@ class SearchEngine:
                 apply_structure=structure_filter,
                 apply_envelope=envelope_filter,
                 apply_regime=regime_filter,
+                perceptual=PERCEPTUAL_RERANK,
             )
             candidates["percentile"] = np.clip(
                 candidates["percentile"] + pen.astype(np.float32), 0.0, 1.0

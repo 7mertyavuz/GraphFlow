@@ -213,10 +213,17 @@ def normalize_drawing(
         span = xs[-1] - xs[0]
         if span <= 0:
             return None
-        if smooth:
-            ys = antialias(ys, n)
-        dst = np.linspace(xs[0], xs[-1], n)
-        y32 = np.interp(dst, xs, ys)
+        if smooth and xs.size > 2 * n:
+            u_x = np.linspace(xs[0], xs[-1], 8 * n)
+            u_y = np.interp(u_x, xs, ys)
+            k_idx = np.arange(-4, 5, dtype=np.float64)
+            kern = np.exp(-0.5 * (k_idx / 1.2) ** 2)
+            kern /= kern.sum()
+            u_y = np.convolve(np.pad(u_y, 4, mode="edge"), kern, mode="valid")
+            y32 = resample_to(u_y, n)
+        else:
+            dst = np.linspace(xs[0], xs[-1], n)
+            y32 = np.interp(dst, xs, ys)
     elif arr.ndim == 1:
         ys = -arr if invert_y else arr
         if smooth:

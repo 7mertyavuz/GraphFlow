@@ -1825,3 +1825,51 @@ def test_yapisal_uyum_cezasi_ayna_ve_cevirmeye_degismez():
         assert np.allclose(p_orig, p_mirr, atol=1e-12), f"{tid} ayna değişmezliği bozuldu"
         assert np.allclose(p_orig, p_flip, atol=1e-12), f"{tid} dikey çevirme değişmezliği bozuldu"
 
+
+def test_signature_mask_all_similar_ignores_extreme_order():
+    """K-26: eşit uçlu ikili dip/tepede 0.01σ sıra farkı adayı elememeli."""
+    from engine.search.constraints import signature_mask
+    from engine.normalize.pipeline import resample_to, zscore
+
+    xs = np.linspace(0.0, 1.0, 32)
+    q = zscore(np.interp(xs, [0.0, 0.25, 0.50, 0.75, 1.0], [1.0, -1.00, 0.6, -0.95, 1.0]))
+    c_right_deeper = zscore(
+        np.interp(xs, [0.0, 0.25, 0.50, 0.75, 1.0], [1.0, -0.95, 0.6, -1.00, 1.0])
+    )
+    c_unequal = zscore(
+        np.interp(xs, [0.0, 0.25, 0.50, 0.75, 1.0], [1.0, -1.20, 0.6, 0.20, 1.0])
+    )
+    assert q is not None and c_right_deeper is not None and c_unequal is not None
+    mask = signature_mask(q, np.stack([c_right_deeper, c_unequal]))
+    assert mask is not None
+    assert bool(mask[0]) and not bool(mask[1])
+
+
+def test_perceptual_sketch_penalty_mirror_and_flip_invariant():
+    """K-26: ``perceptual_sketch_penalty`` ayna ve dikey çevirme altında birebir değişmez."""
+    from engine.search.constraints import perceptual_sketch_penalty
+    from engine.templates import load_all
+
+    V = _random_windows(54, 200)
+    for tid, tmpl in load_all().items():
+        q = np.asarray(tmpl.vector, dtype=np.float64)
+        p0 = perceptual_sketch_penalty(q, V)
+        pm = perceptual_sketch_penalty(q[::-1], V[:, ::-1])
+        pf = perceptual_sketch_penalty(-q, -V)
+        assert np.allclose(p0, pm, atol=1e-12), f"{tid} ayna değişmezliği bozuldu"
+        assert np.allclose(p0, pf, atol=1e-12), f"{tid} dikey çevirme değişmezliği bozuldu"
+
+
+def test_perceptual_penalty_prefers_cup_with_handle_over_v_bottom():
+    """K-26: Qetch-PIP katmanı kulpsuz V-dibi yerine gerçek fincan+kulbu öne çıkarır."""
+    from engine.search.constraints import perceptual_sketch_penalty
+    from engine.normalize.pipeline import zscore
+
+    xs = np.linspace(0.0, 1.0, 32)
+    q = zscore(np.interp(xs, [0.0, 0.20, 0.45, 0.72, 0.84, 0.92, 1.0], [0.85, 0.30, 0.15, 0.82, 0.60, 0.68, 0.90]))
+    real_ch = zscore(np.interp(xs, [0.0, 0.22, 0.45, 0.70, 0.85, 0.93, 1.0], [0.85, 0.32, 0.16, 0.80, 0.56, 0.66, 0.92]))
+    v_bottom = zscore(np.interp(xs, [0.0, 0.45, 1.0], [0.85, 0.10, 0.90]))
+    assert q is not None and real_ch is not None and v_bottom is not None
+    pen = perceptual_sketch_penalty(q, np.stack([real_ch, v_bottom]))
+    assert pen[0] < pen[1]
+

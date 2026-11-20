@@ -12,9 +12,12 @@ interface DrawPadProps {
   points: Point[];
   vertices?: Point[];
   hoverPoint?: Point | null;
+  hoveredVertexIndex?: number | null;
   drawMode?: DrawMode;
   onDrawModeChange?: (mode: DrawMode) => void;
   onUndoVertex?: () => void;
+  onRemoveVertexAt?: (event: React.MouseEvent<HTMLCanvasElement>) => void;
+  onLoadPreset?: (vertices: Point[], mode: DrawMode) => void;
   isDrawing: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLCanvasElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -23,6 +26,87 @@ interface DrawPadProps {
   onClear: () => void;
   height?: number;
 }
+
+const STARTER_PRESETS: Array<{
+  key: "w" | "m" | "hs" | "cup" | "tri" | "flag";
+  mode: DrawMode;
+  vertices: Point[];
+}> = [
+  {
+    key: "w",
+    mode: "polyline",
+    vertices: [
+      { x: 0.06, y: 0.86 },
+      { x: 0.27, y: 0.16 },
+      { x: 0.5, y: 0.62 },
+      { x: 0.73, y: 0.18 },
+      { x: 0.94, y: 0.88 },
+    ],
+  },
+  {
+    key: "m",
+    mode: "polyline",
+    vertices: [
+      { x: 0.06, y: 0.16 },
+      { x: 0.27, y: 0.88 },
+      { x: 0.5, y: 0.4 },
+      { x: 0.73, y: 0.82 },
+      { x: 0.94, y: 0.14 },
+    ],
+  },
+  {
+    key: "hs",
+    mode: "polyline",
+    vertices: [
+      { x: 0.06, y: 0.2 },
+      { x: 0.21, y: 0.62 },
+      { x: 0.34, y: 0.3 },
+      { x: 0.5, y: 0.92 },
+      { x: 0.66, y: 0.3 },
+      { x: 0.79, y: 0.6 },
+      { x: 0.94, y: 0.18 },
+    ],
+  },
+  {
+    key: "cup",
+    mode: "spline",
+    vertices: [
+      { x: 0.06, y: 0.84 },
+      { x: 0.22, y: 0.32 },
+      { x: 0.44, y: 0.16 },
+      { x: 0.66, y: 0.5 },
+      { x: 0.76, y: 0.84 },
+      { x: 0.86, y: 0.66 },
+      { x: 0.95, y: 0.9 },
+    ],
+  },
+  {
+    key: "tri",
+    mode: "polyline",
+    vertices: [
+      { x: 0.06, y: 0.14 },
+      { x: 0.2, y: 0.86 },
+      { x: 0.36, y: 0.3 },
+      { x: 0.52, y: 0.85 },
+      { x: 0.68, y: 0.48 },
+      { x: 0.82, y: 0.86 },
+      { x: 0.94, y: 0.66 },
+    ],
+  },
+  {
+    key: "flag",
+    mode: "polyline",
+    vertices: [
+      { x: 0.06, y: 0.12 },
+      { x: 0.26, y: 0.88 },
+      { x: 0.42, y: 0.68 },
+      { x: 0.58, y: 0.8 },
+      { x: 0.72, y: 0.62 },
+      { x: 0.85, y: 0.72 },
+      { x: 0.95, y: 0.92 },
+    ],
+  },
+];
 
 /**
  * Çizim yüzeyi — düz HTML5 Canvas + pointer events (K-17) + canlı yapısal/zarf önizlemesi.
@@ -39,9 +123,12 @@ export function DrawPad({
   points,
   vertices = [],
   hoverPoint = null,
+  hoveredVertexIndex = null,
   drawMode = "freehand",
   onDrawModeChange,
   onUndoVertex,
+  onRemoveVertexAt,
+  onLoadPreset,
   isDrawing,
   onPointerDown,
   onPointerMove,
@@ -222,8 +309,20 @@ export function DrawPad({
     });
     ctx.stroke();
 
-    // Belirgin tepe (yeşil) ve dip (kırmızı) işaretçileri (K-20)
+    // Belirgin tepe (yeşil), dip (kırmızı) ve PIP dirsek (amber eşkenar dörtgen) işaretçileri
     if (analysis) {
+      for (const el of analysis.elbows) {
+        const ex = toX(el);
+        const ey = toY(el);
+        ctx.fillStyle = "rgba(251,191,36,0.85)";
+        ctx.beginPath();
+        ctx.moveTo(ex, ey - 3.5);
+        ctx.lineTo(ex + 3.5, ey);
+        ctx.lineTo(ex, ey + 3.5);
+        ctx.lineTo(ex - 3.5, ey);
+        ctx.closePath();
+        ctx.fill();
+      }
       for (const pk of analysis.peaks) {
         ctx.fillStyle = "#34d399";
         ctx.beginPath();
@@ -238,17 +337,26 @@ export function DrawPad({
       }
     }
 
-    // Kırık çizgi / yumuşak eğri köşe tutamaçları
+    // Kırık çizgi / yumuşak eğri sürüklenebilir köşe tutamaçları
     if (isVertexMode && vertices.length > 0) {
-      for (const v of vertices) {
-        ctx.fillStyle = "#0f172a";
+      vertices.forEach((v, idx) => {
+        const cx = toX(v);
+        const cy = toY(v);
+        const isHovered = hoveredVertexIndex === idx;
+        if (isHovered) {
+          ctx.fillStyle = "rgba(56,189,248,0.22)";
+          ctx.beginPath();
+          ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = isHovered ? "#38bdf8" : "#0f172a";
         ctx.strokeStyle = "#38bdf8";
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(toX(v), toY(v), 4, 0, Math.PI * 2);
+        ctx.arc(cx, cy, isHovered ? 5 : 4, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
-      }
+      });
     } else {
       // Uç nokta
       const last = points[points.length - 1];
@@ -257,7 +365,7 @@ export function DrawPad({
       ctx.arc(toX(last), toY(last), 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [points, vertices, hoverPoint, drawMode, analysis, width, height]);
+  }, [points, vertices, hoverPoint, hoveredVertexIndex, drawMode, analysis, width, height]);
 
   const empty = points.length < 2 && vertices.length === 0;
   const liveSummary = lang === "en" ? analysis?.summaryEn : analysis?.summaryTr;
@@ -323,6 +431,22 @@ export function DrawPad({
         </div>
       )}
 
+      {onLoadPreset && (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="text-muted-foreground">{t.drawpad.presetsLabel}</span>
+          {STARTER_PRESETS.map((preset) => (
+            <button
+              key={preset.key}
+              type="button"
+              onClick={() => onLoadPreset(preset.vertices, preset.mode)}
+              className="rounded border border-border bg-secondary/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:border-brand/40 hover:text-foreground"
+            >
+              {t.drawpad.presets[preset.key]}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="relative overflow-hidden rounded-lg border border-border bg-[oklch(0.13_0.015_255)]">
         <canvas
           ref={canvasRef}
@@ -331,7 +455,12 @@ export function DrawPad({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onPointerLeave={onPointerLeave}
-          className="block w-full cursor-crosshair touch-none select-none"
+          onContextMenu={onRemoveVertexAt}
+          onDoubleClick={onRemoveVertexAt}
+          className={cn(
+            "block w-full touch-none select-none",
+            hoveredVertexIndex !== null ? "cursor-grab active:cursor-grabbing" : "cursor-crosshair"
+          )}
           style={{ height }}
         />
         {empty && !isDrawing && (
@@ -381,7 +510,11 @@ export function DrawPad({
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span className="tabular">
-          {empty ? t.drawpad.waiting : t.drawpad.points(points.length)}
+          {empty
+            ? t.drawpad.waiting
+            : (drawMode === "polyline" || drawMode === "spline") && vertices.length >= 2
+              ? `${t.drawpad.points(vertices.length)} · ${t.drawpad.presetEditHint}`
+              : t.drawpad.points(points.length)}
         </span>
         <button
           type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CandlestickChart, Library, Loader2, Pencil, Search } from "lucide-react";
 
 import { Alert } from "@/components/ui/alert";
@@ -10,8 +10,9 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Slider } from "@/components/ui/slider";
 import { useDraw } from "@/hooks/useDraw";
-import { useSymbols } from "@/hooks/useGraphFlowApi";
+import { useSymbols, useTemplates } from "@/hooks/useGraphFlowApi";
 import { useI18n } from "@/i18n/LanguageProvider";
+import { cn } from "@/lib/utils";
 import {
   type SearchRequest,
   type SourceInfo,
@@ -32,6 +33,19 @@ import { DrawPad } from "./DrawPad";
 import { ShapeThumb } from "./ShapeThumb";
 import { TemplatePicker } from "./TemplatePicker";
 
+const ALL_WINDOW_LENGTHS = [24, 40, 64, 100] as const;
+
+export interface SearchHandoff {
+  sourceKind: "draw" | "template" | "chart";
+  points?: number[][] | null;
+  template_id?: string | null;
+  source?: SearchRequest["source"];
+  timeframe: Timeframe;
+  tolerance: Tolerance;
+  min_amplitude: number;
+  window_lengths: number[];
+}
+
 interface QueryPanelProps {
   mode: SearchRequest["mode"];
   submitLabel: string;
@@ -39,6 +53,8 @@ interface QueryPanelProps {
   errorMessage?: string | null;
   /** Son aramanın grafik parçası (varsa) — motorun okuduğu şekil. */
   lastSource?: SourceInfo | null;
+  initialHandoff?: SearchHandoff | null;
+  onConsumeHandoff?: () => void;
   onSubmit: (payload: SearchRequest) => void;
 }
 
@@ -48,6 +64,8 @@ export function QueryPanel({
   isPending,
   errorMessage,
   lastSource = null,
+  initialHandoff = null,
+  onConsumeHandoff,
   onSubmit,
 }: QueryPanelProps) {
   const [source, setSource] = useState<"draw" | "template" | "chart">("draw");
@@ -60,10 +78,50 @@ export function QueryPanel({
   const [timeframe, setTimeframe] = useState<Timeframe>("4h");
   const [tolerance, setTolerance] = useState<Tolerance>("medium");
   const [minAmplitude, setMinAmplitude] = useState<number[]>([10]);
+  const [windowLengths, setWindowLengths] = useState<number[]>([...ALL_WINDOW_LENGTHS]);
 
   const draw = useDraw();
   const { t } = useI18n();
   const symbols = useSymbols(timeframe, source === "chart");
+  const templates = useTemplates();
+
+  useEffect(() => {
+    if (!initialHandoff) return;
+    if (initialHandoff.sourceKind === "template" && initialHandoff.template_id && !templates.data) {
+      return;
+    }
+    const { setRawPoints, setSeries } = draw;
+    queueMicrotask(() => {
+      setTimeframe(initialHandoff.timeframe);
+      setTolerance(initialHandoff.tolerance);
+      setMinAmplitude([initialHandoff.min_amplitude]);
+      setWindowLengths(
+        initialHandoff.window_lengths.length > 0
+          ? initialHandoff.window_lengths
+          : [...ALL_WINDOW_LENGTHS]
+      );
+      if (initialHandoff.sourceKind === "draw" && initialHandoff.points?.length) {
+        setSource("draw");
+        setTemplate(null);
+        setRawPoints(initialHandoff.points);
+      } else if (initialHandoff.sourceKind === "template" && initialHandoff.template_id) {
+        const matched = templates.data?.find((item) => item.id === initialHandoff.template_id) ?? null;
+        if (matched) {
+          setSource("template");
+          setTemplate(matched);
+          setSeries(matched.vector);
+        }
+      } else if (initialHandoff.sourceKind === "chart" && initialHandoff.source) {
+        setSource("chart");
+        setChart({
+          symbol: initialHandoff.source.symbol,
+          length: initialHandoff.source.length ?? SOURCE_DEFAULT_BARS,
+          endDate: "",
+        });
+      }
+      onConsumeHandoff?.();
+    });
+  }, [draw, initialHandoff, onConsumeHandoff, templates.data]);
 
   const timeframes = [
     { value: "4h" as Timeframe, label: t.query.tf4h, hint: t.query.tf4hHint },
@@ -94,6 +152,15 @@ export function QueryPanel({
 
   const preview = usingTemplate ? template.vector : draw.series;
 
+  const toggleWindowLength = (len: number) => {
+    setWindowLengths((prev) => {
+      if (prev.includes(len)) {
+        return prev.length > 1 ? prev.filter((w) => w !== len) : prev;
+      }
+      return [...prev, len].sort((a, b) => a - b);
+    });
+  };
+
   const handleSubmit = () => {
     if (!ready) return;
     onSubmit({
@@ -102,7 +169,7 @@ export function QueryPanel({
       tolerance,
       min_amplitude: minAmplitude[0],
       limit: 12,
-      window_lengths: [24, 40, 64, 100],
+      window_lengths: windowLengths,
       // Ham (x, y) noktaları gider; 32'ye indirgeme, aliasing filtresi ve
       // z-score sunucuda (K-02). İstemci kendi ızgarasını dayatmaz.
       points: source === "draw" ? draw.queryPoints : null,
@@ -148,9 +215,12 @@ export function QueryPanel({
               points={draw.points}
               vertices={draw.vertices}
               hoverPoint={draw.hoverPoint}
+              hoveredVertexIndex={draw.hoveredVertexIndex}
               drawMode={draw.drawMode}
               onDrawModeChange={draw.setDrawMode}
               onUndoVertex={draw.undoVertex}
+              onRemoveVertexAt={draw.removeVertexAt}
+              onLoadPreset={draw.loadPreset}
               isDrawing={draw.isDrawing}
               onPointerDown={draw.start}
               onPointerMove={draw.move}
@@ -222,6 +292,29 @@ export function QueryPanel({
               step={5}
               className="pt-1"
             />
+          </Field>
+
+          <Field label={t.query.windowLengths} hint={t.query.windowLengthsHint}>
+            <div className="grid grid-cols-4 gap-1.5">
+              {ALL_WINDOW_LENGTHS.map((len) => {
+                const active = windowLengths.includes(len);
+                return (
+                  <button
+                    key={len}
+                    type="button"
+                    onClick={() => toggleWindowLength(len)}
+                    className={cn(
+                      "rounded-md border py-1 text-xs font-medium tabular transition-colors",
+                      active
+                        ? "border-brand/40 bg-brand/15 text-brand"
+                        : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {len}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
 
           <Button

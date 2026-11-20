@@ -6,7 +6,7 @@ Thanks for your interest. GraphFlow's value is not the search engine alone — i
 
 ## Before changing a design decision
 
-Architectural decisions are recorded in [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) as `K-01 … K-25`, each with the alternatives that were considered and rejected. If you think a decision should change, read its section first — the alternative you have in mind was very likely evaluated already. If it still should change, open an issue with a measurement.
+Architectural decisions are recorded in [docs/00-tasarim-kararlari.md](docs/00-tasarim-kararlari.md) as `K-01 … K-26`, each with the alternatives that were considered and rejected. If you think a decision should change, read its section first — the alternative you have in mind was very likely evaluated already. If it still should change, open an issue with a measurement.
 
 ## Deliberately rejected — please don't reintroduce
 

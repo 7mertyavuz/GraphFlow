@@ -6,6 +6,7 @@ import {
   CandlestickSeries,
   createChart,
   LineSeries,
+  type AutoscaleInfo,
   type CandlestickData,
   type IChartApi,
   type ISeriesApi,
@@ -50,6 +51,9 @@ interface MatchCardProps {
   config?: string | null;
   direction?: Direction;
   directionLabel?: string;
+  fitPattern?: boolean;
+  showBlueprint?: boolean;
+  showWarp?: boolean;
   onSearchSimilar?: (match: Match) => void;
 }
 
@@ -67,6 +71,9 @@ export function MatchCard({
   config,
   direction = "long",
   directionLabel,
+  fitPattern = true,
+  showBlueprint = true,
+  showWarp = false,
   onSearchSimilar,
 }: MatchCardProps) {
   const { t } = useI18n();
@@ -169,9 +176,16 @@ export function MatchCard({
 
     const inWindow = (i: number) => i >= data.highlight_start && i <= data.highlight_end;
 
+    contextRef.current.applyOptions({
+      autoscaleInfoProvider: fitPattern
+        ? () => null
+        : (original: () => AutoscaleInfo | null) => original(),
+    });
     contextRef.current.setData(bars.map((b, i) => (inWindow(i) ? blank(b) : toCandle(b))));
     windowRef.current.setData(bars.map((b, i) => (inWindow(i) ? toCandle(b) : blank(b))));
 
+    blueprintRef.current?.applyOptions({ visible: showBlueprint });
+    warpRef.current?.applyOptions({ visible: showWarp });
     blueprintRef.current?.setData(
       data.blueprint_overlay.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]
     );
@@ -179,8 +193,17 @@ export function MatchCard({
       data.warped_overlay.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]
     );
 
-    chartRef.current?.timeScale().fitContent();
-  }, [data]);
+    if (fitPattern && bars.length > 1) {
+      const hs = data.highlight_start;
+      const he = data.highlight_end;
+      const winLen = Math.max(1, he - hs + 1);
+      const from = Math.max(0, hs - Math.max(2, Math.round(0.1 * winLen)));
+      const to = Math.min(bars.length - 1, he + Math.max(2, Math.round(0.14 * winLen)));
+      chartRef.current?.timeScale().setVisibleLogicalRange({ from, to });
+    } else {
+      chartRef.current?.timeScale().fitContent();
+    }
+  }, [data, fitPattern, showBlueprint, showWarp]);
 
   return (
     <>
@@ -248,7 +271,18 @@ export function MatchCard({
           <div className="flex shrink-0 items-center gap-2 tabular">
             <span title={t.card.amplitudeTitle}>{formatAmplitude(match.amplitude)}</span>
             <span className="text-border">|</span>
-            <span title={t.card.correlationTitle}>r {formatDecimal(match.score, 2)}</span>
+            <span
+              className={cn(
+                match.score >= 0.9
+                  ? "font-medium text-up"
+                  : match.score >= 0.8
+                    ? "text-brand"
+                    : "text-muted-foreground"
+              )}
+              title={t.card.correlationTitle}
+            >
+              r {formatDecimal(match.score, 2)}
+            </span>
             {typeof data?.warp_amount === "number" && data.warp_amount > 2 && (
               <span
                 className="text-warp"

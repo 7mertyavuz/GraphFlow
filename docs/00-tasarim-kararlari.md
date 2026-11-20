@@ -1608,4 +1608,27 @@ Aşama 2'deki `hybrid` DTW metriği `%70` ağırlıkla birinci türevi (`DDTW`) 
 
 ---
 
+## K-26 — Evrensel Qetch-PIP Algısal Şekil Uyum Katmanı, Eşit-Uç Düzeltmesi ve Desen-Odaklı Grafik Çerçeveleme
+
+**Karar:** `PERCEPTUAL_RERANK = True` ve `WICK_RERANK = True`.
+1. **X-uzayı Gauss alçak geçiren filtresi (`engine/normalize/pipeline.py`):** Serbest el çizimi yavaş-hızlı hız farklarıyla çizildiğinde ham nokta yoğunluğu değişir; örnek-sayılı `antialias` sivri tepeleri %43 ezebiliyordu (`2,82σ → 1,60σ`). Çizim önce düzgün `256`-noktalı x ızgarasına taşınır, simetrik Gauss alçak geçiren filtreden (`σ = 1,2`) geçirilir ve sonra 32 noktaya indirgenir.
+2. **Eşit-uç sıra düzeltmesi (`engine/search/constraints.py:signature_mask`):** `all_similar=True` ikili tepe/dip sorgularında iki uctan hangisinin `0,01σ` daha uç olduğu (`col=1: extreme`) yazı-turadır; maske artık yalnız sayıyı ve eşitlik bayraklarını arar (`[0, 2, 3]`).
+3. **Evrensel Qetch-PIP algısal ceza (`pip_skeleton` & `perceptual_sketch_penalty`):** Qetch (Mannino & Abouzied, SIGMOD '18), ShapeSearch (Siddiqui vd., SIGMOD '20), SketchQuery (Correll & Gleicher, VAST '16) ve Fu-Chung-Luk Perceptually Important Points (`PIP-VD`) ilkelerinden uyarlanan simetrik (yatay ayna ve dikey çevirme altında `atol = 1e-12` değişmez, düz-plato korumalı) algısal uyum katmanı:
+   - Serbest el çizimleri kararlılık kapılarını (`structure`, `envelope`, `regime`) geçemediğinde tam ağırlıkla (`1.0`) çalışarak kulpsuz V-diplerinin fincan+kulp diye gelmesini, eksik tepe/bacak salınımlarını ve sıralama kopmalarını engeller.
+   - Kapılı kanonik şablonlarda ise mevcut K-20/K-21/K-22/K-24 sıralamasını bozmadan hafif (`0.15`) tamamlayıcı bağ-kırıcı olarak eklenir.
+4. **OHLC iğne temizliği ve desen-odaklı kart çerçeveleme (`WICK_RERANK`, `MatchCard.tsx`):** İstatistik havuzuna giren olay kümesini değiştirmeden (`K-09` tam korunur), ilk `WARP_PATH_TOP_N` eşleşme gösterimde aşırı fitilli mumları alta alır; ön yüzde `Fit pattern` (Desene odakla) modu bağlam mumlarını Y-ekseni otomatik ölçeklemeden izole eder (`autoscaleInfoProvider: () => null`).
+
+### Ölçülen Sonuç (11,6M Gerçek Korpus + Benchmarklar)
+
+| Ölçüm | Sonuç |
+|---|---|
+| `formation_audit --cross` | **14/14 köşegen · 0 köşegen dışı kabul** |
+| `formation_audit --top 12` (4h, 14 şablon) | **167/168 (%99,4)** |
+| `formation_audit --top 50` (4h, 14 şablon) | **692/700 (%98,9)** |
+| `gt_benchmark --family all` (sentetik, 14 şablon) | **300/336 (%89,3 kesinlik · %88 ort. duyarlılık)** (`double_bottom` 24/24, `ascending_triangle` 24/24) |
+| `gt_benchmark --family all --real` (gerçek piyasa) | **295/336 (%87,8 kesinlik · %84 ort. duyarlılık)** |
+| `gt_benchmark --family all --freehand 8` (2.688 el çizimi) | **2289/2688 (%85,2 kesinlik · %83 ort. duyarlılık)** |
+
+---
+
 *Bu belge canlıdır. Yeni bir mimari karar alındığında buraya yeni bir `K-xx` bölümü olarak eklenmeli ve reddedilen alternatifler tablosu güncellenmelidir.*

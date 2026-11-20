@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { OutcomePanel } from "@/components/outcome/OutcomePanel";
 import { SessionNotice } from "@/components/outcome/SessionNotice";
-import { QueryPanel } from "@/components/query/QueryPanel";
+import { QueryPanel, type SearchHandoff } from "@/components/query/QueryPanel";
 import { MatchGrid } from "@/components/results/MatchGrid";
 import { ResultsHeader } from "@/components/results/ResultsHeader";
 import { Alert } from "@/components/ui/alert";
@@ -30,6 +31,7 @@ import {
 
 /** Radar yenileme aralığı — sunucudaki RADAR_TTL ile aynı (5 dk). */
 const RADAR_REFRESH_MS = 5 * 60_000;
+const HANDOFF_STORAGE_KEY = "graphflow:handoff";
 
 interface SearchWorkspaceProps {
   mode: SearchRequest["mode"];
@@ -48,6 +50,7 @@ interface SearchWorkspaceProps {
  */
 export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorkspaceProps) {
   const { t } = useI18n();
+  const router = useRouter();
   const { title, description, submit: submitLabel } = t.workspace[copy];
   const [searchId, setSearchId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -56,6 +59,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
   const [condition, setCondition] = useState<OutcomeCondition>("all");
   const [configName, setConfigName] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
+  const [handoff, setHandoff] = useState<SearchHandoff | null>(null);
 
   const createSearch = useCreateSearch();
   const page = usePaginatedSearch(searchId);
@@ -68,6 +72,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
 
   // Son sorgu: Radar kendini yenilerken aynı yükü tekrar gönderir.
   const lastPayload = useRef<SearchRequest | null>(null);
+  const handoffAutoRan = useRef(false);
 
   const run = useCallback(
     (payload: SearchRequest) => {
@@ -82,6 +87,70 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
     },
     [createSearch]
   );
+
+  useEffect(() => {
+    if (mode !== "historical" || handoffAutoRan.current) return;
+    try {
+      const raw = window.sessionStorage.getItem(HANDOFF_STORAGE_KEY);
+      if (!raw) return;
+      window.sessionStorage.removeItem(HANDOFF_STORAGE_KEY);
+      handoffAutoRan.current = true;
+      const parsed = JSON.parse(raw) as SearchHandoff;
+      queueMicrotask(() => {
+        setHandoff(parsed);
+        run({
+          mode: "historical",
+          timeframe: parsed.timeframe,
+          tolerance: parsed.tolerance,
+          min_amplitude: parsed.min_amplitude,
+          limit: 12,
+          window_lengths: parsed.window_lengths,
+          points: parsed.sourceKind === "draw" ? parsed.points ?? null : null,
+          template_id: parsed.sourceKind === "template" ? parsed.template_id ?? null : null,
+          source: parsed.sourceKind === "chart" ? parsed.source ?? null : null,
+        });
+      });
+    } catch {
+      // Hatalı sessionStorage yükü aramayı düşürmemeli
+    }
+  }, [mode, run]);
+
+  const consumeHandoff = useCallback(() => {
+    setHandoff(null);
+  }, []);
+
+  const handleSearchInHistory = useCallback(() => {
+    const p = lastPayload.current;
+    if (!p) {
+      router.push("/backtest");
+      return;
+    }
+    const sourceKind: SearchHandoff["sourceKind"] = p.template_id
+      ? "template"
+      : p.source
+        ? "chart"
+        : "draw";
+    const rawPairs =
+      Array.isArray(p.points) && p.points.length > 0 && Array.isArray(p.points[0])
+        ? (p.points as number[][])
+        : null;
+    const payload: SearchHandoff = {
+      sourceKind,
+      points: rawPairs,
+      template_id: p.template_id ?? null,
+      source: p.source ?? null,
+      timeframe: p.timeframe as Timeframe,
+      tolerance: (p.tolerance as Tolerance) ?? "medium",
+      min_amplitude: typeof p.min_amplitude === "number" ? p.min_amplitude : 10,
+      window_lengths: Array.isArray(p.window_lengths) ? p.window_lengths : [24, 40, 64, 100],
+    };
+    try {
+      window.sessionStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // sessionStorage kapalıysa yine de sayfaya geç
+    }
+    router.push("/backtest");
+  }, [router]);
 
   const handleSearchSimilar = useCallback(
     (match: Match) => {
@@ -150,6 +219,8 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
               : null
           }
           lastSource={page.source}
+          initialHandoff={handoff}
+          onConsumeHandoff={consumeHandoff}
           onSubmit={run}
         />
         <SessionNotice session={session} />
@@ -214,6 +285,7 @@ export function SearchWorkspace({ mode, copy, withOutcome = false }: SearchWorks
           direction={direction}
           directionLabel={direction === "long" ? t.outcome.long : t.outcome.short}
           onSearchSimilar={handleSearchSimilar}
+          onSearchInHistory={mode === "live" ? handleSearchInHistory : undefined}
         />
       </section>
     </main>
