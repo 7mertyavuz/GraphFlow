@@ -1172,3 +1172,52 @@ def test_kosullu_filtreler_nedenseldir_ve_defterde_condition_yazar():
     assert out_sb.events == 1
     assert [r["status"] for r in out_sb.ledger] == ["counted", "condition"]
 
+
+def test_run_events_with_return_matched_populates_shadow_edge():
+    """Ön-getirili ShadowPool varken with_return_matched=True AttributeError vermemeli."""
+    from engine.config import META_DTYPE
+    from engine.outcome.pipeline import run_events
+    from engine.outcome.shadow import ShadowPool
+
+    n_bars = 400
+    t = np.arange(n_bars, dtype=np.int64) * 86_400_000
+    c1 = 100.0 + np.linspace(0.0, 20.0, n_bars)
+    c2 = 100.0 + np.linspace(0.0, 15.0, n_bars)
+    store = BarStore.from_arrays(
+        {
+            1: {"open": c1, "high": c1 + 1.5, "low": c1 - 1.5, "close": c1, "open_time": t},
+            2: {"open": c2, "high": c2 + 1.5, "low": c2 - 1.5, "close": c2, "open_time": t},
+        }
+    )
+
+    rows = []
+    for sid in (1, 2):
+        for idx in (80, 140, 200, 260):
+            rows.append((sid, idx - 23, idx, int(t[idx]), 25.0, 2.0, True))
+    meta = np.empty(len(rows), dtype=META_DTYPE)
+    for i, row in enumerate(rows):
+        meta[i] = row
+
+    pool = ShadowPool.from_meta(
+        meta,
+        length=24,
+        klines_close=store.close,
+        klines_offsets=store.offset,
+    )
+    assert pool.log_return.size > 0 and np.any(pool.log_return != 0.0)
+
+    ev = np.empty(1, dtype=EVENT_DTYPE)
+    ev[0] = (1, 140, 24, 2.0, int(t[140]))
+    out = run_events(
+        ev,
+        store,
+        {24: pool},
+        timeframe="1d",
+        with_paths=False,
+        with_return_matched=True,
+    )
+    assert out.events == 1
+    assert "2:1" in out.stats
+    assert out.stats["2:1"].return_matched_shadow_n is not None
+
+

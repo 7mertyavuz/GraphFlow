@@ -1,200 +1,257 @@
 <div align="center">
 
-# GraphFlow
+<img src="docs/assets/hero-banner.png" alt="GraphFlow — Grafik Formasyonları için Görsel Arama Motoru" width="100%" />
 
-**Grafik formasyonları için görsel arama motoru — bir şekil çiz, piyasanın onu nerede çizdiğini bul ve sonra ne olduğunu dürüstçe gör.**
+**Grafik formasyonları için görsel arama motoru — bir şekil çiz, piyasanın onu 11,6M pencerede nerede çizdiğini bul ve sonra ne olduğunu dürüstçe ölç.**
 
 [English](README.md) · [Türkçe](README.tr.md)
 
-[![CI](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
-[![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/7mertyavuz/GraphFlow/ci.yml?style=flat-square&label=CI)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](pyproject.toml)
+[![Next.js](https://img.shields.io/badge/Next.js-16-0f172a?style=flat-square&logo=nextdotjs&logoColor=white)](frontend/package.json)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](engine/api/main.py)
+[![Tests](https://img.shields.io/badge/testler-385%20ge%C3%A7ti-34d399?style=flat-square)](tests/)
+[![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-22d3ee?style=flat-square)](LICENSE)
+
+[Özellikler](#neden-graphflow) · [Canlı Arayüz](#canlı-web-arayüzü) · [Çizim → Eşleşme](#çizimden-piyasa-eşleşmelerine) · [Dürüst Bulgu](#dürüst-bulgu) · [Nasıl Çalışır](#nasıl-çalışır) · [Ölçümler](#ölçümler) · [Hızlı Başlangıç](#hızlı-başlangıç) · [Belgeler](#belgeler)
 
 </div>
 
 ---
 
-![GraphFlow'un gerçek veride bulduğu on iki omuz-baş-omuz, kanonik şekil üstüne bindirilmiş](notebooks/output/goz_testi_blueprint_head_and_shoulders.png)
+## Canlı Web Arayüzü
 
-<sub>GraphFlow'un gerçek Binance günlük verisinde bulduğu on iki omuz-baş-omuz. Koyu çizgi: fiyat. Kırmızı: eşleşmeye bükülmüş kanonik şekil. Gölgeli alan: eşleşen pencere.</sub>
+![GraphFlow Backtest çalışma alanı: OBO çizimi, Sonra ne oldu istatistik paneli, İleri Yol Fanı ve Desene odaklı OHLC mum kartları](docs/assets/ui-showcase-tr.png)
+
+<sub>Canlı Next.js 16 + Lightweight Charts v5 arayüzü: PIP işaretçili etkileşimli Çizim Stüdyosu (sol), ay-bloklu bootstrap ve momentum kontrollü Sonuç Paneli + İleri Yol Fanı (sağ üst) ve camgöbeği Blueprint bindirmeli Desene Odaklı OHLC mum kartları (sağ alt).</sub>
 
 ---
 
-## Ne yapar
+## Neden GraphFlow
 
-Fareyle bir desen çizersiniz — 14 klasik formasyondan birini seçersiniz ya da gerçek bir grafiğin bir parçasını gösterirsiniz (*"BTCUSDT'nin son 64 barı neye benziyor?"*) — ve GraphFlow gerçek kripto fiyat verisinin **11,6 milyon** tarihsel penceresinde piyasanın aynı şekli çizdiği yerleri arar. Tarihsel modda o formasyonlardan *sonra* ne olduğunu, piyasanın zaten yaptığı şeyin baseline'ı ile yan yana raporlar.
+Açık kaynaktaki formasyon araçlarının çoğu yalnızca bir desenin *var olduğunu* iddia eden katı kural motorlarıdır. GraphFlow hem görsel şekli hem de ampirik hesap verebilirliği bir arada sunar:
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Etkileşimli Çizim Stüdyosu 3.0</strong><br />
+      <em>Serbest</em>, <em>Kırık Çizgi</em> veya <em>Yumuşak Eğri (Catmull-Rom)</em> modlarında çizin ya da düzenlenebilir 6 hazır taslaktan (<code>W Dip</code>, <code>M Tepe</code>, <code>OBO</code>, <code>Fincan</code>, <code>Üçgen</code>, <code>Bayrak</code>) birini sürükleyip şekillendirin; tepe/dip, PIP dirsekleri, trend çizgileri ve Legendre parabolik çanak önizlemesini anlık görün.
+    </td>
+    <td width="50%">
+      <strong>~300 ms içinde 11,6M Pencere</strong><br />
+      Kafka yok, Rust yok, ayrı zaman serisi veritabanı yok. Tam Binance tarihsel arşivinde (delist pariteler dahil; stablecoin, kaldıraçlı ve ikiz tokenlar elenmiş) saf NumPy memory-mapped (<code>.npy</code>) arama.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Desene Odaklı Mum Kartları</strong><br />
+      Kartlar yalnızca eşleşen formasyonun Y eksenine odaklanır (<code>Desene odakla</code>), aşırı fitilli mumları geri sıraya alır (K-26), isteğe bağlı DTW bükme çizgilerini gösterir ve tek tıkla <em>Benzerini ara</em> sunar.
+    </td>
+    <td width="50%">
+      <strong>Dürüst Ampirik İstatistikler</strong><br />
+      Her üçlü bariyer sonucu (2:1 ve 1:1 ATR hedefleri), zaman-eşleştirmeli ve ön-getiri eşleştirmeli gölge baseline'lara karşı ay-bloklu bootstrap %95 GA ve 56 test üzerinde Bonferroni düzeltmesiyle ölçülür.
+    </td>
+  </tr>
+</table>
 
 | Mod | Yanıtladığı soru |
 |---|---|
-| **Radar** (canlı) | *Şu an hangi coin'ler bu şekli yapıyor?* |
-| **Backtest** (tarihsel) | *Geçmişte bu şekil oluştuğunda ne olmuş — ve bu şanstan farklı mıymış?* |
+| **Backtest** *(tarihsel — 11,6M pencere)* | *Piyasa geçmişte bu şekli çizdiğinde ardından ne oldu — ve bu sonuç şansı ya da salt momentumu yenebildi mi?* |
+| **Radar** *(canlı — son kapanmış barlar)* | *Şu anda hangi coin'ler bu şekli oluşturuyor — canlıda az örnek varsa tek tıkla 11,6M tarihsel arşive aktarım!* |
 
-İki mod da aynı motorda çalışır; Radar, son kapanmış bara sabitlenmiş tarihsel aramadır.
+---
 
-## Farkı ne
+## Çizimden Piyasa Eşleşmelerine
 
-Açık kaynaktaki formasyon araçlarının çoğu, bir formasyonun *var olduğunu* söyleyen kural tabanlı dedektörlerdir. Neredeyse hiçbiri *işe yarayıp yaramadığını* söylemez. GraphFlow ikinci soru üzerine kuruludur:
+![GraphFlow K-26 motorunun W Dip, OBO, Fincan-Kulp ve Eşitsiz M çizimleri için gerçek Binance 4h verisinde bulduğu eşleşmeler](docs/assets/sketch-to-market.png)
 
-- **Sorguyu siz çizersiniz.** Serbest çizim sunucuda normalize edilir (ölçek ve seviye değişmez) ve motor çiziminizi nasıl okuduğunu söyler: *"3 belirgin tepe · ortadaki en yüksek · diğerleri benzer seviyede"*.
-- **Her istatistiğin bir baseline'ı vardır.** Sonuçlar sıfırla değil, aynı aylardan çekilmiş rastgele pencerelerden oluşan zaman-eşleştirmeli bir gölge örneklemle karşılaştırılır.
-- **Dürüst belirsizlik.** Ay-bloklu bootstrap güven aralıkları, 56 testin tamamı üzerinde Bonferroni düzeltmesi ve iyi görünenler değil **tüm** şablonlar için sonuç.
-- **Survivorship bias yok.** Evren, Binance arşivinden delist edilmiş pariteleri de içerir. Stablecoin'ler, kaldıraçlı tokenlar ve *ikizler* (WBTC gibi aslıyla aynı fiyat serisi olan sarmalanmış tokenlar) ölçülmüş kurallarla düşer; aynı fiyat hareketi iki kez sayılmaz.
-- **Varsayılmaz, ölçülür.** Motordaki her filtre, açılmadan önce enjekte edilmiş ground truth'a karşı A/B testinden geçti — birkaçı reddedildi.
+- **Sunucu taraflı şekil anlama:** Çizimler log uzayında 256 noktalı uniform-x Gauss yumuşatma ve 32 noktalı z-score ile normalize edilir; ölçek ve fiyat seviyesinden bağımsız arama yapılır ve motorun çiziminizi nasıl okuduğu arayüzde açıkça yazılır (*"3 belirgin tepe · ortadaki en yüksek · diğerleri benzer seviyede"*).
+- **Evrensel Qetch-PIP hizalama (`K-26`):** Klasik şablon geçitlerinin dışında kalan tamamen keyfi el çizimleri bile ayna ve ters-simetrik algısal iskelet (`pip_skeleton`), monotonik bacak uyumu ve eğrisellik cezaları (`K-24`..`K-26`) ile sıraya konur.
+- **OHLC farkındalıklı kart çerçeveleme:** Formasyon öncesi ve sonrası bağlam barları desen yüksekliğini ezmez (`Desene odakla`), aşırı iğneli mumlar istatistik havuzunu bozmadan (`K-09`) ilk sayfalarda geriye çekilir (`WICK_RERANK`).
 
-## Dürüst bulgu
+---
 
-Her test iki zaman diliminde (1d ve 4h) ve ön-getiriye göre eşleştirilmiş bir baseline'a karşı tekrarlandıktan sonra:
+## Dürüst Bulgu
 
 > **Hiçbir grafik formasyonunun şekli, kısa vadeli momentum tersine dönüşünün ötesinde bilgi taşımıyor.**
 
-Replike eden tek etki — yükselen takozdan sonra fiyat düşme eğiliminde — baseline, fiyatın zaten ne kadar yükselmiş olduğuna göre eşleştirildiğinde kayboluyor. Formasyon bağımsız bir sinyal değil, momentumun vekili. GraphFlow bunu gizlemek yerine raporlar; aracın varlık sebebi de bu.
+![14 formasyonun ay-bloklu bootstrap orman grafiği ve Yükselen Takoz F4.6 momentum vekili testi](docs/assets/honest-finding-f46.png)
 
-## Nasıl çalışır
+- Hem `1d` hem `4h` Binance arşivlerinde replike edilen **14 formasyon × 2 yön × 2 R-konfigürasyonu (56 test)** içinde Bonferroni düzeltmesini *ve* ön-getiri eşleştirmeli baseline kontrolünü geçen hücre sayısı **0 / 56**'dır.
+- **Yükselen Takoz yanılsaması (`F4.6`):** Zaman-eşleştirmeli gölgeye karşı Yükselen Takoz (Short 2:1, `N=167`) ilk bakışta `+0,215R` edge gösterir (`%95 GA [+0,016, +0,485]`). Gölge pencereleri aynı ön-getiri bandında (`±0,25σ`) eşleştirildiğinde edge **`+0,021R`** düzeyine çöker (`[-0,203, +0,291]`).
+- **Yerleşik şüphecilik:** GraphFlow, 5 bağımsız 20.000 pencerelik null çekilişiyle (`K-25`) tohum hassasiyetini ölçer ve yalnızca bazı çekilişlerde çıkan sonuçları bulgu olarak değil "zar atışı" olarak işaretler.
 
+<details>
+<summary>Etkileşimli <strong>Bulgular ve Eleme Zinciri</strong> sayfasını önizleyin (<code>/bulgular</code>)</summary>
+
+<br />
+
+![GraphFlow web arayüzünde Bulgular ve Eleme Zinciri sayfası](docs/assets/ui-findings.png)
+
+</details>
+
+---
+
+## Nasıl Çalışır
+
+```mermaid
+flowchart LR
+    Q["Sorgu Girdisi<br/>(Çizim · Taslak · Grafik Kesiti)"] --> NORM["Normalizasyon<br/>(256-pt Gauss · Log · 32-pt z-score)"]
+    NORM --> S1["Aşama 1 Kosinüs<br/>(11,6M → 12,5k mmap matris çarpımı)"]
+    S1 --> PNMS["Pre-NMS<br/>(1B IoU 0,70 tekilleştirme)"]
+    PNMS --> S2["Aşama 2 Hibrit DTW<br/>(Türev + Ham · Sakoe-Chiba bandı)"]
+    S2 --> THR["Null Eşiği<br/>(p01 kuyruğu · 20k null çekilişi)"]
+    THR --> FILT["Kararlılık Kapıları<br/>(Tepe/Dip · Trend Çizgisi · İki Rejimli Direk)"]
+    FILT --> RERANK["K-26 Sıralama<br/>(Qetch-PIP İskelet · Eğrisellik · OHLC İğne)"]
+    RERANK --> OUT["Post-NMS + Üçlü Bariyer<br/>(Desene Odaklı Kartlar · Blok GA · Baseline'lar)"]
 ```
- çizim / şablon
-        │   log fiyat → 32 noktaya yeniden örnekleme → z-score
-        ▼
- Aşama 1   tüm pencerelerde kosinüs benzerliği (tek matris çarpımı)   11,6M → 12.500
- Pre-NMS   1B IoU 0,70 — örtüşen pencereleri tekilleştir
- Aşama 2   hibrit DTW (türev + ham, Sakoe–Chiba bandı)                 → 2.500 skorlanmış
- Eşik      sorgu-göreli null yüzdeliği (p01 kuyruk çapalı) + akıl sağlığı tavanı
- Filtreler yapısal imza (tepe/dip)                ┐ her biri yalnız sorgunun
-           trend çizgisi zarfı (eğim/yakınsama)   │ okuması kararlıysa uygulanır
-           iki rejimli direk + gövde zarfı (K-22) ┘
- Sıralama  evrensel Qetch-PIP algısal uyum + eğrisellik cezası (K-23..K-26)
- Post-NMS  1B IoU 0,50, sembol başına en çok 3 → bağımsız olaylar
-        │
-        ▼
- desene odaklı mum kartları (OHLC iğne-temiz) + "sonra ne oldu": triple-barrier vs. baseline'lar
-```
 
-11,6 milyon pencerede ısınmış bir arama dizüstü bilgisayarda yaklaşık **300 ms** sürer. Kafka, Rust ya da zaman serisi veritabanı yoktur — darboğaz hiçbir zaman dil değildi, veri yerleşimiydi.
+**11,6 milyon** tarihsel pencere üzerinde ısınmış bir arama dizüstü bilgisayarda yaklaşık **300 ms** sürer. Kaskaddaki her filtre açılmadan önce enjekte edilmiş ve gerçek piyasa ground-truth testleriyle A/B sınandı; başarısız olan fikirler reddedilip [tasarım kararları kaydına](docs/00-tasarim-kararlari.md) işlendi.
 
-| Ölçüm | Sonuç |
+---
+
+## Ölçümler
+
+![GraphFlow K-26 14x14 Kanonik Çapraz Denetim Matrisi ve Gerçek 4h İlk-50 Başarımı](docs/assets/benchmarks-k26.png)
+
+| Ölçüm | K-26 Sonucu |
 |---|---|
-| `formation_audit --cross` (14×14 kanonik çapraz denetim) | **14/14 köşegen · 0 köşegen dışı kabul** |
-| `formation_audit --top 12` (gerçek 4h korpus, 14 formasyonun tamamı) | **167/168 (%99,4)** |
-| `formation_audit --top 50` (gerçek 4h korpus, 14 formasyonun tamamı) | **692/700 (%98,9)** |
-| `gt_benchmark --family all` (enjekte edilmiş ground truth, 14 formasyon) | **%89,3 kesinlik · %88 ort. duyarlılık** (300/336) |
-| `gt_benchmark --family all --real` (gerçek piyasa zemini, 14 formasyon) | **%87,8 kesinlik · %84 ort. duyarlılık** (295/336) |
-| `gt_benchmark --family all --freehand 8` (2.688 gürültülü el çizimi) | **%85,2 kesinlik · %83 ort. duyarlılık** (2289/2688) |
+| `formation_audit --cross` *(14×14 bağımsız çapraz denetim)* | **14 / 14 köşegen · 0 köşegen dışı kabul** |
+| `formation_audit --top 12` *(gerçek 4h korpus, 14 formasyonun tamamı)* | **167 / 168 (%99,4)** |
+| `formation_audit --top 50` *(gerçek 4h korpus, 14 formasyonun tamamı)* | **692 / 700 (%98,9)** |
+| `gt_benchmark --family all` *(enjekte edilmiş ground truth)* | **%89,3 kesinlik · %88 ort. duyarlılık** *(300 / 336)* |
+| `gt_benchmark --family all --real` *(gerçek piyasa zemini)* | **%87,8 kesinlik · %84 ort. duyarlılık** *(295 / 336)* |
+| `gt_benchmark --family all --freehand 8` *(2.688 gürültülü el çizimi)* | **%85,2 kesinlik · %83 ort. duyarlılık** *(2.289 / 2.688)* |
 
-## Hızlı başlangıç
+<details>
+<summary>Doğrulama ve kıyaslama testlerini kendiniz çalıştırın</summary>
 
-**Gereksinimler:** Python 3.11+ (3.12 ile sınandı), Node.js 20+, tam veri için ~3 GB disk (veya 5 saniyelik demo korpusu için ~25 MB).
+```bash
+.venv/bin/pytest -q                                    # Tüm birim ve değişmezlik testleri
+python -m tools.formation_audit --cross                # Denetçiyi denetle (veri gerekmez)
+python -m tools.gt_benchmark --family all              # Sentetik ground-truth kıyaslaması
+python -m tools.gt_benchmark --family all --real       # Gerçek piyasa zemini kıyaslaması
+python -m tools.gt_benchmark --family all --freehand 8 # Gürültülü el çizimi benzetimi
+python -m tools.verify_stage1 --timeframe 1d           # Memory-mapped Aşama 1 vs kaba kuvvet
+python -m tools.ci_calibration                         # %95 blok GA kapsama kalibrasyonu
+python -m tools.run_outcomes --timeframe 1d            # Sonuç tablolarını yeniden üret
+python -m tools.f46_proxy_test                         # Şekil vs ön-getiri vekil testi
+```
 
-### Seçenek A — 10 saniyede deneyin (sentetik demo korpusu)
+Ölçüm dosyaları kendilerini üreten motorun davranışsal parmak izini (`engine/fingerprint.py`) saklar. Arama motorunu değiştirip ölçümleri güncellemezseniz **Bulgular** sayfası tabloların bayat olduğunu bildirir.
+
+</details>
+
+---
+
+## Hızlı Başlangıç
+
+**Gereksinimler:** Python 3.11+ *(3.12 ile sınandı)*, Node.js 20+ *(24 ile sınandı)*, demo korpusu için ~25 MB *(veya tam 11,6M pencerelik arşiv için ~3 GB)* disk alanı.
+
+### Seçenek A — 10 Saniyede Deneyin (Sentetik Demo Korpusu)
 
 ```bash
 git clone https://github.com/7mertyavuz/GraphFlow.git
 cd GraphFlow
 
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 24 sembollük 1d + 4h demo korpusu ve 8 arama matrisini üret (~5 sn)
-python -m tools.generate_demo_corpus --out data/demo
-
-GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000
-cd frontend && npm install && npm run dev   # arayüz → http://localhost:3000
+make setup       # .venv oluşturur, Python ve Node bağımlılıklarını kurar
+make dev-demo    # 24 sembollük 1d+4h demo korpusunu üretir (~5 sn) ve API (:8000) + arayüzü (:3000) başlatır
 ```
 
-Veya Docker ile (`./data/matrix` boşsa demo korpusunu otomatik üretir):
+Ardından tarayıcıda **`http://localhost:3000/backtest`** adresini açın. *(`make` olmadan / Windows üzerinde: `python -m tools.generate_demo_corpus --out data/demo`, ardından `GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000` ve `cd frontend && npm run dev` komutlarını çalıştırın.)*
+
+### Seçenek B — Tek Komutla Docker
 
 ```bash
-docker compose up --build                   # API → :8000, arayüz → :3000
+docker compose up --build   # Arayüz → http://localhost:3000 · API → http://localhost:8000
 ```
 
-### Seçenek B — Tam Binance tarihsel korpusu (11,6M pencere)
+### Seçenek C — Tam Binance Tarihsel Arşivi (11,6M Pencere)
 
 ```bash
-# 1. Python ortamı
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# 2. Veri — ücretsiz, API anahtarı gerekmez (Binance açık arşivi, delist edilenler dahil)
-python -m engine.ingest.download --timeframes 1d 4h
-python -m tools.backfill --timeframe 4h     # 4h'yi tüm evrene tamamla
-
-# 3. Arama matrislerini kur (~2 GB memory-mapped vektör)
-python -m engine.matrix.build
-
-# 4. Çalıştır
-uvicorn engine.api.main:app --port 8000     # API
-cd frontend && npm install && npm run dev   # arayüz → http://localhost:3000
+make download        # ücretsiz Binance açık arşivi (API anahtarı gerekmez; delist pariteler dahil)
+make build-matrix    # ~2 GB memory-mapped .npy arama vektörlerini kurar
+make dev             # FastAPI (:8000) ve Next.js (:3000) sunucularını birlikte başlatır
 ```
 
-Hızlıca gerçek bir alt kümeyle denemek için indirme adımına `--limit-symbols 50` ekleyin. Veri dizini `GRAPHFLOW_DATA_DIR` ile herhangi bir yere taşınabilir.
+<details>
+<summary>Hızlı gerçek alt küme ve özel veri dizini seçenekleri</summary>
 
-## Kullanım kılavuzu
+- **50 sembollük gerçek alt kümeyle denemek için:** `python -m engine.ingest.download --timeframes 1d 4h --limit-symbols 50 && make build-matrix`
+- **Veriyi başka diske taşımak için:** `GRAPHFLOW_DATA_DIR=/veri/yolu` ortam değişkenini ayarlayın
+- **README grafiklerini yeniden üretmek için:** `make assets` (`google-chrome-stable` gerektirir)
 
-Arayüz **Türkçe ve İngilizce**'dir — başlıktaki **TR / EN** düğmesiyle değiştirilir (ilk ziyarette tarayıcı dilini izler).
+</details>
 
-1. **Çiz** sekmesinde kanvasa **Serbest**, **Kırık Çizgi** ya da **Yumuşak Eğri (Catmull-Rom Spline)** modunda çizim yapın — veya 6 **Hızlı Taslak**'tan (`W Dip`, `M Tepe`, `OBO`, `Fincan`, `Üçgen`, `Bayrak`) birini yükleyip tutamaçları sürükleyerek/sağ tıklayarak şekillendirin (canlı tepe/dip, PIP dirsekleri, trend çizgileri, Legendre parabolik çanak ve kararlılık rozetiyle). Ayrıca **Kütüphane**'den şablon seçebilir, **Grafik** sekmesinde tarihsel bir parça kesebilir, sonuç kartlarındaki **Benzerini ara** ile yeniden tarayabilir veya **Canlı Radar** çiziminizi tek tıkla **11,6M Tarihsel Grafik** aramasına aktarabilirsiniz.
-2. **Zaman dilimini** (4 saat / 1 gün), **pencere boylarını** (`24 · 40 · 64 · 100` bar), **min. genliği** ve **toleransı** (Katı · Orta · Esnek) seçin. Sonuçların üstündeki **Desene odakla / Tam bağlam**, **Çizim** ve **DTW** düğmeleriyle kart çerçevesini anında değiştirebilir veya bir karta tıklayıp etkileşimli büyük grafikte Triple-Barrier Giriş ($C_0$), TP, SL ve Çıkış yörüngesini inceleyebilirsiniz.
-3. Sonuçların üstünde **motorun çiziminizi nasıl okuduğunu** okuyun. Okuma kararsız olarak işaretlenmişse motor, sonuçları ona göre daraltmadığını söyler — yanlış okuduysa daha net çizin.
-4. **Backtest**'te **Sonra ne oldu?** paneli R cinsinden beklentiyi (başrol metrik), teorik null'ı yanında kazanma oranını, zaman-eşleştirmeli **Edge**'i ve ön-getiriye göre eşleştirilmiş **Momentumdan Arındırılmış Edge**'i (getiri-eşleştirmeli gölge baseline) ay-bloklu bootstrap güven aralıklarıyla gösterir. Birincil **Baz**'ı (`Piyasa (Zaman)` vs `Momentum (F4.6)`) değiştirebilir ve olayları nedensel (yalnız $t_0$'a bakan, sıfır lookahead) **Koşul** filtreleriyle (`Tümü`, `Yüksek Volatilite`, `Sıkışma (Düşük Vol.)`, `Güçlü Kırılım Mumu`) dilimleyebilirsiniz. Altında bir **ileri yol fanı**, eşleşmelerden sonra fiyatın ne yaptığını (medyan, %25–%75 ve %10–%90 bantları, ATR cinsinden, zaman bariyerine kadar) gölge örneklemin fanıyla aynı eksende gösterir. Her eşleşme kartı da seçili konfigürasyon ve yönde **o olayın kendi sonucunu** gösterir (hedef / stop / zaman aşımı, R, çıkış barı) — ya da neden *sayılmadığını*. Başlıktaki beklenti, sayılan kartların tam ortalamasıdır.
-5. **Bulgular** sayfası her testi, her hücrenin kaç bağımsız null çekilişinde ayakta kaldığını (yalnız bazı çekilişlerde anlamlı olan hücre bulgu değil zar atışı olarak işaretlenir), her bulgunun hangi aşamada elendiğini ve sayıları hangi motor sürümünün ürettiğini listeler.
+---
 
-## Motoru kendiniz doğrulayın
+## Kullanım Kılavuzu
 
-GraphFlow, doğrulanırken kullanılan araçlarla birlikte gelir:
+1. **Sorgu Oluşturun** — Üst çubuktan istediğiniz an **TR / EN** değiştirin. **Serbest**, **Kırık Çizgi** ya da **Yumuşak Eğri** modunda çizin, 6 hazır taslaktan (`W Dip`, `M Tepe`, `OBO`, `Fincan`, `Üçgen`, `Bayrak`) birinin tutamaçlarını sürükleyin, 14 kanonik şablonlu **Kütüphane**'den seçin veya **Grafik** sekmesinde gerçek bir coin kesiti alın.
+2. **Arayın ve İnceleyin** — Zaman dilimi (`4 saat` / `1 gün`), pencere boyları (`24 · 40 · 64 · 100` bar), min. genlik ve `p01`-çapalı sürekli toleransı (`Katı · Orta · Esnek`) belirleyin. Kartların üstünden **Desene odakla / Tam bağlam**, **Çizim** ve **DTW** anahtarlarını kullanın; herhangi bir karta tıklayıp Üçlü Bariyer (`C₀`, `TP`, `SL`, çıkış barı) katmanlarını büyütün.
+3. **Dürüstçe Değerlendirin** — **Backtest**'te **Piyasa (Zaman)** ve **Momentum (F4.6)** baseline'ları arasında geçiş yapın, nedensel ($t_0$ anı) koşullara göre dilimleyin (`Yüksek Volatilite`, `Sıkışma`, `Güçlü Kırılım Mumu`) ve **Bulgular** sayfasında tohum kararlılığını doğrulayın.
 
-```bash
-pytest -q                                              # 300+ test
-python -m tools.formation_audit --cross                # denetçiyi denetle (veri gerekmez)
-python -m tools.gt_benchmark --family all              # ground truth: enjekte edilmiş formasyonlar
-python -m tools.gt_benchmark --family all --real       # …gerçek piyasa zemininde
-python -m tools.gt_benchmark --family all --freehand 6 # …elle çizim taklidiyle
-python -m tools.verify_stage1 --timeframe 1d           # matris vs. kaba kuvvet
-python -m tools.ci_calibration                         # %95 GA gerçekten %95 kapsıyor mu?
-python -m tools.run_outcomes --timeframe 1d            # istatistikleri yeniden üret
-python -m tools.f46_proxy_test                         # şekil mi, momentum vekili mi?
-```
+---
 
-Ölçüm dosyaları kendilerini hangi motorun ürettiğini (davranış parmak izi) kaydeder. Motoru değiştirip ölçümleri yeniden koşmazsanız Bulgular sayfası bunu söyler.
+## Proje Yapısı ve REST API
 
-## Proje yapısı
+<details>
+<summary>Klasör düzeni</summary>
 
-```
+```text
 engine/
-  ingest/      Binance indirici (REST + arşiv), kaldığı yerden devam, hız sınırlı
-  normalize/   log → yeniden örnekleme → z-score, ATR, genlik
-  matrix/      memory-mapped pencere vektörleri, likidite filtresi
-  search/      kosinüs aşaması, DTW/DDTW, NMS, yapısal ve zarf filtreleri
-  outcome/     triple-barrier, gölge baseline, blok bootstrap
-  api/         FastAPI: arama, istatistik, grafik, bulgular, tazelik
-  templates/   32 noktalık vektör olarak 14 kanonik formasyon
-frontend/      Next.js 16 · Tailwind v4 · TanStack Query · Lightweight Charts
-tools/         doğrulama ve ölçüm araçları (yukarıda)
-tests/         pytest takımı, gerçek korpus nöbetçileri dahil
-notebooks/     ilk doğrulama notebook'ları ve şekilleri
-docs/          tasarım kararları ve ölçüm raporları
+  ingest/        Kaldığı yerden devam eden Binance indiricisi (arşiv + REST) ve süreklilik denetimleri
+  normalize/     Log fiyat, 256 noktalı Gauss yumuşatma, 32 noktalı z-score, ATR, genlik
+  matrix/        Memory-mapped .npy pencere vektörleri, likidite ve ikiz token filtreleri
+  search/        Kosinüs Aşama 1, Hibrit DTW/DDTW Aşama 2, 1B NMS, K-20..K-26 algısal kısıtlar
+  outcome/       Üçlü bariyer, zaman ve ön-getiri eşleştirmeli gölge havuzlar, blok bootstrap
+  api/           FastAPI uçları: /api/search, /api/chart, /api/templates, /api/findings, /api/health
+  templates/     14 kanonik formasyon tanımı (JSON)
+frontend/        Next.js 16 · React 19 · Tailwind v4 · TanStack Query v5 · Lightweight Charts v5
+tools/           Denetim, kıyaslama, kalibrasyon, demo üreteci ve README görsel araçları
+tests/           Arama değişmezlikleri, sonuçlar, API sözleşmesi ve gerçek korpus pytest takımı
+notebooks/       İlk doğrulama notebook'ları ve şekilleri
+docs/
+  assets/        README vitrin grafikleri ve canlı arayüz ekran görüntüleri (tools/generate_readme_assets.py)
+  *.md           Tasarım kararları (K-01 … K-26), mimari ve ölçüm raporları
 ```
+
+</details>
+
+<details>
+<summary>Başlıca REST API uçları (<code>frontend/openapi.json</code> ile otomatik senkronize)</summary>
+
+| Metot ve Yol | Açıklama |
+|---|---|
+| `POST /api/search` | Serbest `[x, y]` noktaları, `template_id` veya tarihsel grafik penceresi ile arama |
+| `GET /api/search/{search_id}` | Oturum önbelleğinden sayfalı eşleşme sonuçları |
+| `GET /api/search/{search_id}/stats` | Üçlü bariyer sonuçları, gölge baseline edge'i, ileri yol fanı ve nedensel koşul filtreleri |
+| `GET /api/chart/{symbol}` | Bağlam OHLCV mumları, vurgulanan aralık ve sunucuda eşlenmiş Blueprint / Bükülme katmanları |
+| `GET /api/templates` | Açıklama ve simgeleriyle 14 kanonik formasyon |
+| `GET /api/symbols` | Seçili zaman dilimindeki mevcut pariteler |
+| `GET /api/findings` | 56 hücrelik eleme zinciri, 5 tohumlu null kararlılık tablosu ve motor parmak izi durumu |
+| `GET /api/health` | Veri bulunabilirliği, tazelik ve sunucu hazırlık durumu |
+
+</details>
+
+---
 
 ## Belgeler
 
-[docs/README.md](docs/README.md) tüm belgelerin dizinidir.
+Tüm mühendislik karar kayıtları ve doğrulama raporları **[docs/README.md](docs/README.md)** dizininde listelenmiştir:
 
-- [Tasarım kararları](docs/00-tasarim-kararlari.md) — 26 mimari karar (`K-01 … K-26`); her biri reddedilen alternatifleri ve gerekçesiyle
-- [Mimari](docs/01-mimari.md) — veri katmanı, algoritmalar, API, performans bütçesi
-- Ölçüm raporları — doğrulama, sonuç istatistikleri, vekil testi, zaman dilimi replikasyonu, formasyon denetimi
+- **[Tasarım Kararları (`docs/00-tasarim-kararlari.md`)](docs/00-tasarim-kararlari.md)** — 26 mimari karar (`K-01 … K-26`), reddedilen alternatifler ve deneysel gerekçeleri
+- **[Mimari (`docs/01-mimari.md`)](docs/01-mimari.md)** — Veri yerleşimi, normalizasyon matematiği, kaskad aşamaları, API sözleşmesi ve performans bütçesi
+- **Ölçüm Raporları (`docs/03 … docs/13`)** — Eşik kalibrasyonu, survivorship ve ikiz filtreleri, ay-bloklu bootstrap doğrulaması, F4.6 momentum vekili kanıtı ve null hassasiyeti
 
-## Katkı
+---
 
-Katkılar memnuniyetle karşılanır. GraphFlow'un pazarlığa kapalı birkaç doğruluk kuralı var (geleceğe bakmama, bağımsız örneklem, her oran için baseline, zaman dilimleri arası replikasyon) — lütfen önce [CONTRIBUTING.tr.md](CONTRIBUTING.tr.md) dosyasını okuyun.
+## Katkı ve Lisans
 
-## Teknoloji
+Katkılarınız memnuniyetle karşılanır — lütfen önce **[CONTRIBUTING.tr.md](CONTRIBUTING.tr.md)** dosyasındaki pazarlığa kapalı bilimsel kuralları okuyun (geleceğe bakmama, bağımsız ileri pencereler, baseline-eşleştirmeli oranlar, zaman dilimleri arası replikasyon).
 
-**Motor:** Python · NumPy · pandas · PyArrow · FastAPI
-**Veri:** Binance açık klines · Parquet · `.npy` memory-mapped matrisler
-**Arayüz:** Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query · TradingView Lightweight Charts · düz HTML5 Canvas
+**Teknoloji Yığını:** Python · NumPy · pandas · PyArrow · FastAPI · Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query v5 · TradingView Lightweight Charts v5 · HTML5 Canvas
 
-## Lisans
+**[MIT](LICENSE)** lisansı altındadır. Akademik veya teknik atıflar için [CITATION.cff](CITATION.cff) dosyasına bakabilirsiniz.
 
-[MIT](LICENSE)
-
-## Sorumluluk reddi
-
-GraphFlow bir **araştırma aracıdır**, yatırım tavsiyesi değildir. Ürettiği her istatistik geçmiş fiyat davranışını tanımlar ve gelecekteki performansın göstergesi değildir.
+> **Sorumluluk reddi:** GraphFlow bir **nicel araştırma aracıdır**, yatırım tavsiyesi değildir. Ürettiği tüm istatistikler yalnızca geçmiş fiyat davranışını tanımlar ve gelecekteki getiriler için garanti vermez.

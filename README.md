@@ -1,200 +1,257 @@
 <div align="center">
 
-# GraphFlow
+<img src="docs/assets/hero-banner.png" alt="GraphFlow — Visual Pattern Search Engine" width="100%" />
 
-**A visual search engine for chart patterns — draw a shape, find where the market drew it, and see honestly what happened next.**
+**A visual search engine for chart patterns — draw a shape, find where the market drew it across 11.6M windows, and measure honestly what happened next.**
 
 [English](README.md) · [Türkçe](README.tr.md)
 
-[![CI](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml/badge.svg)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/7mertyavuz/GraphFlow/ci.yml?style=flat-square&label=CI)](https://github.com/7mertyavuz/GraphFlow/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](pyproject.toml)
+[![Next.js](https://img.shields.io/badge/Next.js-16-0f172a?style=flat-square&logo=nextdotjs&logoColor=white)](frontend/package.json)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)](engine/api/main.py)
+[![Tests](https://img.shields.io/badge/tests-385%20passing-34d399?style=flat-square)](tests/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22d3ee?style=flat-square)](LICENSE)
+
+[Features](#why-graphflow) · [Live UI](#live-web-interface) · [Sketch → Match](#sketch-to-market-matches) · [Honest Finding](#the-honest-finding) · [How It Works](#how-it-works) · [Benchmarks](#benchmarks) · [Quick Start](#quick-start) · [Docs](#documentation)
 
 </div>
 
 ---
 
-![Twelve real head-and-shoulders matches found by GraphFlow, with the canonical shape overlaid](notebooks/output/goz_testi_blueprint_head_and_shoulders.png)
+## Live Web Interface
 
-<sub>Twelve head-and-shoulders patterns GraphFlow found in real Binance daily data. Dark line: price. Red: the canonical shape warped onto the match. Shaded: the matched window.</sub>
+![GraphFlow Backtest workspace showing Head & Shoulders sketch, statistical Outcome Panel, Forward Path Fan, and Fit-Pattern OHLC candlestick matches](docs/assets/ui-showcase.png)
+
+<sub>Live Next.js 16 + Lightweight Charts v5 workspace: interactive PIP-aware Sketch Studio (left), month-block bootstrap &amp; momentum-controlled Outcome Panel + Forward Path Fan (top right), and Fit-Pattern OHLC candlestick cards with cyan Blueprint overlays (bottom right).</sub>
 
 ---
 
-## What it does
+## Why GraphFlow
 
-You sketch a pattern with your mouse — pick one of 14 classic formations, or point at a piece of a real chart (*"what do BTCUSDT's last 64 bars look like?"*) — and GraphFlow searches **11.6 million** historical windows of real crypto price data for places where the market drew the same shape. In historical mode it then reports what happened *after* those formations, next to a baseline of what the market was doing anyway.
+Most open-source chart pattern tools are rigid rule-based detectors that only claim a pattern *exists*. GraphFlow is built around visual geometry *and* empirical accountability:
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Interactive Sketch Studio 3.0</strong><br />
+      Draw in <em>Freehand</em>, <em>Polyline</em>, or <em>Smooth Curve (Catmull-Rom)</em> mode, or load 6 editable starter presets (<code>W</code>, <code>M</code>, <code>H&amp;S</code>, <code>Cup</code>, <code>Triangle</code>, <code>Flag</code>) with live extremum, PIP diamond, trendline, and Legendre parabolic bowl previews.
+    </td>
+    <td width="50%">
+      <strong>11.6M Windows in ~300 ms</strong><br />
+      Zero Kafka, zero Rust, zero external time-series DB. Pure NumPy memory-mapped (<code>.npy</code>) search over Binance's full survivorship-free historical archive (delisted pairs included, twins &amp; pegged assets filtered out).
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Fit-Pattern Candlestick Cards</strong><br />
+      Matches zoom directly into the pattern with isolated Y-axis scaling, OHLC wick-cleanliness ranking (K-26), optional dynamic DTW warp lines, and one-click <em>Find similar</em> pivot search.
+    </td>
+    <td width="50%">
+      <strong>Honest Empirical Statistics</strong><br />
+      Every triple-barrier outcome (2:1 and 1:1 ATR targets) is measured against time-matched and prior-return-matched shadow baselines with month-block bootstrap 95% CIs and Bonferroni correction across all 56 tests.
+    </td>
+  </tr>
+</table>
 
 | Mode | Question it answers |
 |---|---|
-| **Radar** (live) | *Which coins are forming this shape right now?* |
-| **Backtest** (historical) | *When this shape appeared in the past, what happened next — and was that different from chance?* |
+| **Backtest** *(historical — 11.6M windows)* | *When the market drew this shape in history, what happened next — and did it beat chance or mere momentum?* |
+| **Radar** *(live — latest closed bars)* | *Which coins are forming this exact shape right now, with one-click handoff to the 11.6M archive if live matches are scarce?* |
 
-Both modes run on the same engine; Radar is the historical search anchored to the latest closed bar.
+---
 
-## What makes it different
+## Sketch to Market Matches
 
-Most open-source pattern tools are rule-based detectors that tell you a pattern *exists*. Almost none tell you whether it *matters*. GraphFlow is built around that second question:
+![Real Binance 4h matches returned by GraphFlow K-26 across W Double Bottom, Head & Shoulders, Cup & Handle, and Unequal M sketches](docs/assets/sketch-to-market.png)
 
-- **You draw the query.** Freehand sketches are normalized server-side (scale and level invariant), and the engine tells you how it read your drawing: *"3 prominent peaks · the middle one highest · the others at similar levels"*.
-- **Every statistic has a baseline.** Outcomes are compared against a time-matched shadow sample of random windows from the same months — not against zero.
-- **Honest uncertainty.** Month-block bootstrap confidence intervals, Bonferroni correction across all 56 tests, and results reported for *every* template, not just the ones that look good.
-- **Survivorship-free data.** The universe includes delisted pairs from the Binance archive. Stablecoins, leveraged tokens and *twins* (wrapped tokens such as WBTC that trade as the same price series as their original) are removed by measured rules, so one price move is never counted twice.
-- **Measured, not assumed.** Every filter in the engine was A/B-tested against injected ground truth before it was switched on — and several were rejected.
+- **Server-side shape understanding:** Drawings are normalized (log-space, 256-pt uniform-x Gaussian smoothing, 32-pt z-score) so scale and price level never matter, and the UI reports how the engine interpreted your curve (e.g., *"3 prominent peaks · the middle one highest · others at similar levels"*).
+- **Universal Qetch-PIP alignment (`K-26`):** Even completely arbitrary hand-drawn shapes outside classical template gates are ranked via mirror- and flip-equivariant perceptual skeleton (`pip_skeleton`) + monotonic leg matching + curvature constraints (`K-24`..`K-26`).
+- **OHLC-aware card framing:** Context bars before/after the match never squash the formation on the Y-axis (`Fit pattern`), and extreme-wick candles are demoted in top-page ranking (`WICK_RERANK`) without altering the statistical outcome pool (`K-09`).
 
-## The honest finding
+---
 
-After replicating every test on two timeframes (1d and 4h) and against a baseline matched on prior returns:
+## The Honest Finding
 
-> **No chart pattern shape carries information beyond short-term momentum reversal.**
+> **No chart pattern shape carries predictive edge beyond short-term momentum reversal.**
 
-The one effect that replicates — prices tend to fall after a rising wedge — disappears once the baseline is matched on how much the price had already risen. The pattern is a proxy for momentum, not an independent signal. GraphFlow reports this rather than hiding it; that is the point of the tool.
+![14-pattern month-block bootstrap forest plot and Rising Wedge F4.6 momentum-proxy test](docs/assets/honest-finding-f46.png)
 
-## How it works
+- Across **14 patterns × 2 directions × 2 R-configs (56 tests)** replicated on both `1d` and `4h` Binance archives, **0 / 56** cells survive Bonferroni correction *and* prior-return baseline control.
+- **The Rising Wedge illusion (`F4.6`):** Against a standard time-matched shadow baseline, Rising Wedge (Short 2:1, `N=167`) shows an apparent `+0.215R` edge (`95% CI [+0.016, +0.485]`). Once random shadow windows are matched on prior return (`±0.25σ`), the edge collapses to **`+0.021R`** (`[-0.203, +0.291]`).
+- **Built-in skepticism:** GraphFlow reports null sensitivity across 5 independent 20,000-window draws (`K-25`) and flags seed-fragile cells rather than cherry-picking winners.
 
+<details>
+<summary>Preview the interactive <strong>Findings &amp; Elimination Chain</strong> page (<code>/bulgular</code>)</summary>
+
+<br />
+
+![Findings and the elimination chain page in GraphFlow web UI](docs/assets/ui-findings.png)
+
+</details>
+
+---
+
+## How It Works
+
+```mermaid
+flowchart LR
+    Q["Query Input<br/>(Sketch · Preset · Chart Slice)"] --> NORM["Normalize<br/>(256-pt Gaussian · Log · 32-pt z-score)"]
+    NORM --> S1["Stage 1 Cosine<br/>(11.6M → 12.5k mmap dot product)"]
+    S1 --> PNMS["Pre-NMS<br/>(1D IoU 0.70 dedup)"]
+    PNMS --> S2["Stage 2 Hybrid DTW<br/>(Derivative + Raw · Sakoe-Chiba)"]
+    S2 --> THR["Null Threshold<br/>(p01 tail · 20k null draws)"]
+    THR --> FILT["Stability Gates<br/>(Peaks · Trendlines · Two-Regime Pole)"]
+    FILT --> RERANK["K-26 Rerank<br/>(Qetch-PIP Skeleton · Curvature · OHLC Wick)"]
+    RERANK --> OUT["Post-NMS + Triple-Barrier<br/>(Fit-Pattern Cards · Block CI · Baselines)"]
 ```
- drawing / template
-        │   log price → resample to 32 points → z-score
-        ▼
- Stage 1   cosine similarity over all windows (one matrix product)   11.6M → 12,500
- Pre-NMS   1-D IoU 0.70 — collapse overlapping windows
- Stage 2   hybrid DTW (derivative + raw, Sakoe–Chiba band)           → 2,500 scored
- Threshold query-relative null percentile (p01-anchored tail) + sanity cap
- Filters   structural signature (peaks/troughs)      ┐ each applied only when the
-           trend-line envelope (slopes/convergence)  │ query's reading is stable
-           two-regime pole + body envelope (K-22)    ┘
- Rerank    universal Qetch-PIP perceptual alignment + curvature penalty (K-23..K-26)
- Post-NMS  1-D IoU 0.50, max 3 per symbol → independent events
-        │
-        ▼
- fit-pattern candle cards (OHLC wick-clean) + "what happened next": triple-barrier vs. baselines
-```
 
-A warm search over 11.6 million windows takes about **300 ms** on a laptop. There is no Kafka, no Rust, no time-series database — the bottleneck was never the language, it was the data layout.
+A warm query across **11.6 million** historical windows runs in **~300 ms** on a standard laptop. Every filter in the cascade was A/B tested against injected and real-market ground truth before being turned on — and several heuristics were rejected and documented in [the design decisions record](docs/00-tasarim-kararlari.md).
 
-| Benchmark | Result |
+---
+
+## Benchmarks
+
+![GraphFlow K-26 14x14 Canonical Cross-Audit Matrix and Real 4h Top-50 Corpus Accuracy](docs/assets/benchmarks-k26.png)
+
+| Benchmark | K-26 Result |
 |---|---|
-| `formation_audit --cross` (14×14 canonical cross-audit) | **14/14 diagonal · 0 off-diagonal accepts** |
-| `formation_audit --top 12` (real 4h corpus, all 14 formations) | **167/168 (99.4%)** |
-| `formation_audit --top 50` (real 4h corpus, all 14 formations) | **692/700 (98.9%)** |
-| `gt_benchmark --family all` (injected ground truth, all 14 formations) | **89.3% precision · 88% avg recall** (300/336) |
-| `gt_benchmark --family all --real` (real-market background, all 14 formations) | **87.8% precision · 84% avg recall** (295/336) |
-| `gt_benchmark --family all --freehand 8` (2,688 noisy hand drawings) | **85.2% precision · 83% avg recall** (2289/2688) |
+| `formation_audit --cross` *(14×14 independent cross-audit)* | **14 / 14 diagonal · 0 off-diagonal accepts** |
+| `formation_audit --top 12` *(real 4h corpus, all 14 formations)* | **167 / 168 (99.4%)** |
+| `formation_audit --top 50` *(real 4h corpus, all 14 formations)* | **692 / 700 (98.9%)** |
+| `gt_benchmark --family all` *(synthetic injected ground truth)* | **89.3% precision · 88% avg recall** *(300 / 336)* |
+| `gt_benchmark --family all --real` *(real-market background)* | **87.8% precision · 84% avg recall** *(295 / 336)* |
+| `gt_benchmark --family all --freehand 8` *(2,688 jittered hand drawings)* | **85.2% precision · 83% avg recall** *(2,289 / 2,688)* |
 
-## Quick start
+<details>
+<summary>Run the verification &amp; benchmark suite yourself</summary>
 
-**Requirements:** Python 3.11+ (3.12 tested), Node.js 20+, ~3 GB disk for full data (or ~25 MB for the 5-second demo corpus).
+```bash
+.venv/bin/pytest -q                                    # Full unit & invariance suite
+python -m tools.formation_audit --cross                # Audit the structural auditor (no data required)
+python -m tools.gt_benchmark --family all              # Injected ground truth benchmark
+python -m tools.gt_benchmark --family all --real       # Real-market background benchmark
+python -m tools.gt_benchmark --family all --freehand 8 # Simulated noisy hand drawings
+python -m tools.verify_stage1 --timeframe 1d           # Memory-mapped Stage 1 vs brute force
+python -m tools.ci_calibration                         # Empirical 95% block-CI coverage check
+python -m tools.run_outcomes --timeframe 1d            # Regenerate outcome tables (updates engine fingerprint)
+python -m tools.f46_proxy_test                         # Pattern shape vs prior-return proxy test
+```
 
-### Option A — Try in 10 seconds (synthetic demo corpus)
+Measurement JSONs record an engine behavioral fingerprint (`engine/fingerprint.py`); if you modify search parameters without re-running measurements, the **Findings** page automatically flags tables as stale.
+
+</details>
+
+---
+
+## Quick Start
+
+**Requirements:** Python 3.11+ *(3.12 tested)*, Node.js 20+ *(24 tested)*, ~25 MB disk for the demo corpus *(or ~3 GB for the full 11.6M-window archive)*.
+
+### Option A — 10-Second Interactive Demo (Synthetic Corpus)
 
 ```bash
 git clone https://github.com/7mertyavuz/GraphFlow.git
 cd GraphFlow
 
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Generate a 24-symbol 1d + 4h demo corpus with injected formations (~5s)
-python -m tools.generate_demo_corpus --out data/demo
-
-GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000
-cd frontend && npm install && npm run dev   # UI → http://localhost:3000
+make setup       # creates .venv, installs Python & Node dependencies
+make dev-demo    # generates 24-symbol 1d+4h demo corpus (~5s) & launches API (:8000) + UI (:3000)
 ```
 
-Or with Docker (automatically generates the demo corpus if `./data/matrix` is empty):
+Then open **`http://localhost:3000/backtest`**. *(On Windows without `make`: run `python -m tools.generate_demo_corpus --out data/demo`, then start `GRAPHFLOW_DATA_DIR=data/demo uvicorn engine.api.main:app --port 8000` and `cd frontend && npm run dev`.)*
+
+### Option B — One-Command Docker Stack
 
 ```bash
-docker compose up --build                   # API → :8000, UI → :3000
+docker compose up --build   # UI → http://localhost:3000 · API → http://localhost:8000
 ```
 
-### Option B — Full Binance historical corpus (11.6M windows)
+### Option C — Full Binance Historical Corpus (11.6M Windows)
 
 ```bash
-# 1. Python environment
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# 2. Data — free, no API key (Binance public archive, delisted pairs included)
-python -m engine.ingest.download --timeframes 1d 4h
-python -m tools.backfill --timeframe 4h     # complete 4h to the full universe
-
-# 3. Build the search matrices (~2 GB of memory-mapped vectors)
-python -m engine.matrix.build
-
-# 4. Run
-uvicorn engine.api.main:app --port 8000     # API
-cd frontend && npm install && npm run dev   # UI → http://localhost:3000
+make download        # free Binance public archive (no API key; includes delisted pairs)
+make build-matrix    # builds ~2 GB of memory-mapped .npy search vectors
+make dev             # launches FastAPI (:8000) + Next.js (:3000) together
 ```
 
-To try it quickly on a real subset, add `--limit-symbols 50` to the download step. The data directory can live anywhere via `GRAPHFLOW_DATA_DIR`.
+<details>
+<summary>Quick subset &amp; custom data directory options</summary>
 
-## Using it
+- **Test on a real 50-symbol subset:** `python -m engine.ingest.download --timeframes 1d 4h --limit-symbols 50 && make build-matrix`
+- **Relocate storage anywhere:** set `GRAPHFLOW_DATA_DIR=/path/to/data`
+- **Regenerate README graphics:** `make assets` (requires `google-chrome-stable`)
 
-The interface is available in **English and Turkish** — switch with the **EN / TR** toggle in the header (it follows your browser language on first visit).
+</details>
 
-1. **Draw** a shape on the canvas in **Freehand**, **Polyline**, or **Smooth Curve (Catmull-Rom Spline)** mode — or click one of the 6 **Starter Presets** (`W Bottom`, `M Top`, `H&S`, `Cup`, `Triangle`, `Flag`) and drag/right-click vertices to reshape it — with a live preview of detected peaks, troughs, PIP elbows, trendlines, or Legendre parabolic bowl fit + stability badge. You can also open **Library** to pick a formation, open **Chart** to slice a historical segment, click **Find similar** on any result card, or transfer a scarce **Live Radar** sketch directly into the **11.6M Historical Chart Archive** with one click.
-2. Choose the **timeframe** (4 hours / 1 day), **window lengths** (`24 · 40 · 64 · 100` bars), **min. amplitude**, and **tolerance** (Strict · Medium · Flexible). Tolerance is a continuous `p01`-anchored percentile of the query's own null distribution, not a fake "% similarity". Toggle **Fit pattern** vs **Full context** (as well as **Overlay** and **DTW** warp lines) right above the result cards, or click any card to inspect the expanded interactive chart with Triple-Barrier Entry $C_0$, TP, SL, and Exit overlays.
-3. Read **how the engine understood your drawing** above the results. If the reading is marked unstable, the engine tells you it did not narrow results by it — redraw more clearly if it misread you.
-4. In **Backtest**, the **What happened next?** panel shows expectancy in R (the headline metric), win rate next to its theoretical null, the time-matched **Edge** and the momentum-controlled **Momentum-Adjusted Edge** (return-matched shadow baseline) with month-block bootstrap confidence intervals. You can toggle the primary **Baseline** (`Market (Time)` vs `Momentum (F4.6)`) and slice events by causal ($t_0$-only, zero lookahead) **Condition** filters (`All`, `High Volatility`, `Low Vol. Squeeze`, `Strong Breakout Bar`). Below them, a **forward path fan** shows what price did after the matches (median, 25–75% and 10–90% bands, in ATR units, up to the time barrier) drawn on the same axes as the shadow sample's fan. Each match card also shows **that event's own outcome** for the selected configuration and direction (target / stop / time-out, R, exit bar) — or why it was *not counted*. The headline number is exactly the mean of the counted cards.
-5. The **Findings** page lists every test, how many independent null draws each cell survives (a cell significant in only some draws is flagged as a dice roll, not a finding), the stage where each finding was eliminated, and which engine version produced the numbers.
+---
 
-## Verifying the engine yourself
+## Using GraphFlow
 
-GraphFlow ships the tools that were used to validate it:
+1. **Query** — Switch **EN / TR** anytime in the header. Draw in **Freehand**, **Polyline**, or **Smooth Curve**, click a starter preset (`W`, `M`, `H&S`, `Cup`, `Triangle`, `Flag`) and drag/right-click handles, pick from the 14-template **Library**, or slice any real coin window in **Chart**.
+2. **Search & Frame** — Choose timeframe (`4h` / `1d`), window lengths (`24 · 40 · 64 · 100`), min amplitude, and continuous `p01`-anchored tolerance (`Strict · Medium · Flexible`). Switch between **Fit pattern** and **Full context**, toggle **Overlay** or **DTW** warp curves, or click any card to inspect full Triple-Barrier overlays (`C₀`, `TP`, `SL`, exit bar).
+3. **Evaluate Honestly** — In **Backtest**, compare **Expectancy (R)** and **Edge** across **Market (Time)** vs **Momentum (F4.6)** baselines, filter causally by entry regime (`High Volatility`, `Low Vol. Squeeze`, `Strong Breakout Bar`), and verify seed stability on **Findings**.
 
-```bash
-pytest -q                                              # 300+ tests
-python -m tools.formation_audit --cross                # audit the auditor (no data needed)
-python -m tools.gt_benchmark --family all              # ground truth: injected patterns
-python -m tools.gt_benchmark --family all --real       # …on a real-market background
-python -m tools.gt_benchmark --family all --freehand 6 # …with simulated hand drawings
-python -m tools.verify_stage1 --timeframe 1d           # matrix vs. brute force
-python -m tools.ci_calibration                         # does a 95% CI cover 95%?
-python -m tools.run_outcomes --timeframe 1d            # regenerate the statistics
-python -m tools.f46_proxy_test                         # shape or momentum proxy?
-```
+---
 
-Measurement files record which engine produced them (a behavioral fingerprint). If you change the engine and do not re-run the measurements, the Findings page says so.
+## Project Layout & REST API
 
-## Project layout
+<details>
+<summary>Repository layout</summary>
 
-```
+```text
 engine/
-  ingest/      Binance downloader (REST + archive), resumable, rate-limited
-  normalize/   log → resample → z-score, ATR, amplitude
-  matrix/      memory-mapped window vectors, liquidity filter
-  search/      cosine stage, DTW/DDTW, NMS, structural & envelope filters
-  outcome/     triple-barrier, shadow baseline, block bootstrap
-  api/         FastAPI: search, stats, charts, findings, freshness
-  templates/   14 canonical formations as 32-point vectors
-frontend/      Next.js 16 · Tailwind v4 · TanStack Query · Lightweight Charts
-tools/         validation and measurement tools (see above)
-tests/         pytest suite, including real-corpus sentinels
-notebooks/     original validation notebooks and figures
-docs/          design decisions and measurement reports
+  ingest/        Resumable Binance downloader (archive + REST), continuity checks
+  normalize/     Log price, 256-pt Gaussian smoothing, 32-pt z-score, ATR, amplitude
+  matrix/        Memory-mapped .npy window vectors, liquidity & twin-asset filters
+  search/        Cosine Stage 1, Hybrid DTW/DDTW Stage 2, 1D NMS, K-20..K-26 perceptual constraints
+  outcome/       Triple-barrier evaluator, time & return-matched shadow pools, block bootstrap
+  api/           FastAPI routes: /api/search, /api/chart, /api/templates, /api/findings, /api/health
+  templates/     14 canonical pattern definitions (JSON)
+frontend/        Next.js 16 · React 19 · Tailwind v4 · TanStack Query v5 · Lightweight Charts v5
+tools/           Audit, benchmark, calibration, demo generator & README asset tools
+tests/           Pytest suite covering search invariants, outcomes, API contracts & real-corpus sentinels
+notebooks/       Original exploratory validation notebooks and figures
+docs/
+  assets/        Reproducible README showcase charts & UI screenshots (tools/generate_readme_assets.py)
+  *.md           Design decisions (K-01 … K-26), architecture, and measurement reports
 ```
+
+</details>
+
+<details>
+<summary>Key REST API endpoints (auto-synced to <code>frontend/openapi.json</code>)</summary>
+
+| Method & Path | Description |
+|---|---|
+| `POST /api/search` | Search by freehand `[x, y]` points, `template_id`, or historical chart window |
+| `GET /api/search/{search_id}` | Paginated matches cached per query session |
+| `GET /api/search/{search_id}/stats` | Triple-barrier outcomes, shadow baseline edge, forward fan & causal condition slicing |
+| `GET /api/chart/{symbol}` | Context OHLCV candles, highlight span & server-mapped Blueprint / Warped overlays |
+| `GET /api/templates` | 14 canonical formations with descriptions and icons |
+| `GET /api/symbols` | Available symbols for the requested timeframe |
+| `GET /api/findings` | 56-cell elimination chain, 5-seed null stability table & engine fingerprint status |
+| `GET /api/health` | Data availability, store freshness & server readiness |
+
+</details>
+
+---
 
 ## Documentation
 
-The design record and the measurement reports are written in **Turkish**; see [docs/README.md](docs/README.md) for an English index.
+The full engineering decision log and measurement reports are indexed in **[docs/README.md](docs/README.md)** *(reports are written in Turkish with English summaries)*:
 
-- [Design decisions](docs/00-tasarim-kararlari.md) — 26 architectural decisions (`K-01 … K-26`), each with the alternatives that were rejected and why
-- [Architecture](docs/01-mimari.md) — data layer, algorithms, API, performance budget
-- Measurement reports — validation, outcome statistics, proxy test, timeframe replication, formation audit
+- **[Design Decisions (`docs/00-tasarim-kararlari.md`)](docs/00-tasarim-kararlari.md)** — 26 architectural decisions (`K-01 … K-26`), alternatives rejected, and empirical justification
+- **[Architecture (`docs/01-mimari.md`)](docs/01-mimari.md)** — Data layout, normalization math, cascade stages, API contracts, and latency budgets
+- **Measurement Reports (`docs/03 … docs/13`)** — Threshold calibration, survivorship & twin filters, month-block bootstrap calibration, F4.6 momentum proxy proof, timeframe cross-check, and null sensitivity
 
-## Contributing
+---
 
-Contributions are welcome. GraphFlow has a few non-negotiable correctness rules (no lookahead, independent samples, baselines for every rate, replication across timeframes) — please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+## Contributing & License
 
-## Tech stack
+Contributions are welcome — please read **[CONTRIBUTING.md](CONTRIBUTING.md)** first for GraphFlow's non-negotiable scientific invariants (no lookahead bias, independent forward events, baseline-paired rates, and cross-timeframe replication).
 
-**Engine:** Python · NumPy · pandas · PyArrow · FastAPI
-**Data:** Binance public klines · Parquet · `.npy` memory-mapped matrices
-**Frontend:** Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query · TradingView Lightweight Charts · plain HTML5 Canvas
+**Tech Stack:** Python · NumPy · pandas · PyArrow · FastAPI · Next.js 16 · React 19 · Tailwind CSS v4 · TanStack Query v5 · TradingView Lightweight Charts v5 · HTML5 Canvas
 
-## License
+Licensed under **[MIT](LICENSE)**. If you reference GraphFlow in research, see [CITATION.cff](CITATION.cff).
 
-[MIT](LICENSE)
-
-## Disclaimer
-
-GraphFlow is a **research tool**, not investment advice. Every statistic it produces describes past price behavior and is not an indication of future performance.
+> **Disclaimer:** GraphFlow is a **quantitative research tool**, not financial or investment advice. All outputs measure past historical price behavior and make no guarantee about future returns.

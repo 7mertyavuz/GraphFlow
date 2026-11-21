@@ -231,7 +231,7 @@ def run_events(
     if (
         with_return_matched
         and not return_matched_shadow
-        and any(pool.prior_return is not None for pool in pools.values())
+        and any(pool.log_return.size > 0 and bool(np.any(pool.log_return != 0.0)) for pool in pools.values())
     ):
         rm_rng = np.random.default_rng(20260732)
         rm_raw, _ = sample_shadow(
